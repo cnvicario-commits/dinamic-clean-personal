@@ -1,2 +1,2 @@
-# dinaic-clean-personal
+# dinamic-clean-personal
 Destino de personal - ausentismo
