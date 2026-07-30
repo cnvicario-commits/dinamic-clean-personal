@@ -25,6 +25,7 @@ export default async function EmpleadosPage() {
                 <th className="px-4 py-3 font-medium">Nombre y apellido</th>
                 <th className="px-4 py-3 font-medium">CUIL</th>
                 <th className="px-4 py-3 font-medium">Fecha de ingreso</th>
+                <th className="px-4 py-3 font-medium">Contrato</th>
               </tr>
             </thead>
             <tbody>
@@ -33,6 +34,11 @@ export default async function EmpleadosPage() {
                   <td className="px-4 py-3 text-slate-800">{emp.nombre_apellido}</td>
                   <td className="px-4 py-3 text-slate-600">{emp.cuil}</td>
                   <td className="px-4 py-3 text-slate-600">{emp.fecha_ingreso ?? '-'}</td>
+                  <td className="px-4 py-3">
+                    <span className="inline-block px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                      {emp.horas_contrato} hs
+                    </span>
+                  </td>
                 </tr>
               ))}
             </tbody>

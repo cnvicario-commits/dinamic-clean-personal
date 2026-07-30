@@ -1,5 +1,5 @@
 import { createClient } from '@/utils/supabase/server'
-import ClientesConteo from '@/components/ClientesConteo'
+import ClientesComparacion from '@/components/ClientesComparacion'
 
 export default async function DashboardPage({
   searchParams,
@@ -18,21 +18,38 @@ export default async function DashboardPage({
   const ultimoDia = new Date(anio, mesNum, 0).getDate()
   const fechaFin = `${mes}-${String(ultimoDia).padStart(2, '0')}`
 
+  // Clientes con su presupuesto
+  const { data: clientes } = await supabase
+    .from('clientes')
+    .select('id, nombre, presupuesto_4hs, presupuesto_8hs')
+
+  // Asignaciones activas, con horas de contrato del empleado
   const { data: asignacionesActivas } = await supabase
     .from('asignaciones')
-    .select('cliente_id, clientes(nombre)')
+    .select('cliente_id, empleados(horas_contrato)')
     .is('fecha_hasta', null)
 
-  const conteoPorCliente: Record<string, { nombre: string; cantidad: number }> = {}
+  const realPorCliente: Record<string, { real4: number; real8: number }> = {}
   asignacionesActivas?.forEach((a: any) => {
-    const nombreCliente = a.clientes?.nombre || 'Sin nombre'
-    if (!conteoPorCliente[a.cliente_id]) {
-      conteoPorCliente[a.cliente_id] = { nombre: nombreCliente, cantidad: 0 }
+    if (!realPorCliente[a.cliente_id]) {
+      realPorCliente[a.cliente_id] = { real4: 0, real8: 0 }
     }
-    conteoPorCliente[a.cliente_id].cantidad++
+    if (a.empleados?.horas_contrato === 4) {
+      realPorCliente[a.cliente_id].real4++
+    } else if (a.empleados?.horas_contrato === 8) {
+      realPorCliente[a.cliente_id].real8++
+    }
   })
-  const clientesConConteo = Object.values(conteoPorCliente).sort((a, b) => b.cantidad - a.cantidad)
 
+  const comparacion = (clientes || []).map((c) => ({
+    nombre: c.nombre,
+    presupuesto4: c.presupuesto_4hs || 0,
+    presupuesto8: c.presupuesto_8hs || 0,
+    real4: realPorCliente[c.id]?.real4 || 0,
+    real8: realPorCliente[c.id]?.real8 || 0,
+  }))
+
+  // Ausencias del mes seleccionado
   const { data: ausenciasMes } = await supabase
     .from('ausencias')
     .select('empleado_id, justificada, fecha, empleados(nombre_apellido)')
@@ -63,7 +80,7 @@ export default async function DashboardPage({
     : '0'
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-10">
+    <div className="max-w-6xl mx-auto px-6 py-10">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
         <form className="flex items-center gap-2">
@@ -94,33 +111,31 @@ export default async function DashboardPage({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
-            Ranking de ausencias (este mes)
-          </h2>
-          <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
-            <table className="w-full text-sm">
-              <tbody>
-                {ranking.map((r, i) => (
-                  <tr key={i} className="border-b border-slate-100 last:border-0">
-                    <td className="px-4 py-2 text-slate-800">{r.nombre}</td>
-                    <td className="px-4 py-2 text-right font-medium text-slate-700">{r.cantidad}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {ranking.length === 0 && (
-              <p className="text-slate-500 text-sm p-4">Sin ausencias registradas este mes.</p>
-            )}
-          </div>
-        </div>
+      <div className="mb-8">
+        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
+          Presupuesto vs. real por cliente
+        </h2>
+        <ClientesComparacion datos={comparacion} />
+      </div>
 
-        <div>
-          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
-            Empleados asignados por cliente
-          </h2>
-          <ClientesConteo datos={clientesConConteo} />
+      <div>
+        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
+          Ranking de ausencias (este mes)
+        </h2>
+        <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden max-w-md">
+          <table className="w-full text-sm">
+            <tbody>
+              {ranking.map((r, i) => (
+                <tr key={i} className="border-b border-slate-100 last:border-0">
+                  <td className="px-4 py-2 text-slate-800">{r.nombre}</td>
+                  <td className="px-4 py-2 text-right font-medium text-slate-700">{r.cantidad}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {ranking.length === 0 && (
+            <p className="text-slate-500 text-sm p-4">Sin ausencias registradas este mes.</p>
+          )}
         </div>
       </div>
     </div>
