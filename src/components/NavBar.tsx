@@ -6,6 +6,9 @@ export default function NavBar() {
       <Link href="/" className="font-bold text-teal-400 mr-2">
         Dinamic Clean
       </Link>
+<Link href="/dashboard" className="text-sm text-slate-300 hover:text-white transition-colors">
+        Dashboard
+      </Link>
       <Link href="/clientes" className="text-sm text-slate-300 hover:text-white transition-colors">
         Clientes
       </Link>
