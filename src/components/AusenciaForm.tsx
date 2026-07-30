@@ -6,9 +6,17 @@ import { createClient } from '@/utils/supabase/client'
 
 type Empleado = { id: string; nombre_apellido: string }
 
+function fechaHoy() {
+  const hoy = new Date()
+  const anio = hoy.getFullYear()
+  const mes = String(hoy.getMonth() + 1).padStart(2, '0')
+  const dia = String(hoy.getDate()).padStart(2, '0')
+  return `${anio}-${mes}-${dia}`
+}
+
 export default function AusenciaForm({ empleados }: { empleados: Empleado[] }) {
   const [empleadoId, setEmpleadoId] = useState('')
-  const [fecha, setFecha] = useState('')
+  const [fecha, setFecha] = useState(fechaHoy())
   const [justificada, setJustificada] = useState('true')
   const [observaciones, setObservaciones] = useState('')
   const [archivo, setArchivo] = useState<File | null>(null)
@@ -62,7 +70,7 @@ export default function AusenciaForm({ empleados }: { empleados: Empleado[] }) {
     }
 
     setEmpleadoId('')
-    setFecha('')
+    setFecha(fechaHoy())
     setJustificada('true')
     setObservaciones('')
     setArchivo(null)
