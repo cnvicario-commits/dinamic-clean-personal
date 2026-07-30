@@ -77,7 +77,7 @@ export default function AusenciaForm({ empleados }: { empleados: Empleado[] }) {
     router.refresh()
   }
 
-  const inputStyle = "px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+  const inputStyle = "px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
@@ -95,11 +95,11 @@ export default function AusenciaForm({ empleados }: { empleados: Empleado[] }) {
         <option value="false">Injustificada</option>
       </select>
 
-      <textarea placeholder="Observaciones (opcional)" value={observaciones} onChange={(e) => setObservaciones(e.target.value)} className={inputStyle} />
+      <textarea placeholder="Observaciones (opcional)" value={observaciones} onChange={(e) => setObservaciones(e.target.value)} className={`${inputStyle} placeholder:text-slate-400`} />
 
       <div>
-        <label className="text-sm text-slate-600 block mb-1">Justificación (opcional, foto o PDF)</label>
-        <input type="file" onChange={(e) => setArchivo(e.target.files?.[0] || null)} className="text-sm" />
+        <label className="text-sm text-slate-700 block mb-1">Justificación (opcional, foto o PDF)</label>
+        <input type="file" onChange={(e) => setArchivo(e.target.files?.[0] || null)} className="text-sm text-slate-700" />
       </div>
 
       <button type="submit" disabled={loading} className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 self-start">

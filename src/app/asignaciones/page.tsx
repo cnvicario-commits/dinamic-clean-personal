@@ -9,14 +9,14 @@ export default async function AsignacionesPage() {
   const { data: asignaciones } = await supabase.from('asignaciones').select('id, fecha_desde, fecha_hasta, empleados(nombre_apellido), clientes(nombre)').order('fecha_desde', { ascending: false })
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-10">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
       <h1 className="text-2xl font-bold text-slate-900 mb-6">Asignaciones</h1>
       <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-5 mb-8">
         <AsignacionForm empleados={empleados || []} clientes={clientes || []} />
       </div>
       <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Listado ({asignaciones?.length ?? 0})</h2>
-      <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto">
+        <table className="w-full text-sm min-w-[640px]">
           <thead>
             <tr className="bg-slate-50 text-left text-slate-500 border-b border-slate-200">
               <th className="px-4 py-3 font-medium">Empleado</th>
