@@ -10,7 +10,7 @@ export default function NavBar() {
     { href: '/dashboard', label: 'Dashboard' },
     { href: '/clientes', label: 'Clientes' },
     { href: '/empleados', label: 'Empleados' },
-    { href: '/ausencias', label: 'Ausencias' },
+    { href: '/ausencias', label: 'Novedades' },
     { href: '/asignaciones', label: 'Asignaciones' },
   ]
 
@@ -21,7 +21,6 @@ export default function NavBar() {
           Dinamic Clean
         </Link>
 
-        {/* Enlaces en pantallas grandes */}
         <div className="hidden md:flex items-center gap-6">
           {enlaces.map((link) => (
             <Link
@@ -38,7 +37,6 @@ export default function NavBar() {
           <LogoutButton />
         </div>
 
-        {/* Botón hamburguesa, solo en celular */}
         <button
           onClick={() => setAbierto(!abierto)}
           className="md:hidden p-2 text-slate-100"
@@ -56,7 +54,6 @@ export default function NavBar() {
         </button>
       </div>
 
-      {/* Menú desplegable en celular */}
       {abierto && (
         <div className="md:hidden flex flex-col px-4 pb-4 gap-3 border-t border-slate-800 pt-3">
           {enlaces.map((link) => (
