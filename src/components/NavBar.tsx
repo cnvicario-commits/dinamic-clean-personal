@@ -15,6 +15,9 @@ export default function NavBar() {
       <Link href="/ausencias" className="text-sm text-slate-300 hover:text-white transition-colors">
         Ausencias
       </Link>
+<Link href="/asignaciones" className="text-sm text-slate-300 hover:text-white transition-colors">
+        Asignaciones
+      </Link>
     </nav>
   )
 }
