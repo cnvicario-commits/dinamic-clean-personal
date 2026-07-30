@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import AusenciaForm from '@/components/AusenciaForm'
+import ExportarAusencias from '@/components/ExportarAusencias'
 
 export default async function AusenciasPage() {
   const supabase = await createClient()
@@ -22,9 +23,13 @@ export default async function AusenciasPage() {
         <AusenciaForm empleados={empleados || []} />
       </div>
 
-      <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
-        Listado ({ausencias?.length ?? 0})
-      </h2>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
+          Listado ({ausencias?.length ?? 0})
+        </h2>
+        <ExportarAusencias ausencias={(ausencias || []) as any} />
+      </div>
+
       <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
         <table className="w-full text-sm">
           <thead>
@@ -42,22 +47,14 @@ export default async function AusenciasPage() {
                 <td className="px-4 py-3 text-slate-800">{a.empleados?.nombre_apellido}</td>
                 <td className="px-4 py-3 text-slate-600">{a.fecha}</td>
                 <td className="px-4 py-3">
-                  <span
-                    className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
-                      a.justificada
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : 'bg-rose-100 text-rose-700'
-                    }`}
-                  >
+                  <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${a.justificada ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
                     {a.justificada ? 'Justificada' : 'Injustificada'}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-slate-600">{a.observaciones || '-'}</td>
                 <td className="px-4 py-3">
                   {a.archivo_url ? (
-                    <a href={a.archivo_url} target="_blank" className="text-teal-600 hover:underline">
-                      Ver
-                    </a>
+                    <a href={a.archivo_url} target="_blank" className="text-teal-600 hover:underline">Ver</a>
                   ) : (
                     '-'
                   )}
