@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import AsignacionForm from '@/components/AsignacionForm'
+import CerrarAsignacionBoton from '@/components/CerrarAsignacionBoton'
 
 export default async function AsignacionesPage() {
   const supabase = await createClient()
@@ -22,6 +23,7 @@ export default async function AsignacionesPage() {
               <th className="px-4 py-3 font-medium">Cliente</th>
               <th className="px-4 py-3 font-medium">Desde</th>
               <th className="px-4 py-3 font-medium">Hasta</th>
+              <th className="px-4 py-3 font-medium"></th>
             </tr>
           </thead>
           <tbody>
@@ -31,6 +33,9 @@ export default async function AsignacionesPage() {
                 <td className="px-4 py-3 text-slate-800">{a.clientes?.nombre}</td>
                 <td className="px-4 py-3 text-slate-600">{a.fecha_desde}</td>
                 <td className="px-4 py-3 text-slate-600">{a.fecha_hasta ?? 'Actual'}</td>
+                <td className="px-4 py-3">
+                  {!a.fecha_hasta && <CerrarAsignacionBoton id={a.id} />}
+                </td>
               </tr>
             ))}
           </tbody>
