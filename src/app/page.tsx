@@ -17,13 +17,22 @@ export default async function Home() {
     .single()
 
   return (
-    <div style={{ padding: '2rem' }}>
-      <h1 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>
-        Bienvenido a Dinamic Clean
-      </h1>
-      <p style={{ marginBottom: '0.5rem' }}>Email: {user.email}</p>
-      <p style={{ marginBottom: '1.5rem' }}>Rol: {perfil?.rol ?? 'sin asignar'}</p>
-      <LogoutButton />
+    <div className="max-w-2xl mx-auto px-6 py-10">
+      <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-6">
+        <h1 className="text-2xl font-bold text-slate-900 mb-4">
+          Bienvenido a Dinamic Clean
+        </h1>
+        <p className="text-slate-600 mb-1">
+          <span className="font-medium text-slate-800">Email:</span> {user.email}
+        </p>
+        <p className="text-slate-600 mb-6">
+          <span className="font-medium text-slate-800">Rol:</span>{' '}
+          <span className="inline-block px-2 py-0.5 bg-teal-100 text-teal-700 rounded-full text-xs font-medium uppercase">
+            {perfil?.rol ?? 'sin asignar'}
+          </span>
+        </p>
+        <LogoutButton />
+      </div>
     </div>
   )
 }

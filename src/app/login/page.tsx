@@ -17,10 +17,7 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
 
     setLoading(false)
 
@@ -34,37 +31,38 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center' }}>
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
       <form
         onSubmit={handleLogin}
-        style={{ width: '100%', maxWidth: '360px', padding: '2rem', border: '1px solid #ddd', borderRadius: '8px' }}
+        className="w-full max-w-sm bg-white border border-slate-200 rounded-xl shadow-sm p-8"
       >
-        <h1 style={{ marginBottom: '1.5rem', fontSize: '1.5rem' }}>Dinamic Clean</h1>
+        <h1 className="text-xl font-bold text-slate-900 mb-1">Dinamic Clean</h1>
+        <p className="text-sm text-slate-500 mb-6">Ingresá con tu usuario</p>
 
-        <label style={{ display: 'block', marginBottom: '0.5rem' }}>Email</label>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
         <input
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          style={{ width: '100%', padding: '0.5rem', marginBottom: '1rem', border: '1px solid #ccc', borderRadius: '4px' }}
+          className="w-full px-3 py-2 mb-4 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
         />
 
-        <label style={{ display: 'block', marginBottom: '0.5rem' }}>Contraseña</label>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Contraseña</label>
         <input
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
-          style={{ width: '100%', padding: '0.5rem', marginBottom: '1rem', border: '1px solid #ccc', borderRadius: '4px' }}
+          className="w-full px-3 py-2 mb-4 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
         />
 
-        {error && <p style={{ color: 'red', marginBottom: '1rem' }}>{error}</p>}
+        {error && <p className="text-rose-600 text-sm mb-4">{error}</p>}
 
         <button
           type="submit"
           disabled={loading}
-          style={{ width: '100%', padding: '0.75rem', background: '#000', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+          className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
         >
           {loading ? 'Entrando...' : 'Entrar'}
         </button>

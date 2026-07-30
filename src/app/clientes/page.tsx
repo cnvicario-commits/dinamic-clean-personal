@@ -9,24 +9,29 @@ export default async function ClientesPage() {
     .order('nombre')
 
   return (
-    <div style={{ padding: '2rem', maxWidth: '600px' }}>
-      <h1 style={{ fontSize: '1.5rem', marginBottom: '1.5rem' }}>Clientes</h1>
+    <div className="max-w-2xl mx-auto px-6 py-10">
+      <h1 className="text-2xl font-bold text-slate-900 mb-6">Clientes</h1>
 
       <ClienteForm />
 
-      <h2 style={{ fontSize: '1.1rem', margin: '2rem 0 1rem' }}>Listado</h2>
-      <ul style={{ listStyle: 'none', padding: 0 }}>
-        {clientes?.map((cliente) => (
-          <li
-            key={cliente.id}
-            style={{ padding: '0.75rem', border: '1px solid #eee', borderRadius: '4px', marginBottom: '0.5rem' }}
-          >
-            {cliente.nombre}
-          </li>
-        ))}
-      </ul>
-
-      {clientes?.length === 0 && <p>No hay clientes cargados todavía.</p>}
+      <div className="mt-8">
+        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
+          Listado ({clientes?.length ?? 0})
+        </h2>
+        <ul className="space-y-2">
+          {clientes?.map((cliente) => (
+            <li
+              key={cliente.id}
+              className="px-4 py-3 bg-white border border-slate-200 rounded-lg text-slate-800 shadow-sm"
+            >
+              {cliente.nombre}
+            </li>
+          ))}
+        </ul>
+        {clientes?.length === 0 && (
+          <p className="text-slate-500 text-sm">No hay clientes cargados todavía.</p>
+        )}
+      </div>
     </div>
   )
 }

@@ -69,32 +69,36 @@ export default function AusenciaForm({ empleados }: { empleados: Empleado[] }) {
     router.refresh()
   }
 
+  const inputStyle = "px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+
   return (
-    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1rem' }}>
-      <select value={empleadoId} onChange={(e) => setEmpleadoId(e.target.value)} required style={{ padding: '0.5rem', border: '1px solid #ccc', borderRadius: '4px' }}>
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+      <select value={empleadoId} onChange={(e) => setEmpleadoId(e.target.value)} required className={inputStyle}>
         <option value="">Seleccionar empleado</option>
         {empleados.map((emp) => (
           <option key={emp.id} value={emp.id}>{emp.nombre_apellido}</option>
         ))}
       </select>
 
-      <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required style={{ padding: '0.5rem', border: '1px solid #ccc', borderRadius: '4px' }} />
+      <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required className={inputStyle} />
 
-      <select value={justificada} onChange={(e) => setJustificada(e.target.value)} style={{ padding: '0.5rem', border: '1px solid #ccc', borderRadius: '4px' }}>
+      <select value={justificada} onChange={(e) => setJustificada(e.target.value)} className={inputStyle}>
         <option value="true">Justificada</option>
         <option value="false">Injustificada</option>
       </select>
 
-      <textarea placeholder="Observaciones (opcional)" value={observaciones} onChange={(e) => setObservaciones(e.target.value)} style={{ padding: '0.5rem', border: '1px solid #ccc', borderRadius: '4px' }} />
+      <textarea placeholder="Observaciones (opcional)" value={observaciones} onChange={(e) => setObservaciones(e.target.value)} className={inputStyle} />
 
-      <label style={{ fontSize: '0.9rem' }}>Justificación (opcional, foto o PDF)</label>
-      <input type="file" onChange={(e) => setArchivo(e.target.files?.[0] || null)} />
+      <div>
+        <label className="text-sm text-slate-600 block mb-1">Justificación (opcional, foto o PDF)</label>
+        <input type="file" onChange={(e) => setArchivo(e.target.files?.[0] || null)} className="text-sm" />
+      </div>
 
-      <button type="submit" disabled={loading} style={{ padding: '0.6rem 1rem', background: '#000', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+      <button type="submit" disabled={loading} className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 self-start">
         {loading ? 'Guardando...' : 'Registrar ausencia'}
       </button>
 
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+      {error && <p className="text-rose-600 text-sm">{error}</p>}
     </form>
   )
 }

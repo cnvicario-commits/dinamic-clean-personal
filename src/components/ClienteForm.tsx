@@ -15,38 +15,23 @@ export default function ClienteForm() {
     e.preventDefault()
     setError('')
     setLoading(true)
-
     const { error } = await supabase.from('clientes').insert({ nombre })
-
     setLoading(false)
-
     if (error) {
       setError('Error al guardar: ' + error.message)
       return
     }
-
     setNombre('')
     router.refresh()
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-      <input
-        type="text"
-        placeholder="Nombre del cliente"
-        value={nombre}
-        onChange={(e) => setNombre(e.target.value)}
-        required
-        style={{ flex: 1, padding: '0.5rem', border: '1px solid #ccc', borderRadius: '4px' }}
-      />
-      <button
-        type="submit"
-        disabled={loading}
-        style={{ padding: '0.5rem 1rem', background: '#000', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-      >
+    <form onSubmit={handleSubmit} className="flex gap-2">
+      <input type="text" placeholder="Nombre del cliente" value={nombre} onChange={(e) => setNombre(e.target.value)} required className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+      <button type="submit" disabled={loading} className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50">
         {loading ? 'Guardando...' : 'Agregar'}
       </button>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+      {error && <p className="text-rose-600 text-sm">{error}</p>}
     </form>
   )
 }
