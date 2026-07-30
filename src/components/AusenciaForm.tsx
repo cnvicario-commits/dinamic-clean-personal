@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 
 type Empleado = { id: string; nombre_apellido: string }
+type Cliente = { id: string; nombre: string }
+type Asignacion = { empleado_id: string; cliente_id: string }
 
 function fechaHoy() {
   const hoy = new Date()
@@ -13,10 +15,23 @@ function fechaHoy() {
   return `${anio}-${mes}-${dia}`
 }
 
-export default function AusenciaForm({ empleados }: { empleados: Empleado[] }) {
+export default function AusenciaForm({
+  empleados,
+  clientes,
+  asignaciones,
+}: {
+  empleados: Empleado[]
+  clientes: Cliente[]
+  asignaciones: Asignacion[]
+}) {
+  const [clienteId, setClienteId] = useState('')
+  const [busquedaCliente, setBusquedaCliente] = useState('')
+  const [mostrarListaCliente, setMostrarListaCliente] = useState(false)
+
   const [empleadoId, setEmpleadoId] = useState('')
   const [busqueda, setBusqueda] = useState('')
   const [mostrarLista, setMostrarLista] = useState(false)
+
   const [fecha, setFecha] = useState(fechaHoy())
   const [justificada, setJustificada] = useState('true')
   const [observaciones, setObservaciones] = useState('')
@@ -25,11 +40,16 @@ export default function AusenciaForm({ empleados }: { empleados: Empleado[] }) {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const supabase = createClient()
-  const contenedorRef = useRef<HTMLDivElement>(null)
+
+  const contenedorClienteRef = useRef<HTMLDivElement>(null)
+  const contenedorEmpleadoRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     function handleClickFuera(e: MouseEvent) {
-      if (contenedorRef.current && !contenedorRef.current.contains(e.target as Node)) {
+      if (contenedorClienteRef.current && !contenedorClienteRef.current.contains(e.target as Node)) {
+        setMostrarListaCliente(false)
+      }
+      if (contenedorEmpleadoRef.current && !contenedorEmpleadoRef.current.contains(e.target as Node)) {
         setMostrarLista(false)
       }
     }
@@ -37,11 +57,36 @@ export default function AusenciaForm({ empleados }: { empleados: Empleado[] }) {
     return () => document.removeEventListener('mousedown', handleClickFuera)
   }, [])
 
-  const empleadosFiltrados = busqueda.trim() === ''
-    ? empleados
-    : empleados.filter((emp) =>
-        emp.nombre_apellido.toLowerCase().includes(busqueda.toLowerCase())
+  const clientesFiltrados = busquedaCliente.trim() === ''
+    ? clientes
+    : clientes.filter((c) => c.nombre.toLowerCase().includes(busquedaCliente.toLowerCase()))
+
+  // Si hay cliente elegido, solo se muestran sus empleados asignados. Si no, se muestran todos.
+  const empleadosBase = clienteId
+    ? empleados.filter((emp) =>
+        asignaciones.some((a) => a.cliente_id === clienteId && a.empleado_id === emp.id)
       )
+    : empleados
+
+  const empleadosFiltrados = busqueda.trim() === ''
+    ? empleadosBase
+    : empleadosBase.filter((emp) => emp.nombre_apellido.toLowerCase().includes(busqueda.toLowerCase()))
+
+  function seleccionarCliente(c: Cliente) {
+    setClienteId(c.id)
+    setBusquedaCliente(c.nombre)
+    setMostrarListaCliente(false)
+    // Si el empleado elegido no pertenece a este cliente, se limpia
+    if (empleadoId && !asignaciones.some((a) => a.cliente_id === c.id && a.empleado_id === empleadoId)) {
+      setEmpleadoId('')
+      setBusqueda('')
+    }
+  }
+
+  function limpiarCliente() {
+    setClienteId('')
+    setBusquedaCliente('')
+  }
 
   function seleccionarEmpleado(emp: Empleado) {
     setEmpleadoId(emp.id)
@@ -102,11 +147,59 @@ export default function AusenciaForm({ empleados }: { empleados: Empleado[] }) {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-      <div ref={contenedorRef} className="relative">
+      {/* Buscador de cliente (opcional) */}
+      <div ref={contenedorClienteRef} className="relative">
+        <label className="text-sm text-slate-700 block mb-1">Cliente (opcional, para filtrar empleados)</label>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            placeholder="Escribí el nombre del cliente..."
+            value={busquedaCliente}
+            onChange={(e) => {
+              setBusquedaCliente(e.target.value)
+              setClienteId('')
+              setMostrarListaCliente(true)
+            }}
+            onFocus={() => setMostrarListaCliente(true)}
+            className={inputStyle}
+            autoComplete="off"
+          />
+          {clienteId && (
+            <button
+              type="button"
+              onClick={limpiarCliente}
+              className="px-3 py-3 text-sm text-slate-500 border border-slate-300 rounded-lg hover:bg-slate-50"
+            >
+              Quitar
+            </button>
+          )}
+        </div>
+        {mostrarListaCliente && (
+          <div className="absolute z-20 mt-1 w-full max-h-60 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg">
+            {clientesFiltrados.length === 0 ? (
+              <p className="px-3 py-3 text-sm text-slate-400">Sin resultados</p>
+            ) : (
+              clientesFiltrados.map((c) => (
+                <button
+                  type="button"
+                  key={c.id}
+                  onClick={() => seleccionarCliente(c)}
+                  className="w-full text-left px-3 py-3 text-sm text-slate-800 hover:bg-teal-50 active:bg-teal-100 border-b border-slate-100 last:border-0"
+                >
+                  {c.nombre}
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Buscador de empleado */}
+      <div ref={contenedorEmpleadoRef} className="relative">
         <label className="text-sm text-slate-700 block mb-1">Empleado</label>
         <input
           type="text"
-          placeholder="Escribí el nombre del empleado..."
+          placeholder={clienteId ? "Escribí el nombre (empleados de este cliente)..." : "Escribí el nombre del empleado..."}
           value={busqueda}
           onChange={(e) => {
             setBusqueda(e.target.value)
@@ -120,7 +213,9 @@ export default function AusenciaForm({ empleados }: { empleados: Empleado[] }) {
         {mostrarLista && (
           <div className="absolute z-10 mt-1 w-full max-h-60 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg">
             {empleadosFiltrados.length === 0 ? (
-              <p className="px-3 py-3 text-sm text-slate-400">Sin resultados</p>
+              <p className="px-3 py-3 text-sm text-slate-400">
+                {clienteId ? 'Este cliente no tiene empleados asignados.' : 'Sin resultados'}
+              </p>
             ) : (
               empleadosFiltrados.map((emp) => (
                 <button

@@ -10,6 +10,16 @@ export default async function AusenciasPage() {
     .select('id, nombre_apellido')
     .order('nombre_apellido')
 
+  const { data: clientes } = await supabase
+    .from('clientes')
+    .select('id, nombre')
+    .order('nombre')
+
+  const { data: asignaciones } = await supabase
+    .from('asignaciones')
+    .select('empleado_id, cliente_id')
+    .is('fecha_hasta', null)
+
   const { data: ausencias } = await supabase
     .from('ausencias')
     .select('id, fecha, justificada, observaciones, archivo_url, empleados(nombre_apellido)')
@@ -17,19 +27,20 @@ export default async function AusenciasPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
-      <h1 className="text-2xl font-bold text-slate-900 mb-6">Ausencias</h1>
-
+      <h1 className="text-2xl font-bold text-slate-900 mb-6">Novedades</h1>
       <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-5 mb-8">
-        <AusenciaForm empleados={empleados || []} />
+        <AusenciaForm
+          empleados={empleados || []}
+          clientes={clientes || []}
+          asignaciones={asignaciones || []}
+        />
       </div>
-
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
           Listado ({ausencias?.length ?? 0})
         </h2>
         <ExportarAusencias ausencias={(ausencias || []) as any} />
       </div>
-
       <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto">
         <table className="w-full text-sm min-w-[640px]">
           <thead>
