@@ -81,7 +81,12 @@ export default function ReporteBejerman() {
       }
 
       const clientesPorId = new Map((clientes || []).map((c) => [c.id, c]))
-      const asignacionPorEmpleado = new Map((asignaciones || []).map((a) => [a.empleado_id, a.cliente_id]))
+      const clientesPorEmpleado = new Map<string, string[]>()
+      ;(asignaciones || []).forEach((a) => {
+        const lista = clientesPorEmpleado.get(a.empleado_id) || []
+        lista.push(a.cliente_id)
+        clientesPorEmpleado.set(a.empleado_id, lista)
+      })
 
       // Encabezados fijos + un encabezado por día (en orden cronológico) + totales
       const columnasFijas = ['SERVICIO', 'E', 'LEGAJO', 'Apellido y Nombres']
@@ -98,8 +103,9 @@ export default function ReporteBejerman() {
         const asistenciasEmp = (asistencias || []).filter((a) => a.empleado_id === emp.id)
         const codigoPorFecha = new Map(asistenciasEmp.map((a) => [a.fecha, a.codigo]))
 
-        const clienteId = asignacionPorEmpleado.get(emp.id)
-        const cliente = clienteId ? clientesPorId.get(clienteId) : null
+        const clientesEmp = (clientesPorEmpleado.get(emp.id) || [])
+          .map((clienteId) => clientesPorId.get(clienteId))
+          .filter((c): c is NonNullable<typeof c> => !!c)
 
         const valoresDias = dias.map((d) => codigoPorFecha.get(formatoFecha(d)) || '')
         const valoresTotales = CODIGOS_TOTAL.map(
@@ -107,13 +113,13 @@ export default function ReporteBejerman() {
         )
 
         return [
-          cliente?.nombre || '',
+          clientesEmp.map((c) => c.nombre).join(' / '),
           emp.empresa === 'MORAL' ? 'M' : 'D',
           emp.legajo || '',
           emp.nombre_apellido,
           ...valoresDias,
           ...valoresTotales,
-          cliente?.codigo_costos || '',
+          clientesEmp.map((c) => c.codigo_costos || '').filter(Boolean).join(' / '),
         ]
       })
 

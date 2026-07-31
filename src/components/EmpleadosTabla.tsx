@@ -24,12 +24,11 @@ type Cliente = {
   nombre: string
 }
 
-function asignacionActual(asignaciones: Asignacion[]) {
+function asignacionesActivas(asignaciones: Asignacion[]) {
   const activas = asignaciones?.filter((a) => !a.fecha_hasta) ?? []
-  if (activas.length === 0) return null
   return activas.sort(
     (a, b) => new Date(b.fecha_desde).getTime() - new Date(a.fecha_desde).getTime()
-  )[0]
+  )
 }
 
 export default function EmpleadosTabla({
@@ -48,9 +47,9 @@ export default function EmpleadosTabla({
         .toLowerCase()
         .includes(busqueda.toLowerCase())
 
-      const actual = asignacionActual(emp.asignaciones)
+      const activas = asignacionesActivas(emp.asignaciones)
       const coincideCliente =
-        clienteFiltro === '' || actual?.clientes?.id === clienteFiltro
+        clienteFiltro === '' || activas.some((a) => a.clientes?.id === clienteFiltro)
 
       return coincideNombre && coincideCliente
     })
@@ -97,7 +96,7 @@ export default function EmpleadosTabla({
           </thead>
           <tbody>
             {filtrados.map((emp) => {
-              const actual = asignacionActual(emp.asignaciones)
+              const activas = asignacionesActivas(emp.asignaciones)
               return (
                 <tr
                   key={emp.id}
@@ -114,7 +113,9 @@ export default function EmpleadosTabla({
                     </span>
                   </td>
                   <td className="px-4 py-3 text-slate-600">
-                    {actual?.clientes?.nombre ?? (
+                    {activas.length > 0 ? (
+                      activas.map((a) => a.clientes?.nombre).filter(Boolean).join(', ')
+                    ) : (
                       <span className="text-slate-400 italic">Sin asignar</span>
                     )}
                   </td>
