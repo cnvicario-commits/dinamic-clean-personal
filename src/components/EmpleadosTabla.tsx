@@ -110,7 +110,7 @@ export default function EmpleadosTabla({
                   <td className="px-4 py-3 text-slate-600">{emp.fecha_ingreso ?? '-'}</td>
                   <td className="px-4 py-3">
                     <span className="inline-block px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
-                      {emp.horas_contrato} hs
+                      {emp.horas_contrato === 1 ? '4+4 hs' : `${emp.horas_contrato} hs`}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-slate-600">

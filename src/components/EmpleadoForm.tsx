@@ -47,7 +47,9 @@ export default function EmpleadoForm() {
       <input type="date" value={fechaIngreso} onChange={(e) => setFechaIngreso(e.target.value)} className={`w-44 ${inputStyle}`} />
       <select value={horasContrato} onChange={(e) => setHorasContrato(e.target.value)} className={`w-28 ${inputStyle}`}>
         <option value="4">4 hs</option>
+        <option value="6">6 hs</option>
         <option value="8">8 hs</option>
+        <option value="1">4+4 hs</option>
       </select>
       <select value={empresa} onChange={(e) => setEmpresa(e.target.value)} className={`w-32 ${inputStyle}`}>
         <option value="DINAMIC">Dinamic</option>

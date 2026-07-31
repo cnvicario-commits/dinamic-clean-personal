@@ -36,7 +36,7 @@ export default async function DashboardPage({
     }
     if (a.empleados?.horas_contrato === 4) {
       realPorCliente[a.cliente_id].real4++
-    } else if (a.empleados?.horas_contrato === 8) {
+    } else if (a.empleados?.horas_contrato === 8 || a.empleados?.horas_contrato === 1) {
       realPorCliente[a.cliente_id].real8++
     }
   })
