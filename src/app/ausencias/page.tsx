@@ -54,4 +54,31 @@ export default async function AusenciasPage() {
           </thead>
           <tbody>
             {asistencias?.map((a: any) => (
-              <tr key={a.id} className="border-b border-slate-100
+              <tr key={a.id} className="border-b border-slate-100 last:border-0">
+                <td className="px-4 py-3 text-slate-800">{a.empleados?.nombre_apellido}</td>
+                <td className="px-4 py-3 text-slate-600">{a.fecha}</td>
+                <td className="px-4 py-3">
+                  <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${a.codigo === 'P' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                    {a.codigo}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-slate-600">{a.horas_extras || '-'}</td>
+                <td className="px-4 py-3 text-slate-600">{a.observaciones || '-'}</td>
+                <td className="px-4 py-3">
+                  {a.archivo_url ? (
+                    <a href={a.archivo_url} target="_blank" className="text-teal-600 hover:underline">Ver</a>
+                  ) : (
+                    '-'
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {asistencias?.length === 0 && (
+        <p className="text-slate-500 text-sm mt-3">No hay novedades cargadas todavía.</p>
+      )}
+    </div>
+  )
+}
