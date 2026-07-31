@@ -72,6 +72,7 @@ export default function ReporteBejerman() {
         return
       }
 
+      // Lista de días del período, en orden cronológico (ej: 26,27,28,29,30,1,2,...25)
       const dias: Date[] = []
       const cursor = new Date(desde)
       while (cursor <= hasta) {
@@ -82,44 +83,43 @@ export default function ReporteBejerman() {
       const clientesPorId = new Map((clientes || []).map((c) => [c.id, c]))
       const asignacionPorEmpleado = new Map((asignaciones || []).map((a) => [a.empleado_id, a.cliente_id]))
 
-      const filaDiasSemana: Record<string, any> = { SERVICIO: '', E: '', LEGAJO: '', 'Apellido y Nombres': '' }
-      dias.forEach((d) => {
-        filaDiasSemana[String(d.getDate())] = DIAS_SEMANA[d.getDay()]
-      })
-      CODIGOS_TOTAL.forEach(({ header }) => {
-        filaDiasSemana[header] = ''
-      })
-      filaDiasSemana['c costos'] = ''
+      // Encabezados fijos + un encabezado por día (en orden cronológico) + totales
+      const columnasFijas = ['SERVICIO', 'E', 'LEGAJO', 'Apellido y Nombres']
+      const columnasTotales = CODIGOS_TOTAL.map((c) => c.header)
+      const headerFila1 = [...columnasFijas, ...dias.map((d) => d.getDate()), ...columnasTotales, 'c costos']
+      const headerFila2 = [
+        ...columnasFijas.map(() => ''),
+        ...dias.map((d) => DIAS_SEMANA[d.getDay()]),
+        ...columnasTotales.map(() => ''),
+        '',
+      ]
 
-      const filas = empleados.map((emp) => {
+      const filasDatos = empleados.map((emp) => {
         const asistenciasEmp = (asistencias || []).filter((a) => a.empleado_id === emp.id)
         const codigoPorFecha = new Map(asistenciasEmp.map((a) => [a.fecha, a.codigo]))
 
         const clienteId = asignacionPorEmpleado.get(emp.id)
         const cliente = clienteId ? clientesPorId.get(clienteId) : null
 
-        const fila: Record<string, any> = {
-          SERVICIO: cliente?.nombre || '',
-          E: emp.empresa === 'MORAL' ? 'M' : 'D',
-          LEGAJO: emp.legajo || '',
-          'Apellido y Nombres': emp.nombre_apellido,
-        }
+        const valoresDias = dias.map((d) => codigoPorFecha.get(formatoFecha(d)) || '')
+        const valoresTotales = CODIGOS_TOTAL.map(
+          ({ codigo }) => asistenciasEmp.filter((a) => a.codigo === codigo).length
+        )
 
-        dias.forEach((d) => {
-          const fechaStr = formatoFecha(d)
-          fila[String(d.getDate())] = codigoPorFecha.get(fechaStr) || ''
-        })
-
-        CODIGOS_TOTAL.forEach(({ codigo, header }) => {
-          fila[header] = asistenciasEmp.filter((a) => a.codigo === codigo).length
-        })
-
-        fila['c costos'] = cliente?.codigo_costos || ''
-
-        return fila
+        return [
+          cliente?.nombre || '',
+          emp.empresa === 'MORAL' ? 'M' : 'D',
+          emp.legajo || '',
+          emp.nombre_apellido,
+          ...valoresDias,
+          ...valoresTotales,
+          cliente?.codigo_costos || '',
+        ]
       })
 
-      const hoja = XLSX.utils.json_to_sheet([filaDiasSemana, ...filas])
+      const filas = [headerFila1, headerFila2, ...filasDatos]
+
+      const hoja = XLSX.utils.aoa_to_sheet(filas)
       const libro = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(libro, hoja, 'Reporte Bejerman')
       XLSX.writeFile(libro, `reporte_bejerman_${desdeStr}_a_${hastaStr}.xlsx`)
