@@ -6,6 +6,7 @@ import { createClient } from '@/utils/supabase/client'
 type Empleado = { id: string; nombre_apellido: string }
 type Cliente = { id: string; nombre: string }
 type Asignacion = { empleado_id: string; cliente_id: string }
+type Codigo = { codigo: string; descripcion: string }
 
 function fechaHoy() {
   const hoy = new Date()
@@ -19,10 +20,12 @@ export default function AusenciaForm({
   empleados,
   clientes,
   asignaciones,
+  codigos,
 }: {
   empleados: Empleado[]
   clientes: Cliente[]
   asignaciones: Asignacion[]
+  codigos: Codigo[]
 }) {
   const [clienteId, setClienteId] = useState('')
   const [busquedaCliente, setBusquedaCliente] = useState('')
@@ -33,7 +36,8 @@ export default function AusenciaForm({
   const [mostrarLista, setMostrarLista] = useState(false)
 
   const [fecha, setFecha] = useState(fechaHoy())
-  const [justificada, setJustificada] = useState('true')
+  const [codigo, setCodigo] = useState('P')
+  const [horasExtras, setHorasExtras] = useState('0')
   const [observaciones, setObservaciones] = useState('')
   const [archivo, setArchivo] = useState<File | null>(null)
   const [error, setError] = useState('')
@@ -121,14 +125,18 @@ export default function AusenciaForm({
       archivoUrl = signedData?.signedUrl || null
     }
     const { data: userData } = await supabase.auth.getUser()
-    const { error: insertError } = await supabase.from('ausencias').insert({
-      empleado_id: empleadoId,
-      fecha: fecha,
-      justificada: justificada === 'true',
-      observaciones: observaciones,
-      archivo_url: archivoUrl,
-      informado_por: userData.user?.id,
-    })
+    const { error: insertError } = await supabase.from('asistencias').upsert(
+      {
+        empleado_id: empleadoId,
+        fecha: fecha,
+        codigo: codigo,
+        horas_extras: parseFloat(horasExtras) || 0,
+        observaciones: observaciones,
+        archivo_url: archivoUrl,
+        cargado_por: userData.user?.id,
+      },
+      { onConflict: 'empleado_id,fecha' }
+    )
     setLoading(false)
     if (insertError) {
       setError('Error al guardar: ' + insertError.message)
@@ -137,7 +145,8 @@ export default function AusenciaForm({
     setEmpleadoId('')
     setBusqueda('')
     setFecha(fechaHoy())
-    setJustificada('true')
+    setCodigo('P')
+    setHorasExtras('0')
     setObservaciones('')
     setArchivo(null)
     router.refresh()
@@ -221,49 +230,3 @@ export default function AusenciaForm({
                 <button
                   type="button"
                   key={emp.id}
-                  onClick={() => seleccionarEmpleado(emp)}
-                  className="w-full text-left px-3 py-3 text-sm text-slate-800 hover:bg-teal-50 active:bg-teal-100 border-b border-slate-100 last:border-0"
-                >
-                  {emp.nombre_apellido}
-                </button>
-              ))
-            )}
-          </div>
-        )}
-      </div>
-
-      <div>
-        <label className="text-sm text-slate-700 block mb-1">Fecha</label>
-        <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required className={inputStyle} />
-      </div>
-
-      <div>
-        <label className="text-sm text-slate-700 block mb-1">Estado</label>
-        <select value={justificada} onChange={(e) => setJustificada(e.target.value)} className={inputStyle}>
-          <option value="true">Justificada</option>
-          <option value="false">Injustificada</option>
-        </select>
-      </div>
-
-      <div>
-        <label className="text-sm text-slate-700 block mb-1">Observaciones (opcional)</label>
-        <textarea placeholder="Observaciones (opcional)" value={observaciones} onChange={(e) => setObservaciones(e.target.value)} className={`${inputStyle} placeholder:text-slate-400`} />
-      </div>
-
-      <div>
-        <label className="text-sm text-slate-700 block mb-1">Justificación (opcional, foto o PDF)</label>
-        <input type="file" onChange={(e) => setArchivo(e.target.files?.[0] || null)} className="text-sm text-slate-700" />
-      </div>
-
-      <button
-        type="submit"
-        disabled={loading}
-        className="px-4 py-3 bg-teal-600 hover:bg-teal-700 text-white text-base font-medium rounded-lg transition-colors disabled:opacity-50 w-full sm:w-auto sm:self-start"
-      >
-        {loading ? 'Guardando...' : 'Registrar ausencia'}
-      </button>
-
-      {error && <p className="text-rose-600 text-sm">{error}</p>}
-    </form>
-  )
-}

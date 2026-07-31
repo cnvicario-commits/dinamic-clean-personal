@@ -1,31 +1,27 @@
 'use client'
-
 import * as XLSX from 'xlsx'
-
-type Ausencia = {
+type Asistencia = {
   fecha: string
-  justificada: boolean
+  codigo: string
+  horas_extras: number | null
   observaciones: string | null
   empleados: { nombre_apellido: string } | null
 }
-
-export default function ExportarAusencias({ ausencias }: { ausencias: Ausencia[] }) {
+export default function ExportarAusencias({ asistencias }: { asistencias: Asistencia[] }) {
   const handleExport = () => {
-    const filas = ausencias.map((a) => ({
+    const filas = asistencias.map((a) => ({
       Empleado: a.empleados?.nombre_apellido || '',
       Fecha: a.fecha,
-      Estado: a.justificada ? 'Justificada' : 'Injustificada',
+      Código: a.codigo,
+      'Horas extra': a.horas_extras || 0,
       Observaciones: a.observaciones || '',
     }))
-
     const hoja = XLSX.utils.json_to_sheet(filas)
     const libro = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(libro, hoja, 'Ausencias')
-
+    XLSX.utils.book_append_sheet(libro, hoja, 'Novedades')
     const fecha = new Date().toISOString().split('T')[0]
-    XLSX.writeFile(libro, `ausencias_${fecha}.xlsx`)
+    XLSX.writeFile(libro, `novedades_${fecha}.xlsx`)
   }
-
   return (
     <button
       onClick={handleExport}
