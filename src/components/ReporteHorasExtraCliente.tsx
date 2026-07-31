@@ -64,28 +64,69 @@ export default function ReporteHorasExtraCliente() {
         return activas.length === 1 ? activas[0] : null
       }
 
-      const acumulado = new Map<string, { empleado: string; cliente: string; horas: number }>()
+      const SIN_DEFINIR = '__sin_definir__'
+
+      const empleadosPorId = new Map<string, { nombre: string; porCliente: Map<string, number> }>()
+      const clientesConHoras = new Map<string, string>()
+      let hayHorasSinDefinir = false
+
       asistencias.forEach((a: any) => {
         const clienteId = resolverClienteId(a)
+        const claveCliente = clienteId || SIN_DEFINIR
         const clienteNombre = clienteId ? clientesPorId.get(clienteId)?.nombre || 'Sin definir' : 'Sin definir'
         const empleadoNombre = a.empleados?.nombre_apellido || 'Sin nombre'
-        const clave = `${a.empleado_id}::${clienteId || ''}`
-        const previo = acumulado.get(clave)
-        if (previo) {
-          previo.horas += a.horas_extras
+
+        if (claveCliente === SIN_DEFINIR) {
+          hayHorasSinDefinir = true
         } else {
-          acumulado.set(clave, { empleado: empleadoNombre, cliente: clienteNombre, horas: a.horas_extras })
+          clientesConHoras.set(claveCliente, clienteNombre)
         }
+
+        if (!empleadosPorId.has(a.empleado_id)) {
+          empleadosPorId.set(a.empleado_id, { nombre: empleadoNombre, porCliente: new Map() })
+        }
+        const empleado = empleadosPorId.get(a.empleado_id)!
+        empleado.porCliente.set(claveCliente, (empleado.porCliente.get(claveCliente) || 0) + a.horas_extras)
       })
 
-      const filasDatos = Array.from(acumulado.values()).sort(
-        (a, b) => a.empleado.localeCompare(b.empleado) || a.cliente.localeCompare(b.cliente)
+      const columnasCliente = Array.from(clientesConHoras.entries())
+        .sort((a, b) => a[1].localeCompare(b[1]))
+        .map(([clienteId, nombre]) => ({ clave: clienteId, nombre }))
+      if (hayHorasSinDefinir) {
+        columnasCliente.push({ clave: SIN_DEFINIR, nombre: 'Sin definir' })
+      }
+
+      const filasEmpleado = Array.from(empleadosPorId.values()).sort((a, b) =>
+        a.nombre.localeCompare(b.nombre)
       )
 
       const filas = [
-        ['Empleado', 'Cliente', 'Horas'],
-        ...filasDatos.map((f) => [f.empleado, f.cliente, f.horas]),
+        ['Empleado', ...columnasCliente.map((c) => c.nombre), 'Total'],
+        ...filasEmpleado.map((emp) => {
+          let total = 0
+          const horasPorColumna = columnasCliente.map((c) => {
+            const horas = emp.porCliente.get(c.clave) || 0
+            total += horas
+            return horas || ''
+          })
+          return [emp.nombre, ...horasPorColumna, total]
+        }),
       ]
+
+      const totalesPorColumna = columnasCliente.map((c) => {
+        let total = 0
+        filasEmpleado.forEach((emp) => {
+          total += emp.porCliente.get(c.clave) || 0
+        })
+        return total || ''
+      })
+      const totalGeneral = filasEmpleado.reduce((suma, emp) => {
+        emp.porCliente.forEach((horas) => {
+          suma += horas
+        })
+        return suma
+      }, 0)
+      filas.push(['Total', ...totalesPorColumna, totalGeneral])
 
       const hoja = XLSX.utils.aoa_to_sheet(filas)
       const libro = XLSX.utils.book_new()
