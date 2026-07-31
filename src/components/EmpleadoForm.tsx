@@ -5,6 +5,7 @@ import { createClient } from '@/utils/supabase/client'
 export default function EmpleadoForm() {
   const [nombreApellido, setNombreApellido] = useState('')
   const [cuil, setCuil] = useState('')
+  const [legajo, setLegajo] = useState('')
   const [fechaIngreso, setFechaIngreso] = useState('')
   const [horasContrato, setHorasContrato] = useState('8')
   const [empresa, setEmpresa] = useState('DINAMIC')
@@ -19,6 +20,7 @@ export default function EmpleadoForm() {
     const { error } = await supabase.from('empleados').insert({
       nombre_apellido: nombreApellido,
       cuil: cuil,
+      legajo: legajo,
       fecha_ingreso: fechaIngreso || null,
       horas_contrato: parseInt(horasContrato),
       empresa: empresa,
@@ -30,6 +32,7 @@ export default function EmpleadoForm() {
     }
     setNombreApellido('')
     setCuil('')
+    setLegajo('')
     setFechaIngreso('')
     setHorasContrato('8')
     setEmpresa('DINAMIC')
@@ -40,6 +43,7 @@ export default function EmpleadoForm() {
     <form onSubmit={handleSubmit} className="flex flex-wrap gap-2 items-start">
       <input type="text" placeholder="Nombre y apellido" value={nombreApellido} onChange={(e) => setNombreApellido(e.target.value)} required className={`flex-1 min-w-[180px] ${inputStyle}`} />
       <input type="text" placeholder="CUIL" value={cuil} onChange={(e) => setCuil(e.target.value)} required className={`w-40 ${inputStyle}`} />
+      <input type="text" placeholder="Legajo" value={legajo} onChange={(e) => setLegajo(e.target.value)} className={`w-28 ${inputStyle}`} />
       <input type="date" value={fechaIngreso} onChange={(e) => setFechaIngreso(e.target.value)} className={`w-44 ${inputStyle}`} />
       <select value={horasContrato} onChange={(e) => setHorasContrato(e.target.value)} className={`w-28 ${inputStyle}`}>
         <option value="4">4 hs</option>
