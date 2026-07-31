@@ -230,3 +230,64 @@ export default function AusenciaForm({
                 <button
                   type="button"
                   key={emp.id}
+                  onClick={() => seleccionarEmpleado(emp)}
+                  className="w-full text-left px-3 py-3 text-sm text-slate-800 hover:bg-teal-50 active:bg-teal-100 border-b border-slate-100 last:border-0"
+                >
+                  {emp.nombre_apellido}
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <label className="text-sm text-slate-700 block mb-1">Fecha</label>
+        <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required className={inputStyle} />
+      </div>
+
+      <div>
+        <label className="text-sm text-slate-700 block mb-1">Código del día</label>
+        <select value={codigo} onChange={(e) => setCodigo(e.target.value)} className={inputStyle}>
+          {codigos.map((c) => (
+            <option key={c.codigo} value={c.codigo}>
+              {c.codigo} — {c.descripcion}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="text-sm text-slate-700 block mb-1">Horas extra ese día (opcional)</label>
+        <input
+          type="number"
+          min="0"
+          step="0.5"
+          value={horasExtras}
+          onChange={(e) => setHorasExtras(e.target.value)}
+          className={inputStyle}
+        />
+      </div>
+
+      <div>
+        <label className="text-sm text-slate-700 block mb-1">Observaciones (opcional)</label>
+        <textarea placeholder="Observaciones (opcional)" value={observaciones} onChange={(e) => setObservaciones(e.target.value)} className={`${inputStyle} placeholder:text-slate-400`} />
+      </div>
+
+      <div>
+        <label className="text-sm text-slate-700 block mb-1">Justificación (opcional, foto o PDF)</label>
+        <input type="file" onChange={(e) => setArchivo(e.target.files?.[0] || null)} className="text-sm text-slate-700" />
+      </div>
+
+      <button
+        type="submit"
+        disabled={loading}
+        className="px-4 py-3 bg-teal-600 hover:bg-teal-700 text-white text-base font-medium rounded-lg transition-colors disabled:opacity-50 w-full sm:w-auto sm:self-start"
+      >
+        {loading ? 'Guardando...' : 'Registrar novedad'}
+      </button>
+
+      {error && <p className="text-rose-600 text-sm">{error}</p>}
+    </form>
+  )
+}
