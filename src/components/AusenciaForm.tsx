@@ -40,6 +40,8 @@ export default function AusenciaForm({
   const [horasExtras, setHorasExtras] = useState('0')
   const [observaciones, setObservaciones] = useState('')
   const [archivo, setArchivo] = useState<File | null>(null)
+  const [clienteDestinoId, setClienteDestinoId] = useState('')
+  const [clienteHorasExtraId, setClienteHorasExtraId] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
@@ -76,6 +78,13 @@ export default function AusenciaForm({
     ? empleadosBase
     : empleadosBase.filter((emp) => emp.nombre_apellido.toLowerCase().includes(busqueda.toLowerCase()))
 
+  // Asignaciones activas del empleado elegido: si tiene 2 o más, el cliente "habitual"
+  // es ambiguo y hay que pedir que se elija explícitamente en los campos de destino.
+  const asignacionesEmpleado = asignaciones.filter((a) => a.empleado_id === empleadoId)
+  const habitualAmbiguo = asignacionesEmpleado.length >= 2
+  const trabajoElDia = codigo === 'P'
+  const tieneHorasExtra = (parseFloat(horasExtras) || 0) > 0
+
   function seleccionarCliente(c: Cliente) {
     setClienteId(c.id)
     setBusquedaCliente(c.nombre)
@@ -107,6 +116,16 @@ export default function AusenciaForm({
       return
     }
 
+    if (trabajoElDia && habitualAmbiguo && !clienteDestinoId) {
+      setError('Este empleado tiene más de un cliente activo: elegí en qué cliente trabajó este día.')
+      return
+    }
+
+    if (tieneHorasExtra && habitualAmbiguo && !clienteHorasExtraId) {
+      setError('Este empleado tiene más de un cliente activo: elegí en qué cliente hizo las horas extra.')
+      return
+    }
+
     setLoading(true)
     let archivoUrl: string | null = null
     if (archivo) {
@@ -134,6 +153,8 @@ export default function AusenciaForm({
         observaciones: observaciones,
         archivo_url: archivoUrl,
         cargado_por: userData.user?.id,
+        cliente_destino_id: trabajoElDia ? (clienteDestinoId || null) : null,
+        cliente_horas_extra_id: tieneHorasExtra ? (clienteHorasExtraId || null) : null,
       },
       { onConflict: 'empleado_id,fecha' }
     )
@@ -149,6 +170,8 @@ export default function AusenciaForm({
     setHorasExtras('0')
     setObservaciones('')
     setArchivo(null)
+    setClienteDestinoId('')
+    setClienteHorasExtraId('')
     router.refresh()
   }
 
@@ -257,6 +280,32 @@ export default function AusenciaForm({
         </select>
       </div>
 
+      {trabajoElDia && (
+        <div>
+          <label className="text-sm text-slate-700 block mb-1">
+            Cliente donde trabajó (si fue distinto al habitual){habitualAmbiguo && ' *'}
+          </label>
+          <select
+            value={clienteDestinoId}
+            onChange={(e) => setClienteDestinoId(e.target.value)}
+            required={habitualAmbiguo}
+            className={inputStyle}
+          >
+            <option value="">
+              {habitualAmbiguo ? 'Elegí el cliente...' : 'El habitual (sin cambios)'}
+            </option>
+            {clientes.map((c) => (
+              <option key={c.id} value={c.id}>{c.nombre}</option>
+            ))}
+          </select>
+          {habitualAmbiguo && (
+            <p className="text-xs text-amber-600 mt-1">
+              Este empleado tiene más de un cliente activo: elegí en cuál trabajó hoy.
+            </p>
+          )}
+        </div>
+      )}
+
       <div>
         <label className="text-sm text-slate-700 block mb-1">Horas extra ese día (opcional)</label>
         <input
@@ -268,6 +317,32 @@ export default function AusenciaForm({
           className={inputStyle}
         />
       </div>
+
+      {tieneHorasExtra && (
+        <div>
+          <label className="text-sm text-slate-700 block mb-1">
+            Cliente de las horas extra{habitualAmbiguo && ' *'}
+          </label>
+          <select
+            value={clienteHorasExtraId}
+            onChange={(e) => setClienteHorasExtraId(e.target.value)}
+            required={habitualAmbiguo}
+            className={inputStyle}
+          >
+            <option value="">
+              {habitualAmbiguo ? 'Elegí el cliente...' : 'El habitual (sin cambios)'}
+            </option>
+            {clientes.map((c) => (
+              <option key={c.id} value={c.id}>{c.nombre}</option>
+            ))}
+          </select>
+          {habitualAmbiguo && (
+            <p className="text-xs text-amber-600 mt-1">
+              Este empleado tiene más de un cliente activo: elegí en cuál hizo las horas extra.
+            </p>
+          )}
+        </div>
+      )}
 
       <div>
         <label className="text-sm text-slate-700 block mb-1">Observaciones (opcional)</label>

@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import AusenciaForm from '@/components/AusenciaForm'
 import ExportarAusencias from '@/components/ExportarAusencias'
 import ReporteBejerman from '@/components/ReporteBejerman'
+import ReporteHorasExtraCliente from '@/components/ReporteHorasExtraCliente'
 export default async function AusenciasPage() {
   const supabase = await createClient()
   const { data: empleados } = await supabase
@@ -38,6 +39,10 @@ export default async function AusenciasPage() {
       <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-5 mb-8">
         <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Reporte para Bejerman</h2>
         <ReporteBejerman />
+        <div className="border-t border-slate-100 mt-5 pt-5">
+          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Horas extra por cliente</h2>
+          <ReporteHorasExtraCliente />
+        </div>
       </div>
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
