@@ -49,10 +49,10 @@ export default async function DashboardPage({
     real8: realPorCliente[c.id]?.real8 || 0,
   }))
 
-  // Ausencias del mes seleccionado
-  const { data: ausenciasMes } = await supabase
-    .from('ausencias')
-    .select('empleado_id, justificada, fecha, empleados(nombre_apellido)')
+  // Ausencias del mes seleccionado (cualquier código distinto de "P" = presente)
+  const { data: asistenciasMes } = await supabase
+    .from('asistencias')
+    .select('empleado_id, codigo, fecha, empleados(nombre_apellido)')
     .gte('fecha', fechaInicio)
     .lte('fecha', fechaFin)
 
@@ -61,12 +61,13 @@ export default async function DashboardPage({
     .select('*', { count: 'exact', head: true })
     .eq('activo', true)
 
-  const totalAusencias = ausenciasMes?.length || 0
-  const totalJustificadas = ausenciasMes?.filter((a) => a.justificada).length || 0
-  const totalInjustificadas = totalAusencias - totalJustificadas
+  const ausenciasMes = asistenciasMes?.filter((a) => a.codigo !== 'P') || []
+  const totalAusencias = ausenciasMes.length
+  const totalInjustificadas = ausenciasMes.filter((a) => a.codigo === 'A').length
+  const totalJustificadas = totalAusencias - totalInjustificadas
 
   const rankingMap: Record<string, { nombre: string; cantidad: number }> = {}
-  ausenciasMes?.forEach((a: any) => {
+  ausenciasMes.forEach((a: any) => {
     const nombre = a.empleados?.nombre_apellido || 'Sin nombre'
     if (!rankingMap[a.empleado_id]) {
       rankingMap[a.empleado_id] = { nombre, cantidad: 0 }
