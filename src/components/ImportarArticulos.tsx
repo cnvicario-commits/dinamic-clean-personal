@@ -139,6 +139,7 @@ export default function ImportarArticulos() {
           nombre: f.nombre,
           categoria: f.categoria,
           unidad: f.unidad,
+          activo: true,
         })
         if (error) {
           erroresEjecucion.push({ fila: f.fila, motivo: 'Error al crear: ' + error.message })
@@ -161,6 +162,7 @@ export default function ImportarArticulos() {
             nombre: f.nombre,
             categoria: f.categoria,
             unidad: f.unidad,
+            activo: true,
           })
           if (!error) {
             creados++

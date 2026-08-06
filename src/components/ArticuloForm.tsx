@@ -63,7 +63,7 @@ export default function ArticuloForm({
     for (let intento = 0; intento < 5; intento++) {
       const resultado = await supabase
         .from('articulos')
-        .insert({ ...payload, codigo_interno: formatearCodigoArticulo(siguiente) })
+        .insert({ ...payload, codigo_interno: formatearCodigoArticulo(siguiente), activo: true })
         .select()
         .single()
       data = resultado.data
