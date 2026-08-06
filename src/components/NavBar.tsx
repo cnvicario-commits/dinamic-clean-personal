@@ -12,6 +12,8 @@ export default function NavBar() {
     { href: '/empleados', label: 'Empleados' },
     { href: '/ausencias', label: 'Novedades' },
     { href: '/asignaciones', label: 'Asignaciones' },
+    { href: '/proveedores', label: 'Proveedores' },
+    { href: '/articulos', label: 'Artículos' },
   ]
 
   return (
