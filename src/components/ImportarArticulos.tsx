@@ -4,10 +4,11 @@ import { useRouter } from 'next/navigation'
 import * as XLSX from 'xlsx'
 import { createClient } from '@/utils/supabase/client'
 import DescargarPlantillaArticulos from './DescargarPlantillaArticulos'
+import { calcularMaximoCodigo, formatearCodigoArticulo } from '@/utils/codigoArticulo'
 
 type FilaArticulo = {
   fila: number
-  codigo_interno: string
+  codigo_interno: string // puede venir vacío: se autogenera al procesar
   nombre: string
   categoria: string | null
   unidad: string | null
@@ -21,7 +22,7 @@ type Resumen = {
   errores: FilaError[]
 }
 
-const COLUMNAS_ESPERADAS = ['codigo_interno', 'nombre']
+const COLUMNAS_ESPERADAS = ['nombre'] // codigo_interno es opcional: se autogenera si falta
 const TAMANO_LOTE = 15
 
 async function enLotes<T>(items: T[], tamano: number, fn: (item: T) => Promise<void>) {
@@ -84,10 +85,6 @@ export default function ImportarArticulos() {
         const categoria = String(fila.categoria ?? '').trim()
         const unidad = String(fila.unidad ?? '').trim()
 
-        if (!codigo) {
-          erroresParseo.push({ fila: numeroFila, motivo: 'codigo_interno vacío' })
-          return
-        }
         if (!nombre) {
           erroresParseo.push({ fila: numeroFila, motivo: 'nombre vacío' })
           return
@@ -101,54 +98,81 @@ export default function ImportarArticulos() {
         })
       })
 
-      // Duplicados de código dentro del mismo archivo: gana la última fila.
+      // Duplicados de código EXPLÍCITO dentro del mismo archivo: gana la última
+      // fila. Las filas sin código (se autogenera) no participan de este dedup,
+      // cada una necesita su propio código nuevo.
+      const conCodigo = filasValidas.filter((f) => f.codigo_interno !== '')
+      const sinCodigo = filasValidas.filter((f) => f.codigo_interno === '')
       const porCodigo = new Map<string, FilaArticulo>()
-      filasValidas.forEach((f) => porCodigo.set(f.codigo_interno, f))
-      const filasUnicas = Array.from(porCodigo.values())
+      conCodigo.forEach((f) => porCodigo.set(f.codigo_interno, f))
+      const conCodigoUnicas = Array.from(porCodigo.values())
 
       let creados = 0
       let actualizados = 0
       const erroresEjecucion: FilaError[] = []
 
-      if (filasUnicas.length > 0) {
-        // Traemos todo el catálogo una sola vez para resolver el matching en memoria.
-        const { data: existentes } = await supabase.from('articulos').select('id, codigo_interno')
-        const mapaExistentes = new Map((existentes ?? []).map((a) => [a.codigo_interno, a.id]))
+      // Traemos todo el catálogo una sola vez: resuelve el matching por código
+      // explícito y sirve de base para calcular el siguiente código autogenerado.
+      const { data: existentes } = await supabase.from('articulos').select('id, codigo_interno')
+      const listaExistentes = existentes ?? []
+      const mapaExistentes = new Map(listaExistentes.map((a) => [a.codigo_interno, a.id]))
 
-        const aActualizar = filasUnicas.filter((f) => mapaExistentes.has(f.codigo_interno))
-        const aCrear = filasUnicas.filter((f) => !mapaExistentes.has(f.codigo_interno))
+      const aActualizar = conCodigoUnicas.filter((f) => mapaExistentes.has(f.codigo_interno))
+      const aCrearConCodigo = conCodigoUnicas.filter((f) => !mapaExistentes.has(f.codigo_interno))
 
-        await enLotes(aActualizar, TAMANO_LOTE, async (f) => {
-          const { error } = await supabase
-            .from('articulos')
-            .update({ nombre: f.nombre, categoria: f.categoria, unidad: f.unidad })
-            .eq('id', mapaExistentes.get(f.codigo_interno))
-          if (error) {
-            erroresEjecucion.push({ fila: f.fila, motivo: 'Error al actualizar: ' + error.message })
-          } else {
-            actualizados++
-          }
+      await enLotes(aActualizar, TAMANO_LOTE, async (f) => {
+        const { error } = await supabase
+          .from('articulos')
+          .update({ nombre: f.nombre, categoria: f.categoria, unidad: f.unidad })
+          .eq('id', mapaExistentes.get(f.codigo_interno))
+        if (error) {
+          erroresEjecucion.push({ fila: f.fila, motivo: 'Error al actualizar: ' + error.message })
+        } else {
+          actualizados++
+        }
+      })
+
+      // Altas con código explícito (no coincide con ninguno existente).
+      await enLotes(aCrearConCodigo, TAMANO_LOTE, async (f) => {
+        const { error } = await supabase.from('articulos').insert({
+          codigo_interno: f.codigo_interno,
+          nombre: f.nombre,
+          categoria: f.categoria,
+          unidad: f.unidad,
         })
+        if (error) {
+          erroresEjecucion.push({ fila: f.fila, motivo: 'Error al crear: ' + error.message })
+        } else {
+          creados++
+        }
+      })
 
-        if (aCrear.length > 0) {
-          const { data, error } = await supabase
-            .from('articulos')
-            .insert(
-              aCrear.map((f) => ({
-                codigo_interno: f.codigo_interno,
-                nombre: f.nombre,
-                categoria: f.categoria,
-                unidad: f.unidad,
-              }))
-            )
-            .select()
-          if (error) {
-            erroresEjecucion.push({ fila: 0, motivo: 'Error al insertar artículos nuevos: ' + error.message })
-          } else {
-            creados = data?.length ?? aCrear.length
+      // Altas sin código: se autogenera correlativo (ART-0001, ART-0002, ...) a
+      // partir del máximo existente, incrementando localmente fila por fila
+      // para no repetir dentro del mismo archivo. Ante una colisión rarísima
+      // (otra carga corriendo en simultáneo) se reintenta con el siguiente número.
+      let siguienteCodigo = calcularMaximoCodigo(listaExistentes) + 1
+      await enLotes(sinCodigo, TAMANO_LOTE, async (f) => {
+        for (let intento = 0; intento < 5; intento++) {
+          const codigoAsignado = formatearCodigoArticulo(siguienteCodigo)
+          siguienteCodigo++
+          const { error } = await supabase.from('articulos').insert({
+            codigo_interno: codigoAsignado,
+            nombre: f.nombre,
+            categoria: f.categoria,
+            unidad: f.unidad,
+          })
+          if (!error) {
+            creados++
+            return
+          }
+          if (error.code !== '23505') {
+            erroresEjecucion.push({ fila: f.fila, motivo: 'Error al crear: ' + error.message })
+            return
           }
         }
-      }
+        erroresEjecucion.push({ fila: f.fila, motivo: 'No se pudo generar un código interno único.' })
+      })
 
       setResumen({
         creados,
@@ -178,12 +202,13 @@ export default function ImportarArticulos() {
         <div className="mt-4 flex flex-col gap-4">
           <div className="flex flex-wrap items-center gap-3">
             <p className="text-sm text-slate-600">
-              El archivo (.xlsx o .csv) debe tener las columnas{' '}
+              El archivo (.xlsx o .csv) debe tener la columna{' '}
+              <code className="bg-slate-100 px-1 rounded">nombre</code> (obligatoria) y opcionalmente{' '}
               <code className="bg-slate-100 px-1 rounded">codigo_interno</code>,{' '}
-              <code className="bg-slate-100 px-1 rounded">nombre</code>,{' '}
-              <code className="bg-slate-100 px-1 rounded">categoria</code> (opcional) y{' '}
-              <code className="bg-slate-100 px-1 rounded">unidad</code> (opcional) en la primera fila.
-              Si el código ya existe, se actualiza; si no, se crea el artículo.
+              <code className="bg-slate-100 px-1 rounded">categoria</code> y{' '}
+              <code className="bg-slate-100 px-1 rounded">unidad</code> en la primera fila.
+              Si dejás <code className="bg-slate-100 px-1 rounded">codigo_interno</code> vacío, se genera
+              automáticamente (ART-0001, ART-0002, ...). Si lo completás y ya existe, se actualiza ese artículo.
             </p>
             <DescargarPlantillaArticulos />
           </div>

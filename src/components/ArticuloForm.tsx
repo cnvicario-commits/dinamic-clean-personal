@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
+import { calcularMaximoCodigo, formatearCodigoArticulo } from '@/utils/codigoArticulo'
 
 type Articulo = {
   id: string
@@ -52,8 +53,24 @@ export default function ArticuloForm({
       return
     }
 
-    // Alta: no se envía codigo_interno, lo completa el trigger en Supabase.
-    const { data, error } = await supabase.from('articulos').insert(payload).select().single()
+    // Alta: generamos el código interno correlativo en el cliente (ART-0001,
+    // ART-0002, ...) a partir del máximo existente, con reintento por si dos
+    // altas casi simultáneas calculan el mismo número.
+    const { data: existentes } = await supabase.from('articulos').select('codigo_interno')
+    let siguiente = calcularMaximoCodigo(existentes ?? []) + 1
+    let data: { id: string } | null = null
+    let error: { message: string; code?: string } | null = null
+    for (let intento = 0; intento < 5; intento++) {
+      const resultado = await supabase
+        .from('articulos')
+        .insert({ ...payload, codigo_interno: formatearCodigoArticulo(siguiente) })
+        .select()
+        .single()
+      data = resultado.data
+      error = resultado.error
+      if (!error || error.code !== '23505') break
+      siguiente++
+    }
     setLoading(false)
     if (error) {
       setError('Error al guardar: ' + error.message)
