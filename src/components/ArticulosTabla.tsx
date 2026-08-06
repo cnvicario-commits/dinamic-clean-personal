@@ -13,6 +13,15 @@ type Articulo = {
   activo: boolean
 }
 
+type Columna = 'codigo_interno' | 'nombre' | 'categoria' | 'unidad'
+
+// Comparación alfabética sin distinguir mayúsculas/minúsculas ni acentos,
+// para que un nombre cargado en minúscula (ej: "pinza") no quede aislado
+// al final de la lista por una comparación sensible a mayúsculas.
+function comparar(a: string | null, b: string | null) {
+  return (a ?? '').localeCompare(b ?? '', 'es', { sensitivity: 'base' })
+}
+
 export default function ArticulosTabla({
   articulos,
   onEditar,
@@ -21,14 +30,33 @@ export default function ArticulosTabla({
   onEditar: (a: Articulo) => void
 }) {
   const [busqueda, setBusqueda] = useState('')
+  const [columna, setColumna] = useState<Columna>('nombre')
+  const [direccion, setDireccion] = useState<'asc' | 'desc'>('asc')
+
+  function ordenarPor(col: Columna) {
+    if (columna === col) {
+      setDireccion(direccion === 'asc' ? 'desc' : 'asc')
+    } else {
+      setColumna(col)
+      setDireccion('asc')
+    }
+  }
+
+  function indicador(col: Columna) {
+    if (columna !== col) return ''
+    return direccion === 'asc' ? ' ▲' : ' ▼'
+  }
 
   const filtrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase()
-    if (q === '') return articulos
-    return articulos.filter(
-      (a) => a.nombre.toLowerCase().includes(q) || a.codigo_interno.toLowerCase().includes(q)
-    )
-  }, [articulos, busqueda])
+    const base = q === ''
+      ? articulos
+      : articulos.filter(
+          (a) => a.nombre.toLowerCase().includes(q) || a.codigo_interno.toLowerCase().includes(q)
+        )
+    const signo = direccion === 'asc' ? 1 : -1
+    return [...base].sort((a, b) => signo * comparar(a[columna], b[columna]))
+  }, [articulos, busqueda, columna, direccion])
 
   return (
     <div className="mt-8">
@@ -49,10 +77,30 @@ export default function ArticulosTabla({
         <table className="w-full text-sm min-w-[760px]">
           <thead>
             <tr className="bg-slate-50 text-left text-slate-500 border-b border-slate-200">
-              <th className="px-4 py-3 font-medium">Código</th>
-              <th className="px-4 py-3 font-medium">Nombre</th>
-              <th className="px-4 py-3 font-medium">Categoría</th>
-              <th className="px-4 py-3 font-medium">Unidad</th>
+              <th
+                className="px-4 py-3 font-medium cursor-pointer select-none hover:text-slate-700"
+                onClick={() => ordenarPor('codigo_interno')}
+              >
+                Código{indicador('codigo_interno')}
+              </th>
+              <th
+                className="px-4 py-3 font-medium cursor-pointer select-none hover:text-slate-700"
+                onClick={() => ordenarPor('nombre')}
+              >
+                Nombre{indicador('nombre')}
+              </th>
+              <th
+                className="px-4 py-3 font-medium cursor-pointer select-none hover:text-slate-700"
+                onClick={() => ordenarPor('categoria')}
+              >
+                Categoría{indicador('categoria')}
+              </th>
+              <th
+                className="px-4 py-3 font-medium cursor-pointer select-none hover:text-slate-700"
+                onClick={() => ordenarPor('unidad')}
+              >
+                Unidad{indicador('unidad')}
+              </th>
               <th className="px-4 py-3 font-medium">Estado</th>
               <th className="px-4 py-3 font-medium"></th>
             </tr>
