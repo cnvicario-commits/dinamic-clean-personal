@@ -5,7 +5,7 @@ import Link from 'next/link'
 export default async function PendientesPage() {
   const supabase = await createClient()
 
-  const { data: pendientes } = await supabase
+  const { data: pendientes, error: errorPendientes } = await supabase
     .from('articulos_proveedor_pendientes')
     .select('id, codigo_proveedor, nombre_proveedor, precio, archivo_origen, motivo, created_at, proveedores(id, razon_social)')
     .eq('resuelto', false)
@@ -22,6 +22,11 @@ export default async function PendientesPage() {
         ← Volver a proveedores
       </Link>
       <h1 className="text-2xl font-bold text-slate-900 mb-6">Pendientes por resolver</h1>
+      {errorPendientes && (
+        <p className="text-rose-600 text-sm mb-4">
+          Error al cargar los pendientes: {errorPendientes.message}
+        </p>
+      )}
       <PendientesTabla pendientes={(pendientes ?? []) as any} articulos={articulos ?? []} />
     </div>
   )
