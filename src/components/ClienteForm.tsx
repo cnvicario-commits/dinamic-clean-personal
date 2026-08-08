@@ -17,26 +17,26 @@ export default function ClienteForm() {
     e.preventDefault()
     setError('')
     setLoading(true)
-    const { error } = await supabase.from('clientes').insert({
-      nombre,
-      codigo_costos: codigoCostos || null,
-      presupuesto_4hs: parseInt(presupuesto4hs) || 0,
-      presupuesto_8hs: parseInt(presupuesto8hs) || 0,
-      domicilio: domicilio || null,
-      lleva_insumos: llevaInsumos,
-    })
+    const { data, error } = await supabase
+      .from('clientes')
+      .insert({
+        nombre,
+        codigo_costos: codigoCostos || null,
+        presupuesto_4hs: parseInt(presupuesto4hs) || 0,
+        presupuesto_8hs: parseInt(presupuesto8hs) || 0,
+        domicilio: domicilio || null,
+        lleva_insumos: llevaInsumos,
+      })
+      .select('id')
+      .single()
     setLoading(false)
-    if (error) {
-      setError('Error al guardar: ' + error.message)
+    if (error || !data) {
+      setError('Error al guardar: ' + (error?.message ?? 'desconocido'))
       return
     }
-    setNombre('')
-    setCodigoCostos('')
-    setPresupuesto4hs('0')
-    setPresupuesto8hs('0')
-    setDomicilio('')
-    setLlevaInsumos(false)
-    router.refresh()
+    // Vamos directo a la ficha del cliente para poder cargar de una vez su
+    // domicilio de entrega, en vez de dejarlo en el listado a buscarlo.
+    router.push(`/clientes/${data.id}`)
   }
   const inputStyle = "px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
   return (
