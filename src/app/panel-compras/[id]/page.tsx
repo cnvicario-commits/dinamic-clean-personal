@@ -89,6 +89,14 @@ export default async function PanelComprasDetallePage({
     }
   })
 
+  // Lugar de envío sugerido por el pedido de compra: se propone por defecto
+  // al generar la OC, pero se puede cambiar en el propio selector.
+  const lugarEnvioDefault = pedido.lugar_envio_empresa
+    ? 'empresa'
+    : pedido.lugar_envio_domicilio_id
+      ? `domicilio:${pedido.lugar_envio_domicilio_id}`
+      : ''
+
   return (
     <div className="max-w-5xl mx-auto px-6 py-10">
       <Link href="/panel-compras" className="text-teal-600 hover:underline text-sm mb-4 inline-block">
@@ -107,6 +115,7 @@ export default async function PanelComprasDetallePage({
         empresaNombre={pedido.empresas?.nombre ?? null}
         empresaDomicilio={pedido.empresas?.domicilio ?? null}
         domicilios={domiciliosCliente ?? []}
+        lugarEnvioDefault={lugarEnvioDefault}
         lineas={lineas}
         proveedores={proveedores ?? []}
         preciosProveedor={preciosProveedor ?? []}

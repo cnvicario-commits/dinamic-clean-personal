@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import BuscadorArticulo from './BuscadorArticulo'
 import type {
-  EmpresaResumen,
+  EmpresaConDomicilio,
   ClienteResumen,
   ArticuloResumen,
+  ClienteDomicilio,
   PedidoCompra,
   PedidoCompraItemConArticulo,
 } from '@/types/compras'
@@ -23,22 +24,35 @@ type Linea = {
 const inputStyle =
   'px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500'
 
+function lugarEnvioInicial(pedido?: PedidoCompra) {
+  if (!pedido) return ''
+  if (pedido.lugar_envio_empresa) return 'empresa'
+  if (pedido.lugar_envio_domicilio_id) return `domicilio:${pedido.lugar_envio_domicilio_id}`
+  return ''
+}
+
 export default function PedidoCompraForm({
   empresas,
   clientes,
   articulos,
+  domicilios,
   pedido,
   items,
 }: {
-  empresas: EmpresaResumen[]
+  empresas: EmpresaConDomicilio[]
   clientes: ClienteResumen[]
   articulos: ArticuloResumen[]
+  domicilios: ClienteDomicilio[]
   pedido?: PedidoCompra
   items?: PedidoCompraItemConArticulo[]
 }) {
   const [empresaId, setEmpresaId] = useState(pedido?.empresa_id ?? '')
   const [clienteId, setClienteId] = useState(pedido?.cliente_id ?? '')
   const [observaciones, setObservaciones] = useState(pedido?.observaciones_generales ?? '')
+  const [lugarEnvio, setLugarEnvio] = useState(lugarEnvioInicial(pedido)) // '' | 'empresa' | `domicilio:<id>`
+
+  const domiciliosDelCliente = domicilios.filter((d) => d.cliente_id === clienteId && d.activo)
+  const empresaSeleccionada = empresas.find((e) => e.id === empresaId)
   const [lineas, setLineas] = useState<Linea[]>(
     (items ?? []).map((i) => ({
       clave: i.id,
@@ -108,6 +122,8 @@ export default function PedidoCompraForm({
       empresa_id: empresaId,
       cliente_id: clienteId,
       observaciones_generales: observaciones || null,
+      lugar_envio_empresa: lugarEnvio === 'empresa',
+      lugar_envio_domicilio_id: lugarEnvio.startsWith('domicilio:') ? lugarEnvio.slice('domicilio:'.length) : null,
     }
 
     let pedidoId = pedido?.id
@@ -172,13 +188,38 @@ export default function PedidoCompraForm({
             <option key={emp.id} value={emp.id}>{emp.nombre}</option>
           ))}
         </select>
-        <select value={clienteId} onChange={(e) => setClienteId(e.target.value)} required className={`flex-1 min-w-[200px] ${inputStyle}`}>
+        <select
+          value={clienteId}
+          onChange={(e) => {
+            setClienteId(e.target.value)
+            setLugarEnvio('') // el domicilio elegido puede no pertenecer al nuevo cliente
+          }}
+          required
+          className={`flex-1 min-w-[200px] ${inputStyle}`}
+        >
           <option value="">Seleccionar cliente</option>
           {clientes.map((c) => (
             <option key={c.id} value={c.id}>{c.nombre}</option>
           ))}
         </select>
       </div>
+
+      <select value={lugarEnvio} onChange={(e) => setLugarEnvio(e.target.value)} className={`w-full ${inputStyle}`}>
+        <option value="">Lugar de envío (opcional)</option>
+        {domiciliosDelCliente.length > 0 && (
+          <optgroup label="Domicilios del cliente">
+            {domiciliosDelCliente.map((d) => (
+              <option key={d.id} value={`domicilio:${d.id}`}>{d.alias} — {d.direccion}</option>
+            ))}
+          </optgroup>
+        )}
+        {empresaSeleccionada?.domicilio && (
+          <optgroup label="Empresa">
+            <option value="empresa">{empresaSeleccionada.nombre} — {empresaSeleccionada.domicilio}</option>
+          </optgroup>
+        )}
+      </select>
+
       <textarea
         placeholder="Observaciones generales (opcional)"
         value={observaciones}

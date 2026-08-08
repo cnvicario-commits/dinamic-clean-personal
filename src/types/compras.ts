@@ -47,6 +47,8 @@ export type PedidoCompra = {
   empresa_id: string
   cliente_id: string
   observaciones_generales: string | null
+  lugar_envio_domicilio_id: string | null // referencia viva a cliente_domicilios (no un texto congelado)
+  lugar_envio_empresa: boolean // true = usar el domicilio de la empresa en vez de un domicilio del cliente
   estado: EstadoPedidoCompra
   creado_por: string
   created_at: string
@@ -117,6 +119,7 @@ export type PedidoCompraItemConArticulo = PedidoCompraItem & { articulos: Articu
 export type PedidoCompraDetalleView = PedidoCompra & {
   empresas: Empresa | null
   clientes: ClienteResumen | null
+  cliente_domicilios: { alias: string; direccion: string } | null
   pedidos_compra_items: PedidoCompraItemConArticulo[]
 }
 

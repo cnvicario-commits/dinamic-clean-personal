@@ -183,6 +183,7 @@ export default function PanelComprasAsignacion({
   empresaNombre,
   empresaDomicilio,
   domicilios,
+  lugarEnvioDefault,
   lineas,
   proveedores,
   preciosProveedor,
@@ -193,12 +194,13 @@ export default function PanelComprasAsignacion({
   empresaNombre: string | null
   empresaDomicilio: string | null
   domicilios: ClienteDomicilio[]
+  lugarEnvioDefault: string
   lineas: LineaPendiente[]
   proveedores: ProveedorResumen[]
   preciosProveedor: PrecioProveedor[]
 }) {
   const [asignaciones, setAsignaciones] = useState<AsignacionPendiente[]>([])
-  const [lugarEnvio, setLugarEnvio] = useState('') // '' | 'empresa' | `domicilio:<id>`
+  const [lugarEnvio, setLugarEnvio] = useState(lugarEnvioDefault) // '' | 'empresa' | `domicilio:<id>`
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()

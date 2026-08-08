@@ -4,10 +4,11 @@ import PedidoCompraForm from '@/components/PedidoCompraForm'
 
 export default async function NuevoPedidoCompraPage() {
   const supabase = await createClient()
-  const [{ data: empresas }, { data: clientes }, { data: articulos }] = await Promise.all([
-    supabase.from('empresas').select('id, nombre').eq('activo', true).order('nombre'),
+  const [{ data: empresas }, { data: clientes }, { data: articulos }, { data: domicilios }] = await Promise.all([
+    supabase.from('empresas').select('id, nombre, domicilio').eq('activo', true).order('nombre'),
     supabase.from('clientes').select('id, nombre').order('nombre'),
     supabase.from('articulos').select('id, codigo_interno, nombre, unidad').eq('activo', true).order('nombre'),
+    supabase.from('cliente_domicilios').select('id, cliente_id, alias, direccion, es_principal, activo').eq('activo', true).order('alias'),
   ])
 
   return (
@@ -20,6 +21,7 @@ export default async function NuevoPedidoCompraPage() {
         empresas={empresas ?? []}
         clientes={clientes ?? []}
         articulos={articulos ?? []}
+        domicilios={domicilios ?? []}
       />
     </div>
   )

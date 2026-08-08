@@ -17,7 +17,7 @@ export default async function PedidoCompraDetallePage({
   const { data: pedido } = await supabase
     .from('pedidos_compra')
     .select(
-      '*, empresas(*), clientes(id, nombre), pedidos_compra_items(*, articulos(id, codigo_interno, nombre, unidad))'
+      '*, empresas(*), clientes(id, nombre), cliente_domicilios(alias, direccion), pedidos_compra_items(*, articulos(id, codigo_interno, nombre, unidad))'
     )
     .eq('id', id)
     .single()
@@ -36,10 +36,11 @@ export default async function PedidoCompraDetallePage({
   const pedidoView = pedido as unknown as PedidoCompraDetalleView
 
   if (pedidoView.estado === 'borrador') {
-    const [{ data: empresas }, { data: clientes }, { data: articulos }] = await Promise.all([
-      supabase.from('empresas').select('id, nombre').eq('activo', true).order('nombre'),
+    const [{ data: empresas }, { data: clientes }, { data: articulos }, { data: domicilios }] = await Promise.all([
+      supabase.from('empresas').select('id, nombre, domicilio').eq('activo', true).order('nombre'),
       supabase.from('clientes').select('id, nombre').order('nombre'),
       supabase.from('articulos').select('id, codigo_interno, nombre, unidad').eq('activo', true).order('nombre'),
+      supabase.from('cliente_domicilios').select('id, cliente_id, alias, direccion, es_principal, activo').eq('activo', true).order('alias'),
     ])
 
     return (
@@ -58,6 +59,7 @@ export default async function PedidoCompraDetallePage({
           empresas={empresas ?? []}
           clientes={clientes ?? []}
           articulos={articulos ?? []}
+          domicilios={domicilios ?? []}
           pedido={pedidoView}
           items={pedidoView.pedidos_compra_items}
         />
