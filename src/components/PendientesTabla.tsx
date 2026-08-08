@@ -13,6 +13,7 @@ type Pendiente = {
   nombre_proveedor: string | null
   precio: number | null
   archivo_origen: string | null
+  motivo: string | null
   created_at: string
   proveedores: { id: string; razon_social: string } | null
 }
@@ -84,6 +85,9 @@ function FilaPendiente({ pendiente, articulos }: { pendiente: Pendiente; articul
             {pendiente.proveedores?.razon_social ?? 'Proveedor desconocido'} · Código: {pendiente.codigo_proveedor} · Precio: {pendiente.precio ?? '-'}
             {pendiente.archivo_origen && <> · Archivo: {pendiente.archivo_origen}</>}
           </p>
+          {pendiente.motivo && (
+            <p className="text-sm text-amber-600 mt-1">{pendiente.motivo}</p>
+          )}
         </div>
         <div className="flex gap-2">
           <button

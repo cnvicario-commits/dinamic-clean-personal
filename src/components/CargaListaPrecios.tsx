@@ -12,12 +12,14 @@ type FilaExcel = {
   codigo: string
   nombre: string
   precio: number
+  codigoInterno: string // '' si no vino en el Excel (la columna es opcional)
 }
 
 type FilaError = { fila: number; motivo: string }
 
 type Resumen = {
   actualizados: number
+  vinculadosPorCodigoInterno: number
   pendientesNuevas: number
   pendientesActualizadas: number
   errores: FilaError[]
@@ -91,6 +93,7 @@ export default function CargaListaPrecios({ proveedores }: { proveedores: Provee
         const codigo = String(fila.codigo_proveedor ?? '').trim()
         const nombre = String(fila.nombre_proveedor ?? '').trim()
         const precio = normalizarPrecio(fila.precio)
+        const codigoInterno = String(fila.codigo_interno ?? '').trim()
 
         if (!codigo) {
           erroresParseo.push({ fila: numeroFila, motivo: 'codigo_proveedor vacío' })
@@ -100,7 +103,7 @@ export default function CargaListaPrecios({ proveedores }: { proveedores: Provee
           erroresParseo.push({ fila: numeroFila, motivo: 'precio inválido' })
           return
         }
-        filasValidas.push({ fila: numeroFila, codigo, nombre, precio })
+        filasValidas.push({ fila: numeroFila, codigo, nombre, precio, codigoInterno })
       })
 
       // Duplicados de código dentro del mismo archivo: gana la última fila.
@@ -123,15 +126,35 @@ export default function CargaListaPrecios({ proveedores }: { proveedores: Provee
         .eq('resuelto', false)
       const mapaPendientes = new Map((pendientesActuales ?? []).map((p) => [p.codigo_proveedor, p.id]))
 
-      const aActualizar = filasUnicas.filter((f) => mapaExistentes.has(f.codigo))
-      const aPendienteNueva = filasUnicas.filter(
-        (f) => !mapaExistentes.has(f.codigo) && !mapaPendientes.has(f.codigo)
-      )
-      const aPendienteActualizar = filasUnicas.filter(
-        (f) => !mapaExistentes.has(f.codigo) && mapaPendientes.has(f.codigo)
-      )
+      // Catálogo interno completo, para poder vincular directo cuando el
+      // Excel trae codigo_interno (columna opcional).
+      const { data: articulosTodos } = await supabase.from('articulos').select('id, codigo_interno')
+      const mapaArticulosPorCodigo = new Map((articulosTodos ?? []).map((a) => [a.codigo_interno, a.id]))
+
+      const conCodigoInterno = filasUnicas.filter((f) => f.codigoInterno !== '')
+      const sinCodigoInterno = filasUnicas.filter((f) => f.codigoInterno === '')
+
+      // codigo_interno válido -> se vincula directo, sin pasar por pendientes.
+      const aVincularPorCodigoInterno = conCodigoInterno.filter((f) => mapaArticulosPorCodigo.has(f.codigoInterno))
+      // codigo_interno inválido -> siempre a pendientes (aunque el codigo_proveedor
+      // ya tuviera un vínculo), para que se note el error de tipeo en vez de
+      // pasar desapercibido.
+      const conCodigoInternoInvalido = conCodigoInterno.filter((f) => !mapaArticulosPorCodigo.has(f.codigoInterno))
+
+      const aActualizar = sinCodigoInterno.filter((f) => mapaExistentes.has(f.codigo))
+      const candidatosPendiente = [
+        ...sinCodigoInterno.filter((f) => !mapaExistentes.has(f.codigo)),
+        ...conCodigoInternoInvalido,
+      ]
+      const aPendienteNueva = candidatosPendiente.filter((f) => !mapaPendientes.has(f.codigo))
+      const aPendienteActualizar = candidatosPendiente.filter((f) => mapaPendientes.has(f.codigo))
+
+      function motivoDe(f: FilaExcel): string | null {
+        return f.codigoInterno ? `código interno indicado no encontrado: ${f.codigoInterno}` : null
+      }
 
       let actualizados = 0
+      let vinculadosPorCodigoInterno = 0
       let pendientesActualizadas = 0
       const erroresEjecucion: FilaError[] = []
 
@@ -151,6 +174,59 @@ export default function CargaListaPrecios({ proveedores }: { proveedores: Provee
         }
       })
 
+      // Vinculación directa por código interno: actualiza el vínculo si ya
+      // existía para este proveedor+código, o lo crea si es la primera vez.
+      const aVincularExistente = aVincularPorCodigoInterno.filter((f) => mapaExistentes.has(f.codigo))
+      const aVincularNuevo = aVincularPorCodigoInterno.filter((f) => !mapaExistentes.has(f.codigo))
+
+      await enLotes(aVincularExistente, TAMANO_LOTE, async (f) => {
+        const { error } = await supabase
+          .from('articulos_proveedor')
+          .update({
+            articulo_id: mapaArticulosPorCodigo.get(f.codigoInterno),
+            precio: f.precio,
+            nombre_proveedor: f.nombre || null,
+            fecha_actualizacion: new Date().toISOString(),
+          })
+          .eq('id', mapaExistentes.get(f.codigo))
+        if (error) {
+          erroresEjecucion.push({ fila: f.fila, motivo: 'Error al vincular por código interno: ' + error.message })
+        } else {
+          vinculadosPorCodigoInterno++
+        }
+      })
+
+      if (aVincularNuevo.length > 0) {
+        const { data, error } = await supabase
+          .from('articulos_proveedor')
+          .insert(
+            aVincularNuevo.map((f) => ({
+              articulo_id: mapaArticulosPorCodigo.get(f.codigoInterno),
+              proveedor_id: proveedorId,
+              codigo_proveedor: f.codigo,
+              nombre_proveedor: f.nombre || null,
+              precio: f.precio,
+              fecha_actualizacion: new Date().toISOString(),
+            }))
+          )
+          .select()
+        if (error) {
+          erroresEjecucion.push({ fila: 0, motivo: 'Error al vincular por código interno: ' + error.message })
+        } else {
+          vinculadosPorCodigoInterno += data?.length ?? aVincularNuevo.length
+        }
+      }
+
+      // Si alguna de estas filas ya tenía una pendiente sin resolver (de una
+      // carga anterior), queda resuelta: ya se vinculó directo esta vez.
+      const aLimpiarPendiente = aVincularPorCodigoInterno.filter((f) => mapaPendientes.has(f.codigo))
+      await enLotes(aLimpiarPendiente, TAMANO_LOTE, async (f) => {
+        await supabase
+          .from('articulos_proveedor_pendientes')
+          .update({ resuelto: true })
+          .eq('id', mapaPendientes.get(f.codigo))
+      })
+
       await enLotes(aPendienteActualizar, TAMANO_LOTE, async (f) => {
         const { error } = await supabase
           .from('articulos_proveedor_pendientes')
@@ -158,6 +234,7 @@ export default function CargaListaPrecios({ proveedores }: { proveedores: Provee
             precio: f.precio,
             nombre_proveedor: f.nombre || null,
             archivo_origen: archivo.name,
+            motivo: motivoDe(f),
           })
           .eq('id', mapaPendientes.get(f.codigo))
         if (error) {
@@ -178,6 +255,7 @@ export default function CargaListaPrecios({ proveedores }: { proveedores: Provee
               nombre_proveedor: f.nombre || null,
               precio: f.precio,
               archivo_origen: archivo.name,
+              motivo: motivoDe(f),
             }))
           )
           .select()
@@ -190,6 +268,7 @@ export default function CargaListaPrecios({ proveedores }: { proveedores: Provee
 
       setResumen({
         actualizados,
+        vinculadosPorCodigoInterno,
         pendientesNuevas,
         pendientesActualizadas,
         errores: [...erroresParseo, ...erroresEjecucion],
@@ -212,6 +291,9 @@ export default function CargaListaPrecios({ proveedores }: { proveedores: Provee
           El Excel debe tener las columnas <code className="bg-slate-100 px-1 rounded">codigo_proveedor</code>,{' '}
           <code className="bg-slate-100 px-1 rounded">nombre_proveedor</code> y{' '}
           <code className="bg-slate-100 px-1 rounded">precio</code> en la primera fila (en cualquier orden).
+          Opcionalmente podés agregar <code className="bg-slate-100 px-1 rounded">codigo_interno</code>: si lo
+          completás con un código que exista en Artículos, el precio se vincula directo a ese artículo sin pasar por
+          Pendientes. Si lo completás pero no existe, la fila va a Pendientes avisando el código que no se encontró.
         </p>
         <DescargarPlantillaListaPrecios />
       </div>
@@ -250,10 +332,14 @@ export default function CargaListaPrecios({ proveedores }: { proveedores: Provee
           <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
             Resumen de la importación
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-3">
             <div>
               <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Precios actualizados</p>
               <p className="text-xl font-bold text-emerald-600">{resumen.actualizados}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Vinculados por código interno</p>
+              <p className="text-xl font-bold text-emerald-600">{resumen.vinculadosPorCodigoInterno}</p>
             </div>
             <div>
               <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Pendientes nuevas</p>
