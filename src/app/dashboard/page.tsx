@@ -1,10 +1,11 @@
 import { createClient } from '@/utils/supabase/server'
 import ClientesComparacion from '@/components/ClientesComparacion'
+import RankingCompras from '@/components/RankingCompras'
 
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ mes?: string }>
+  searchParams: Promise<{ mes?: string; comprasDesde?: string; comprasHasta?: string }>
 }) {
   const supabase = await createClient()
   const params = await searchParams
@@ -17,6 +18,50 @@ export default async function DashboardPage({
   const fechaInicio = `${mes}-01`
   const ultimoDia = new Date(anio, mesNum, 0).getDate()
   const fechaFin = `${mes}-${String(ultimoDia).padStart(2, '0')}`
+
+  // Compras por cliente/proveedor: período propio (desde/hasta), independiente
+  // del selector de "Mes" de arriba, que es específico de RRHH. Por defecto
+  // muestra el mes en curso hasta hoy.
+  const hoyStr = hoy.toISOString().split('T')[0]
+  const primerDiaMesActual = `${mesActual}-01`
+  const comprasDesde = params.comprasDesde || primerDiaMesActual
+  const comprasHasta = params.comprasHasta || hoyStr
+
+  const { data: ordenesPeriodo } = await supabase
+    .from('ordenes_compra')
+    .select(
+      'id, cliente_id, proveedor_id, clientes(nombre), proveedores(razon_social), ordenes_compra_items(cantidad, precio_unitario)'
+    )
+    .gte('fecha', comprasDesde)
+    .lte('fecha', comprasHasta)
+    .in('estado', ['enviada', 'recepcionada']) // los borradores todavía no son una compra confirmada
+
+  type AcumuladoCompras = { nombre: string; total: number; cantidadOc: number }
+  const porCliente: Record<string, AcumuladoCompras> = {}
+  const porProveedor: Record<string, AcumuladoCompras> = {}
+  let totalComprado = 0
+
+  ;(ordenesPeriodo ?? []).forEach((o: any) => {
+    const totalOc = (o.ordenes_compra_items ?? []).reduce(
+      (acc: number, i: any) => acc + i.cantidad * i.precio_unitario,
+      0
+    )
+    totalComprado += totalOc
+
+    const nombreCliente = o.clientes?.nombre ?? 'Sin cliente'
+    if (!porCliente[o.cliente_id]) porCliente[o.cliente_id] = { nombre: nombreCliente, total: 0, cantidadOc: 0 }
+    porCliente[o.cliente_id].total += totalOc
+    porCliente[o.cliente_id].cantidadOc += 1
+
+    const nombreProveedor = o.proveedores?.razon_social ?? 'Sin proveedor'
+    if (!porProveedor[o.proveedor_id]) porProveedor[o.proveedor_id] = { nombre: nombreProveedor, total: 0, cantidadOc: 0 }
+    porProveedor[o.proveedor_id].total += totalOc
+    porProveedor[o.proveedor_id].cantidadOc += 1
+  })
+
+  const rankingClientesCompras = Object.values(porCliente).sort((a, b) => b.total - a.total)
+  const rankingProveedoresCompras = Object.values(porProveedor).sort((a, b) => b.total - a.total)
+  const cantidadOcPeriodo = ordenesPeriodo?.length ?? 0
 
   // Clientes con su presupuesto
   const { data: clientes } = await supabase
@@ -87,6 +132,8 @@ export default async function DashboardPage({
         <form className="flex items-center gap-2">
           <label className="text-sm text-slate-600">Mes:</label>
           <input type="month" name="mes" defaultValue={mes} className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm" />
+          <input type="hidden" name="comprasDesde" value={comprasDesde} />
+          <input type="hidden" name="comprasHasta" value={comprasHasta} />
           <button type="submit" className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg">
             Ver
           </button>
@@ -137,6 +184,62 @@ export default async function DashboardPage({
           {ranking.length === 0 && (
             <p className="text-slate-500 text-sm p-4">Sin ausencias registradas este mes.</p>
           )}
+        </div>
+      </div>
+
+      <div className="mt-10">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
+            Compras
+          </h2>
+          <form className="flex flex-wrap items-center gap-2">
+            <input type="hidden" name="mes" value={mes} />
+            <label className="text-sm text-slate-600">Desde:</label>
+            <input
+              type="date"
+              name="comprasDesde"
+              defaultValue={comprasDesde}
+              className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm"
+            />
+            <label className="text-sm text-slate-600">Hasta:</label>
+            <input
+              type="date"
+              name="comprasHasta"
+              defaultValue={comprasHasta}
+              className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm"
+            />
+            <button type="submit" className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg">
+              Ver
+            </button>
+          </form>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-4">
+            <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Total comprado en el período</p>
+            <p className="text-2xl font-bold text-slate-900 tabular-nums">
+              $ {totalComprado.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+            </p>
+          </div>
+          <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-4">
+            <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Órdenes de compra (enviadas + recepcionadas)</p>
+            <p className="text-2xl font-bold text-slate-900">{cantidadOcPeriodo}</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
+              Compras por cliente
+            </h3>
+            <RankingCompras filas={rankingClientesCompras} vacioTexto="Sin compras en el período elegido." />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
+              Compras por proveedor
+            </h3>
+            <RankingCompras filas={rankingProveedoresCompras} vacioTexto="Sin compras en el período elegido." />
+          </div>
         </div>
       </div>
     </div>
