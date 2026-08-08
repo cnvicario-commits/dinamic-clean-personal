@@ -90,13 +90,20 @@ export default function CargaListaPrecios({ proveedores }: { proveedores: Provee
 
       filasCrudas.forEach((fila, indice) => {
         const numeroFila = indice + 2 // fila 1 = encabezado
-        const codigo = String(fila.codigo_proveedor ?? '').trim()
+        let codigo = String(fila.codigo_proveedor ?? '').trim()
         const nombre = String(fila.nombre_proveedor ?? '').trim()
         const precio = normalizarPrecio(fila.precio)
         const codigoInterno = String(fila.codigo_interno ?? '').trim()
 
+        // Sin código propio del proveedor pero con código interno: usamos el
+        // código interno como codigo_proveedor (la columna es obligatoria en
+        // articulos_proveedor), para no perder la fila.
+        if (!codigo && codigoInterno) {
+          codigo = codigoInterno
+        }
+
         if (!codigo) {
-          erroresParseo.push({ fila: numeroFila, motivo: 'codigo_proveedor vacío' })
+          erroresParseo.push({ fila: numeroFila, motivo: 'codigo_proveedor vacío (y sin codigo_interno para usar en su lugar)' })
           return
         }
         if (isNaN(precio)) {
@@ -294,6 +301,9 @@ export default function CargaListaPrecios({ proveedores }: { proveedores: Provee
           Opcionalmente podés agregar <code className="bg-slate-100 px-1 rounded">codigo_interno</code>: si lo
           completás con un código que exista en Artículos, el precio se vincula directo a ese artículo sin pasar por
           Pendientes. Si lo completás pero no existe, la fila va a Pendientes avisando el código que no se encontró.
+          Si no tenés <code className="bg-slate-100 px-1 rounded">codigo_proveedor</code> para algún artículo, dejalo
+          vacío pero completá <code className="bg-slate-100 px-1 rounded">codigo_interno</code>: se usa ese código
+          como reemplazo.
         </p>
         <DescargarPlantillaListaPrecios />
       </div>
