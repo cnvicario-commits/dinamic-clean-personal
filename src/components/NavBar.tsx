@@ -14,10 +14,15 @@ export default function NavBar() {
     { href: '/asignaciones', label: 'Asignaciones' },
     { href: '/proveedores', label: 'Proveedores' },
     { href: '/articulos', label: 'Artículos' },
+    { href: '/empresas', label: 'Empresas' },
+    { href: '/pedidos-compra', label: 'Pedidos de compra' },
+    { href: '/panel-compras', label: 'Panel de compras' },
+    { href: '/ordenes-compra', label: 'Órdenes de compra' },
+    { href: '/pedidos-deposito', label: 'Pedidos a depósito' },
   ]
 
   return (
-    <nav className="bg-slate-900 text-slate-100 shadow-sm">
+    <nav className="print:hidden bg-slate-900 text-slate-100 shadow-sm">
       <div className="flex items-center justify-between px-4 sm:px-6 py-4">
         <Link href="/dashboard" className="font-bold text-teal-400">
           Dinamic Clean
