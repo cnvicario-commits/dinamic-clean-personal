@@ -139,12 +139,21 @@ export type PedidoDepositoDetalleView = PedidoDeposito & {
 }
 
 // Estado local (en memoria, NO persistido hasta "Confirmar") del Panel de compras.
+//
+// 'proveedor'           -> solo OC (el proveedor entrega directo al cliente).
+// 'deposito'            -> solo pedido a depósito (ya hay stock).
+// 'proveedor_deposito'  -> genera AMBOS a la vez, sin relación ni bloqueo entre
+//                          sí: una línea de OC al proveedor (el proveedor entrega
+//                          en nuestro depósito) y una línea en el pedido a
+//                          depósito (para armar el envío al cliente).
+export type DestinoAsignacion = 'proveedor' | 'deposito' | 'proveedor_deposito'
+
 export type AsignacionPendiente = {
   clave: string // solo para key de React y para poder "quitar" la fila
   pedidoCompraItemId: string
   articulo: ArticuloResumen
   cantidad: number
-  destino: 'proveedor' | 'deposito'
+  destino: DestinoAsignacion
   proveedorId: string | null // null si destino === 'deposito'
   proveedorNombre: string | null
   precioUnitario: number | null // null si destino === 'deposito'

@@ -22,7 +22,7 @@ export default function OrdenCompraDetalle({ orden }: { orden: OrdenCompraDetall
         <div className="flex gap-2">
           <EstadoOrdenCompraBoton id={orden.id} estado={orden.estado} />
           <DuplicarOrdenCompraBoton id={orden.id} />
-          <BotonImprimir />
+          <BotonImprimir nombreArchivo={orden.numero_oc} />
         </div>
       </div>
 
@@ -32,7 +32,8 @@ export default function OrdenCompraDetalle({ orden }: { orden: OrdenCompraDetall
       </div>
 
       <p className="text-sm text-slate-500 mb-6">
-        Proveedor: <span className="font-medium text-slate-700">{orden.proveedores?.razon_social}</span>
+        N° de OC: <span className="font-medium text-slate-700">{orden.numero_oc}</span>
+        {' · '}Proveedor: <span className="font-medium text-slate-700">{orden.proveedores?.razon_social}</span>
         {' · '}Cliente: <span className="font-medium text-slate-700">{orden.clientes?.nombre}</span>
         {' · '}Fecha: {new Date(`${orden.fecha}T00:00:00`).toLocaleDateString('es-AR')}
       </p>

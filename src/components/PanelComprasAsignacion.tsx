@@ -3,12 +3,16 @@
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
-import type { AsignacionPendiente, LineaPendiente, ProveedorResumen } from '@/types/compras'
+import type { AsignacionPendiente, DestinoAsignacion, LineaPendiente, ProveedorResumen } from '@/types/compras'
 
 const inputStyle =
   'px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500'
 
 type PrecioProveedor = { articulo_id: string; proveedor_id: string; precio: number }
+
+function requiereProveedor(destino: DestinoAsignacion) {
+  return destino === 'proveedor' || destino === 'proveedor_deposito'
+}
 
 function LineaAsignacionForm({
   linea,
@@ -24,7 +28,7 @@ function LineaAsignacionForm({
   onAgregar: (a: AsignacionPendiente) => void
 }) {
   const [cantidad, setCantidad] = useState('')
-  const [destino, setDestino] = useState<'proveedor' | 'deposito'>('proveedor')
+  const [destino, setDestino] = useState<DestinoAsignacion>('proveedor')
   const [proveedorId, setProveedorId] = useState('')
   const [precioManual, setPrecioManual] = useState('')
   const [observaciones, setObservaciones] = useState('')
@@ -53,7 +57,7 @@ function LineaAsignacionForm({
       setError(`No podés asignar más de lo pendiente (${pendienteRestante}).`)
       return
     }
-    if (destino === 'proveedor') {
+    if (requiereProveedor(destino)) {
       if (!proveedorId) {
         setError('Elegí un proveedor.')
         return
@@ -69,7 +73,7 @@ function LineaAsignacionForm({
         pedidoCompraItemId: linea.id,
         articulo: linea.articulos!,
         cantidad: cant,
-        destino: 'proveedor',
+        destino,
         proveedorId,
         proveedorNombre: proveedor?.razon_social ?? null,
         precioUnitario: precio,
@@ -105,11 +109,12 @@ function LineaAsignacionForm({
         onChange={(e) => setCantidad(e.target.value)}
         className={`w-40 ${inputStyle}`}
       />
-      <select value={destino} onChange={(e) => setDestino(e.target.value as 'proveedor' | 'deposito')} className={inputStyle}>
-        <option value="proveedor">Orden de compra</option>
-        <option value="deposito">Pedido a depósito</option>
+      <select value={destino} onChange={(e) => setDestino(e.target.value as DestinoAsignacion)} className={`min-w-[220px] ${inputStyle}`}>
+        <option value="proveedor">Orden de compra (directo al cliente)</option>
+        <option value="proveedor_deposito">Orden de compra (entra a nuestro depósito)</option>
+        <option value="deposito">Pedido a depósito (ya tengo stock)</option>
       </select>
-      {destino === 'proveedor' && (
+      {requiereProveedor(destino) && (
         <>
           <select value={proveedorId} onChange={(e) => setProveedorId(e.target.value)} className={`min-w-[180px] ${inputStyle}`}>
             <option value="">Seleccionar proveedor</option>
@@ -149,7 +154,13 @@ function LineaAsignacionForm({
       >
         Agregar a la lista
       </button>
-      {destino === 'proveedor' && proveedorId && precioCatalogo === null && (
+      {destino === 'proveedor_deposito' && (
+        <p className="text-sm text-slate-500 w-full">
+          Se van a generar dos líneas independientes: una en la orden de compra a este proveedor y otra en el pedido a
+          depósito de este pedido de compra.
+        </p>
+      )}
+      {requiereProveedor(destino) && proveedorId && precioCatalogo === null && (
         <p className="text-amber-600 text-sm w-full">
           Sin precio cargado para este proveedor. El precio que ingreses se usa solo para esta orden de compra.
         </p>
@@ -157,6 +168,12 @@ function LineaAsignacionForm({
       {error && <p className="text-rose-600 text-sm w-full">{error}</p>}
     </div>
   )
+}
+
+function destinoEtiqueta(a: AsignacionPendiente) {
+  if (a.destino === 'deposito') return 'Depósito'
+  if (a.destino === 'proveedor') return a.proveedorNombre ?? ''
+  return `${a.proveedorNombre} + Depósito`
 }
 
 export default function PanelComprasAsignacion({
@@ -201,77 +218,88 @@ export default function PanelComprasAsignacion({
 
     const { data: userData } = await supabase.auth.getUser()
 
-    const grupos = new Map<string, AsignacionPendiente[]>()
+    // Una asignación 'proveedor_deposito' alimenta DOS grupos a la vez (la OC
+    // de su proveedor y el único pedido a depósito del pedido de compra),
+    // sin quedar vinculada entre ambas líneas resultantes.
+    const gruposProveedor = new Map<string, AsignacionPendiente[]>()
+    const itemsDeposito: AsignacionPendiente[] = []
     for (const a of asignaciones) {
-      const clave = a.destino === 'deposito' ? 'DEPOSITO' : a.proveedorId!
-      grupos.set(clave, [...(grupos.get(clave) ?? []), a])
+      if (a.destino === 'proveedor' || a.destino === 'proveedor_deposito') {
+        gruposProveedor.set(a.proveedorId!, [...(gruposProveedor.get(a.proveedorId!) ?? []), a])
+      }
+      if (a.destino === 'deposito' || a.destino === 'proveedor_deposito') {
+        itemsDeposito.push(a)
+      }
     }
 
-    for (const [clave, items] of grupos) {
-      if (clave === 'DEPOSITO') {
-        const { data: nuevo, error: errCab } = await supabase
-          .from('pedidos_deposito')
-          .insert({
-            empresa_id: empresaId,
-            cliente_id: clienteId,
-            pedido_id: pedidoId,
-            estado: 'borrador',
-            creado_por: userData.user?.id,
-          })
-          .select('id')
-          .single()
-        if (errCab || !nuevo) {
-          setGuardando(false)
-          setError('Error al crear el pedido a depósito: ' + (errCab?.message ?? 'desconocido'))
-          return
-        }
-        const { error: errItems } = await supabase.from('pedidos_deposito_items').insert(
-          items.map((i) => ({
-            pedido_deposito_id: nuevo.id,
-            pedido_compra_item_id: i.pedidoCompraItemId,
-            articulo_id: i.articulo.id,
-            cantidad: i.cantidad,
-            observaciones: i.observaciones || null,
-          }))
-        )
-        if (errItems) {
-          setGuardando(false)
-          setError('Error al guardar las líneas del pedido a depósito: ' + errItems.message)
-          return
-        }
-      } else {
-        const { data: nuevo, error: errCab } = await supabase
-          .from('ordenes_compra')
-          .insert({
-            empresa_id: empresaId,
-            proveedor_id: clave,
-            cliente_id: clienteId,
-            pedido_id: pedidoId,
-            estado: 'borrador',
-            creado_por: userData.user?.id,
-          })
-          .select('id')
-          .single()
-        if (errCab || !nuevo) {
-          setGuardando(false)
-          setError('Error al crear la orden de compra: ' + (errCab?.message ?? 'desconocido'))
-          return
-        }
-        const { error: errItems } = await supabase.from('ordenes_compra_items').insert(
-          items.map((i) => ({
-            oc_id: nuevo.id,
-            pedido_compra_item_id: i.pedidoCompraItemId,
-            articulo_id: i.articulo.id,
-            cantidad: i.cantidad,
-            precio_unitario: i.precioUnitario,
-            observaciones: i.observaciones || null,
-          }))
-        )
-        if (errItems) {
-          setGuardando(false)
-          setError('Error al guardar las líneas de la orden de compra: ' + errItems.message)
-          return
-        }
+    for (const [proveedorId, items] of gruposProveedor) {
+      const { data: nuevo, error: errCab } = await supabase
+        .from('ordenes_compra')
+        .insert({
+          empresa_id: empresaId,
+          proveedor_id: proveedorId,
+          cliente_id: clienteId,
+          pedido_id: pedidoId,
+          estado: 'borrador',
+          creado_por: userData.user?.id,
+        })
+        .select('id')
+        .single()
+      if (errCab || !nuevo) {
+        setGuardando(false)
+        setError('Error al crear la orden de compra: ' + (errCab?.message ?? 'desconocido'))
+        return
+      }
+      const { error: errItems } = await supabase.from('ordenes_compra_items').insert(
+        items.map((i) => ({
+          oc_id: nuevo.id,
+          // Si además va a depósito ('proveedor_deposito'), esta línea de OC no
+          // se vincula al pedido de origen: quien cuenta contra lo pendiente
+          // del pedido es la línea del pedido a depósito, no esta compra.
+          pedido_compra_item_id: i.destino === 'proveedor' ? i.pedidoCompraItemId : null,
+          articulo_id: i.articulo.id,
+          cantidad: i.cantidad,
+          precio_unitario: i.precioUnitario,
+          observaciones: i.observaciones || null,
+        }))
+      )
+      if (errItems) {
+        setGuardando(false)
+        setError('Error al guardar las líneas de la orden de compra: ' + errItems.message)
+        return
+      }
+    }
+
+    if (itemsDeposito.length > 0) {
+      const { data: nuevo, error: errCab } = await supabase
+        .from('pedidos_deposito')
+        .insert({
+          empresa_id: empresaId,
+          cliente_id: clienteId,
+          pedido_id: pedidoId,
+          estado: 'borrador',
+          creado_por: userData.user?.id,
+        })
+        .select('id')
+        .single()
+      if (errCab || !nuevo) {
+        setGuardando(false)
+        setError('Error al crear el pedido a depósito: ' + (errCab?.message ?? 'desconocido'))
+        return
+      }
+      const { error: errItems } = await supabase.from('pedidos_deposito_items').insert(
+        itemsDeposito.map((i) => ({
+          pedido_deposito_id: nuevo.id,
+          pedido_compra_item_id: i.pedidoCompraItemId,
+          articulo_id: i.articulo.id,
+          cantidad: i.cantidad,
+          observaciones: i.observaciones || null,
+        }))
+      )
+      if (errItems) {
+        setGuardando(false)
+        setError('Error al guardar las líneas del pedido a depósito: ' + errItems.message)
+        return
       }
     }
 
@@ -336,9 +364,7 @@ export default function PanelComprasAsignacion({
                   <tr key={a.clave} className="border-b border-slate-100 last:border-0">
                     <td className="px-4 py-3 text-slate-800">{a.articulo.codigo_interno} — {a.articulo.nombre}</td>
                     <td className="px-4 py-3 text-slate-600">{a.cantidad}</td>
-                    <td className="px-4 py-3 text-slate-600">
-                      {a.destino === 'deposito' ? 'Depósito' : a.proveedorNombre}
-                    </td>
+                    <td className="px-4 py-3 text-slate-600">{destinoEtiqueta(a)}</td>
                     <td className="px-4 py-3 text-slate-600">
                       {a.precioUnitario != null ? `$ ${a.precioUnitario.toLocaleString('es-AR', { minimumFractionDigits: 2 })}` : '-'}
                     </td>
