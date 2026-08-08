@@ -34,11 +34,11 @@ export default function OrdenCompraDetalle({ orden }: { orden: OrdenCompraDetall
       <p className="text-sm text-slate-500 mb-6">
         Proveedor: <span className="font-medium text-slate-700">{orden.proveedores?.razon_social}</span>
         {' · '}Cliente: <span className="font-medium text-slate-700">{orden.clientes?.nombre}</span>
-        {' · '}Fecha: {new Date(orden.created_at).toLocaleDateString('es-AR')}
+        {' · '}Fecha: {new Date(`${orden.fecha}T00:00:00`).toLocaleDateString('es-AR')}
       </p>
 
-      {orden.observaciones && (
-        <p className="text-sm text-slate-600 mb-6">Observaciones: {orden.observaciones}</p>
+      {orden.observaciones_generales && (
+        <p className="text-sm text-slate-600 mb-6">Observaciones: {orden.observaciones_generales}</p>
       )}
 
       <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">

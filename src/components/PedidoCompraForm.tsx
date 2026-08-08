@@ -38,7 +38,7 @@ export default function PedidoCompraForm({
 }) {
   const [empresaId, setEmpresaId] = useState(pedido?.empresa_id ?? '')
   const [clienteId, setClienteId] = useState(pedido?.cliente_id ?? '')
-  const [observaciones, setObservaciones] = useState(pedido?.observaciones ?? '')
+  const [observaciones, setObservaciones] = useState(pedido?.observaciones_generales ?? '')
   const [lineas, setLineas] = useState<Linea[]>(
     (items ?? []).map((i) => ({
       clave: i.id,
@@ -107,7 +107,7 @@ export default function PedidoCompraForm({
     const cabecera = {
       empresa_id: empresaId,
       cliente_id: clienteId,
-      observaciones: observaciones || null,
+      observaciones_generales: observaciones || null,
     }
 
     let pedidoId = pedido?.id
@@ -121,16 +121,17 @@ export default function PedidoCompraForm({
       }
       // Se reemplazan todas las líneas: más simple que diffear altas/bajas/cambios,
       // y seguro porque solo se puede editar mientras el pedido sigue en borrador.
-      const { error: errDelete } = await supabase.from('pedidos_compra_items').delete().eq('pedido_compra_id', pedido.id)
+      const { error: errDelete } = await supabase.from('pedidos_compra_items').delete().eq('pedido_id', pedido.id)
       if (errDelete) {
         setLoading(false)
         setError('Error al guardar las líneas: ' + errDelete.message)
         return
       }
     } else {
+      const { data: userData } = await supabase.auth.getUser()
       const { data, error: errInsert } = await supabase
         .from('pedidos_compra')
-        .insert({ ...cabecera, estado: 'borrador' })
+        .insert({ ...cabecera, estado: 'borrador', creado_por: userData.user?.id })
         .select('id')
         .single()
       if (errInsert || !data) {
@@ -143,7 +144,7 @@ export default function PedidoCompraForm({
 
     const { error: errItems } = await supabase.from('pedidos_compra_items').insert(
       lineas.map((l) => ({
-        pedido_compra_id: pedidoId,
+        pedido_id: pedidoId,
         articulo_id: l.articuloId,
         cantidad: Number(l.cantidad),
         observaciones: l.observaciones || null,

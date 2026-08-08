@@ -22,8 +22,8 @@ export default function PedidoCompraDetalle({ pedido }: { pedido: PedidoCompraDe
         {' · '}Fecha: {new Date(pedido.created_at).toLocaleDateString('es-AR')}
       </p>
 
-      {pedido.observaciones && (
-        <p className="text-sm text-slate-600 mb-6">Observaciones: {pedido.observaciones}</p>
+      {pedido.observaciones_generales && (
+        <p className="text-sm text-slate-600 mb-6">Observaciones: {pedido.observaciones_generales}</p>
       )}
 
       <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">

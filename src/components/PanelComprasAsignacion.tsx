@@ -199,6 +199,8 @@ export default function PanelComprasAsignacion({
     setError('')
     setGuardando(true)
 
+    const { data: userData } = await supabase.auth.getUser()
+
     const grupos = new Map<string, AsignacionPendiente[]>()
     for (const a of asignaciones) {
       const clave = a.destino === 'deposito' ? 'DEPOSITO' : a.proveedorId!
@@ -209,7 +211,13 @@ export default function PanelComprasAsignacion({
       if (clave === 'DEPOSITO') {
         const { data: nuevo, error: errCab } = await supabase
           .from('pedidos_deposito')
-          .insert({ empresa_id: empresaId, cliente_id: clienteId, estado: 'borrador' })
+          .insert({
+            empresa_id: empresaId,
+            cliente_id: clienteId,
+            pedido_id: pedidoId,
+            estado: 'borrador',
+            creado_por: userData.user?.id,
+          })
           .select('id')
           .single()
         if (errCab || !nuevo) {
@@ -234,7 +242,14 @@ export default function PanelComprasAsignacion({
       } else {
         const { data: nuevo, error: errCab } = await supabase
           .from('ordenes_compra')
-          .insert({ empresa_id: empresaId, proveedor_id: clave, cliente_id: clienteId, estado: 'borrador' })
+          .insert({
+            empresa_id: empresaId,
+            proveedor_id: clave,
+            cliente_id: clienteId,
+            pedido_id: pedidoId,
+            estado: 'borrador',
+            creado_por: userData.user?.id,
+          })
           .select('id')
           .single()
         if (errCab || !nuevo) {
@@ -244,7 +259,7 @@ export default function PanelComprasAsignacion({
         }
         const { error: errItems } = await supabase.from('ordenes_compra_items').insert(
           items.map((i) => ({
-            orden_compra_id: nuevo.id,
+            oc_id: nuevo.id,
             pedido_compra_item_id: i.pedidoCompraItemId,
             articulo_id: i.articulo.id,
             cantidad: i.cantidad,

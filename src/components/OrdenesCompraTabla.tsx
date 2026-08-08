@@ -5,7 +5,7 @@ import Link from 'next/link'
 import EstadoBadge from './EstadoBadge'
 import type { OrdenCompraListado, EstadoOrdenCompra, ClienteResumen, Empresa, ProveedorResumen } from '@/types/compras'
 
-type Columna = 'numero_oc' | 'empresa' | 'proveedor' | 'cliente' | 'estado' | 'created_at'
+type Columna = 'numero_oc' | 'empresa' | 'proveedor' | 'cliente' | 'estado' | 'fecha'
 
 function comparar(a: string, b: string) {
   return a.localeCompare(b, 'es', { sensitivity: 'base' })
@@ -23,8 +23,8 @@ function valorColumna(o: OrdenCompraListado, columna: Columna): string {
       return o.clientes?.nombre ?? ''
     case 'estado':
       return o.estado
-    case 'created_at':
-      return o.created_at
+    case 'fecha':
+      return o.fecha
   }
 }
 
@@ -43,7 +43,7 @@ export default function OrdenesCompraTabla({
   const [filtroClienteId, setFiltroClienteId] = useState('')
   const [filtroEmpresaId, setFiltroEmpresaId] = useState('')
   const [filtroProveedorId, setFiltroProveedorId] = useState('')
-  const [columna, setColumna] = useState<Columna>('created_at')
+  const [columna, setColumna] = useState<Columna>('fecha')
   const [direccion, setDireccion] = useState<'asc' | 'desc'>('desc')
 
   function ordenarPor(col: Columna) {
@@ -123,8 +123,8 @@ export default function OrdenesCompraTabla({
               <th className="px-4 py-3 font-medium cursor-pointer select-none hover:text-slate-700" onClick={() => ordenarPor('estado')}>
                 Estado{indicador('estado')}
               </th>
-              <th className="px-4 py-3 font-medium cursor-pointer select-none hover:text-slate-700" onClick={() => ordenarPor('created_at')}>
-                Fecha{indicador('created_at')}
+              <th className="px-4 py-3 font-medium cursor-pointer select-none hover:text-slate-700" onClick={() => ordenarPor('fecha')}>
+                Fecha{indicador('fecha')}
               </th>
             </tr>
           </thead>
@@ -140,7 +140,7 @@ export default function OrdenesCompraTabla({
                 <td className="px-4 py-3 text-slate-600">{o.empresas?.nombre ?? '-'}</td>
                 <td className="px-4 py-3 text-slate-600">{o.clientes?.nombre ?? '-'}</td>
                 <td className="px-4 py-3"><EstadoBadge estado={o.estado} /></td>
-                <td className="px-4 py-3 text-slate-600">{new Date(o.created_at).toLocaleDateString('es-AR')}</td>
+                <td className="px-4 py-3 text-slate-600">{new Date(`${o.fecha}T00:00:00`).toLocaleDateString('es-AR')}</td>
               </tr>
             ))}
           </tbody>

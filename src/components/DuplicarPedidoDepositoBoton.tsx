@@ -20,13 +20,16 @@ export default function DuplicarPedidoDepositoBoton({ id }: { id: string }) {
       return
     }
 
+    const { data: userData } = await supabase.auth.getUser()
     const { data: nuevo, error: errInsert } = await supabase
       .from('pedidos_deposito')
       .insert({
         empresa_id: origen.empresa_id,
         cliente_id: origen.cliente_id,
-        observaciones: origen.observaciones,
+        pedido_id: null, // pedido a depósito nuevo independiente, no arrastra el pedido de origen
+        observaciones_generales: origen.observaciones_generales,
         estado: 'borrador',
+        creado_por: userData.user?.id,
       })
       .select('id')
       .single()

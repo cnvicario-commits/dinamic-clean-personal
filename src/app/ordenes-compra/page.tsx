@@ -7,7 +7,7 @@ export default async function OrdenesCompraPage() {
     supabase
       .from('ordenes_compra')
       .select('*, empresas(nombre), proveedores(razon_social), clientes(nombre)')
-      .order('created_at', { ascending: false }),
+      .order('fecha', { ascending: false }),
     supabase.from('clientes').select('id, nombre').order('nombre'),
     supabase.from('empresas').select('*').order('nombre'),
     supabase.from('proveedores').select('id, razon_social').order('razon_social'),

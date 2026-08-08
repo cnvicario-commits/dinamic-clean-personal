@@ -13,20 +13,22 @@ export default function DuplicarPedidoCompraBoton({ id }: { id: string }) {
     setLoading(true)
 
     const { data: origen } = await supabase.from('pedidos_compra').select('*').eq('id', id).single()
-    const { data: items } = await supabase.from('pedidos_compra_items').select('*').eq('pedido_compra_id', id)
+    const { data: items } = await supabase.from('pedidos_compra_items').select('*').eq('pedido_id', id)
 
     if (!origen) {
       setLoading(false)
       return
     }
 
+    const { data: userData } = await supabase.auth.getUser()
     const { data: nuevo, error: errInsert } = await supabase
       .from('pedidos_compra')
       .insert({
         empresa_id: origen.empresa_id,
         cliente_id: origen.cliente_id,
-        observaciones: origen.observaciones,
+        observaciones_generales: origen.observaciones_generales,
         estado: 'borrador',
+        creado_por: userData.user?.id,
       })
       .select('id')
       .single()
@@ -40,7 +42,7 @@ export default function DuplicarPedidoCompraBoton({ id }: { id: string }) {
     if (items && items.length > 0) {
       await supabase.from('pedidos_compra_items').insert(
         items.map((i) => ({
-          pedido_compra_id: nuevo.id,
+          pedido_id: nuevo.id,
           articulo_id: i.articulo_id,
           cantidad: i.cantidad,
           observaciones: i.observaciones,

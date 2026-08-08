@@ -25,11 +25,11 @@ export default function PedidoDepositoDetalle({ pedido }: { pedido: PedidoDeposi
 
       <p className="text-sm text-slate-500 mb-6">
         Cliente: <span className="font-medium text-slate-700">{pedido.clientes?.nombre}</span>
-        {' · '}Fecha: {new Date(pedido.created_at).toLocaleDateString('es-AR')}
+        {' · '}Fecha: {new Date(`${pedido.fecha}T00:00:00`).toLocaleDateString('es-AR')}
       </p>
 
-      {pedido.observaciones && (
-        <p className="text-sm text-slate-600 mb-6">Observaciones: {pedido.observaciones}</p>
+      {pedido.observaciones_generales && (
+        <p className="text-sm text-slate-600 mb-6">Observaciones: {pedido.observaciones_generales}</p>
       )}
 
       <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">

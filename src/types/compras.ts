@@ -34,14 +34,15 @@ export type PedidoCompra = {
   numero_pedido: string
   empresa_id: string
   cliente_id: string
-  observaciones: string | null
+  observaciones_generales: string | null
   estado: EstadoPedidoCompra
+  creado_por: string
   created_at: string
-  updated_at: string | null
+  updated_at: string
 }
 export type PedidoCompraItem = {
   id: string
-  pedido_compra_id: string
+  pedido_id: string
   articulo_id: string
   cantidad: number
   observaciones: string | null
@@ -53,14 +54,17 @@ export type OrdenCompra = {
   empresa_id: string
   proveedor_id: string
   cliente_id: string
-  observaciones: string | null
+  pedido_id: string | null // pedido de compra de origen (null si es una OC independiente/duplicada)
+  fecha: string
+  observaciones_generales: string | null
   estado: EstadoOrdenCompra
+  creado_por: string
   created_at: string
-  updated_at: string | null
+  updated_at: string
 }
 export type OrdenCompraItem = {
   id: string
-  orden_compra_id: string
+  oc_id: string
   pedido_compra_item_id: string | null
   articulo_id: string
   cantidad: number
@@ -73,10 +77,13 @@ export type PedidoDeposito = {
   numero_pedido_deposito: string
   empresa_id: string
   cliente_id: string
-  observaciones: string | null
+  pedido_id: string | null // pedido de compra de origen (null si es un pedido independiente/duplicado)
+  fecha: string
+  observaciones_generales: string | null
   estado: EstadoPedidoDeposito
+  creado_por: string
   created_at: string
-  updated_at: string | null
+  updated_at: string
 }
 export type PedidoDepositoItem = {
   id: string

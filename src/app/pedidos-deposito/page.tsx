@@ -7,7 +7,7 @@ export default async function PedidosDepositoPage() {
     supabase
       .from('pedidos_deposito')
       .select('*, empresas(nombre), clientes(nombre)')
-      .order('created_at', { ascending: false }),
+      .order('fecha', { ascending: false }),
     supabase.from('clientes').select('id, nombre').order('nombre'),
     supabase.from('empresas').select('*').order('nombre'),
   ])
