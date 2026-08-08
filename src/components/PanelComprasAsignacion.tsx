@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
-import type { AsignacionPendiente, DestinoAsignacion, LineaPendiente, ProveedorResumen } from '@/types/compras'
+import type { AsignacionPendiente, DestinoAsignacion, LineaPendiente, ProveedorResumen, ClienteDomicilio } from '@/types/compras'
 
 const inputStyle =
   'px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500'
@@ -180,6 +180,9 @@ export default function PanelComprasAsignacion({
   pedidoId,
   empresaId,
   clienteId,
+  empresaNombre,
+  empresaDomicilio,
+  domicilios,
   lineas,
   proveedores,
   preciosProveedor,
@@ -187,15 +190,32 @@ export default function PanelComprasAsignacion({
   pedidoId: string
   empresaId: string
   clienteId: string
+  empresaNombre: string | null
+  empresaDomicilio: string | null
+  domicilios: ClienteDomicilio[]
   lineas: LineaPendiente[]
   proveedores: ProveedorResumen[]
   preciosProveedor: PrecioProveedor[]
 }) {
   const [asignaciones, setAsignaciones] = useState<AsignacionPendiente[]>([])
+  const [lugarEnvio, setLugarEnvio] = useState('') // '' | 'empresa' | `domicilio:<id>`
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
   const supabase = createClient()
+
+  function resolverLugarEnvioTexto(): string | null {
+    if (lugarEnvio === 'empresa') return empresaDomicilio || null
+    if (lugarEnvio.startsWith('domicilio:')) {
+      const dom = domicilios.find((d) => d.id === lugarEnvio.slice('domicilio:'.length))
+      return dom?.direccion || null
+    }
+    return null
+  }
+
+  const hayAsignacionesConProveedor = asignaciones.some(
+    (a) => a.destino === 'proveedor' || a.destino === 'proveedor_deposito'
+  )
 
   const pendientePorLinea = useMemo(() => {
     const mapa = new Map<string, number>()
@@ -217,6 +237,7 @@ export default function PanelComprasAsignacion({
     setGuardando(true)
 
     const { data: userData } = await supabase.auth.getUser()
+    const lugarEnvioTexto = resolverLugarEnvioTexto()
 
     // Una asignación 'proveedor_deposito' alimenta DOS grupos a la vez (la OC
     // de su proveedor y el único pedido a depósito del pedido de compra),
@@ -240,6 +261,7 @@ export default function PanelComprasAsignacion({
           proveedor_id: proveedorId,
           cliente_id: clienteId,
           pedido_id: pedidoId,
+          lugar_envio_texto: lugarEnvioTexto,
           estado: 'borrador',
           creado_por: userData.user?.id,
         })
@@ -377,6 +399,29 @@ export default function PanelComprasAsignacion({
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {hayAsignacionesConProveedor && (
+          <div className="mt-4">
+            <label className="block text-sm text-slate-600 mb-1">
+              Lugar de envío (para las órdenes de compra que se generen ahora)
+            </label>
+            <select value={lugarEnvio} onChange={(e) => setLugarEnvio(e.target.value)} className={`w-full max-w-md ${inputStyle}`}>
+              <option value="">Sin especificar</option>
+              {domicilios.length > 0 && (
+                <optgroup label="Domicilios del cliente">
+                  {domicilios.map((d) => (
+                    <option key={d.id} value={`domicilio:${d.id}`}>{d.alias} — {d.direccion}</option>
+                  ))}
+                </optgroup>
+              )}
+              {empresaDomicilio && (
+                <optgroup label="Empresa">
+                  <option value="empresa">{empresaNombre ?? 'Empresa'} — {empresaDomicilio}</option>
+                </optgroup>
+              )}
+            </select>
           </div>
         )}
 

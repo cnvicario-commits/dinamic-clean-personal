@@ -47,7 +47,7 @@ export default async function PanelComprasDetallePage({
   const itemIds = items.map((i) => i.id)
   const articuloIds = [...new Set(items.map((i) => i.articulo_id))]
 
-  const [{ data: filasOc }, { data: filasDeposito }, { data: proveedores }, { data: preciosProveedor }] =
+  const [{ data: filasOc }, { data: filasDeposito }, { data: proveedores }, { data: preciosProveedor }, { data: domiciliosCliente }] =
     await Promise.all([
       itemIds.length > 0
         ? supabase.from('ordenes_compra_items').select('pedido_compra_item_id, cantidad').in('pedido_compra_item_id', itemIds)
@@ -59,6 +59,12 @@ export default async function PanelComprasDetallePage({
       articuloIds.length > 0
         ? supabase.from('articulos_proveedor').select('articulo_id, proveedor_id, precio').eq('activo', true).in('articulo_id', articuloIds)
         : Promise.resolve({ data: [] as { articulo_id: string; proveedor_id: string; precio: number }[] }),
+      supabase
+        .from('cliente_domicilios')
+        .select('id, cliente_id, alias, direccion, es_principal, activo')
+        .eq('cliente_id', pedido.cliente_id)
+        .eq('activo', true)
+        .order('alias'),
     ])
 
   const asignadoOc = new Map<string, number>()
@@ -98,6 +104,9 @@ export default async function PanelComprasDetallePage({
         pedidoId={pedido.id}
         empresaId={pedido.empresa_id}
         clienteId={pedido.cliente_id}
+        empresaNombre={pedido.empresas?.nombre ?? null}
+        empresaDomicilio={pedido.empresas?.domicilio ?? null}
+        domicilios={domiciliosCliente ?? []}
         lineas={lineas}
         proveedores={proveedores ?? []}
         preciosProveedor={preciosProveedor ?? []}

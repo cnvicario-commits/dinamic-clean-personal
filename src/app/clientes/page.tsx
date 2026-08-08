@@ -1,4 +1,5 @@
 import { createClient } from '@/utils/supabase/server'
+import Link from 'next/link'
 import ClienteForm from '@/components/ClienteForm'
 
 export default async function ClientesPage() {
@@ -32,7 +33,11 @@ export default async function ClientesPage() {
             <tbody>
               {clientes?.map((cliente) => (
                 <tr key={cliente.id} className="border-b border-slate-100 last:border-0">
-                  <td className="px-4 py-3 text-slate-800">{cliente.nombre}</td>
+                  <td className="px-4 py-3 text-slate-800">
+                    <Link href={`/clientes/${cliente.id}`} className="text-teal-600 hover:underline">
+                      {cliente.nombre}
+                    </Link>
+                  </td>
                   <td className="px-4 py-3 text-slate-600">{cliente.domicilio ?? '-'}</td>
                   <td className="px-4 py-3 text-slate-600">{cliente.presupuesto_4hs}</td>
                   <td className="px-4 py-3 text-slate-600">{cliente.presupuesto_8hs}</td>

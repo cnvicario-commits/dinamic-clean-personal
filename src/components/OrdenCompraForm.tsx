@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import BuscadorArticulo from './BuscadorArticulo'
-import type { EmpresaResumen, ClienteResumen, ProveedorResumen, ArticuloResumen } from '@/types/compras'
+import type { EmpresaConDomicilio, ClienteResumen, ProveedorResumen, ArticuloResumen, ClienteDomicilio } from '@/types/compras'
 
 type PrecioProveedor = { articulo_id: string; proveedor_id: string; precio: number }
 
@@ -26,18 +26,33 @@ export default function OrdenCompraForm({
   clientes,
   articulos,
   preciosProveedor,
+  domicilios,
 }: {
-  empresas: EmpresaResumen[]
+  empresas: EmpresaConDomicilio[]
   proveedores: ProveedorResumen[]
   clientes: ClienteResumen[]
   articulos: ArticuloResumen[]
   preciosProveedor: PrecioProveedor[]
+  domicilios: ClienteDomicilio[]
 }) {
   const [empresaId, setEmpresaId] = useState('')
   const [proveedorId, setProveedorId] = useState('')
   const [clienteId, setClienteId] = useState('')
   const [observaciones, setObservaciones] = useState('')
+  const [lugarEnvio, setLugarEnvio] = useState('') // '' | 'empresa' | `domicilio:<id>`
   const [lineas, setLineas] = useState<Linea[]>([])
+
+  const domiciliosDelCliente = domicilios.filter((d) => d.cliente_id === clienteId && d.activo)
+  const empresaSeleccionada = empresas.find((e) => e.id === empresaId)
+
+  function resolverLugarEnvioTexto(): string | null {
+    if (lugarEnvio === 'empresa') return empresaSeleccionada?.domicilio || null
+    if (lugarEnvio.startsWith('domicilio:')) {
+      const dom = domicilios.find((d) => d.id === lugarEnvio.slice('domicilio:'.length))
+      return dom?.direccion || null
+    }
+    return null
+  }
 
   // Campos del "agregar línea" (se resetean con este contador vía key).
   const [nuevoArticulo, setNuevoArticulo] = useState<{ id: string; label: string } | null>(null)
@@ -117,6 +132,7 @@ export default function OrdenCompraForm({
         cliente_id: clienteId,
         pedido_id: null, // OC generada directamente, sin pedido de compra de origen
         observaciones_generales: observaciones || null,
+        lugar_envio_texto: resolverLugarEnvioTexto(),
         estado: 'borrador',
         creado_por: userData.user?.id,
       })
@@ -163,13 +179,38 @@ export default function OrdenCompraForm({
             <option key={p.id} value={p.id}>{p.razon_social}</option>
           ))}
         </select>
-        <select value={clienteId} onChange={(e) => setClienteId(e.target.value)} required className={`flex-1 min-w-[200px] ${inputStyle}`}>
+        <select
+          value={clienteId}
+          onChange={(e) => {
+            setClienteId(e.target.value)
+            setLugarEnvio('') // el domicilio elegido puede no pertenecer al nuevo cliente
+          }}
+          required
+          className={`flex-1 min-w-[200px] ${inputStyle}`}
+        >
           <option value="">Seleccionar cliente</option>
           {clientes.map((c) => (
             <option key={c.id} value={c.id}>{c.nombre}</option>
           ))}
         </select>
       </div>
+
+      <select value={lugarEnvio} onChange={(e) => setLugarEnvio(e.target.value)} className={`w-full ${inputStyle}`}>
+        <option value="">Lugar de envío (opcional)</option>
+        {domiciliosDelCliente.length > 0 && (
+          <optgroup label="Domicilios del cliente">
+            {domiciliosDelCliente.map((d) => (
+              <option key={d.id} value={`domicilio:${d.id}`}>{d.alias} — {d.direccion}</option>
+            ))}
+          </optgroup>
+        )}
+        {empresaSeleccionada?.domicilio && (
+          <optgroup label="Empresa">
+            <option value="empresa">{empresaSeleccionada.nombre} — {empresaSeleccionada.domicilio}</option>
+          </optgroup>
+        )}
+      </select>
+
       <textarea
         placeholder="Observaciones generales (opcional)"
         value={observaciones}

@@ -38,6 +38,10 @@ export default function OrdenCompraDetalle({ orden }: { orden: OrdenCompraDetall
         {' · '}Fecha: {new Date(`${orden.fecha}T00:00:00`).toLocaleDateString('es-AR')}
       </p>
 
+      {orden.lugar_envio_texto && (
+        <p className="text-sm text-slate-600 mb-2">Lugar de envío: {orden.lugar_envio_texto}</p>
+      )}
+
       {orden.observaciones_generales && (
         <p className="text-sm text-slate-600 mb-6">Observaciones: {orden.observaciones_generales}</p>
       )}

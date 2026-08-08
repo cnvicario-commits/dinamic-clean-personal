@@ -20,7 +20,19 @@ export type Empresa = {
 // Recortes livianos de tablas que ya existen en otros módulos — no se tocan
 // los archivos originales, solo se declaran acá los campos que usa Compras.
 export type EmpresaResumen = { id: string; nombre: string }
+export type EmpresaConDomicilio = EmpresaResumen & { domicilio: string | null }
 export type ClienteResumen = { id: string; nombre: string }
+
+// Domicilios de entrega del cliente (tabla cliente_domicilios), usados para
+// elegir el "Lugar de envío" de una orden de compra.
+export type ClienteDomicilio = {
+  id: string
+  cliente_id: string
+  alias: string
+  direccion: string
+  es_principal: boolean
+  activo: boolean
+}
 export type ArticuloResumen = {
   id: string
   codigo_interno: string
@@ -57,6 +69,7 @@ export type OrdenCompra = {
   pedido_id: string | null // pedido de compra de origen (null si es una OC independiente/duplicada)
   fecha: string
   observaciones_generales: string | null
+  lugar_envio_texto: string | null // texto de la dirección elegida al crear la OC, no una referencia
   estado: EstadoOrdenCompra
   creado_por: string
   created_at: string

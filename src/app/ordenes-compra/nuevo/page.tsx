@@ -4,14 +4,21 @@ import OrdenCompraForm from '@/components/OrdenCompraForm'
 
 export default async function NuevaOrdenCompraPage() {
   const supabase = await createClient()
-  const [{ data: empresas }, { data: proveedores }, { data: clientes }, { data: articulos }, { data: preciosProveedor }] =
-    await Promise.all([
-      supabase.from('empresas').select('id, nombre').eq('activo', true).order('nombre'),
-      supabase.from('proveedores').select('id, razon_social').eq('activo', true).order('razon_social'),
-      supabase.from('clientes').select('id, nombre').order('nombre'),
-      supabase.from('articulos').select('id, codigo_interno, nombre, unidad').eq('activo', true).order('nombre'),
-      supabase.from('articulos_proveedor').select('articulo_id, proveedor_id, precio').eq('activo', true),
-    ])
+  const [
+    { data: empresas },
+    { data: proveedores },
+    { data: clientes },
+    { data: articulos },
+    { data: preciosProveedor },
+    { data: domicilios },
+  ] = await Promise.all([
+    supabase.from('empresas').select('id, nombre, domicilio').eq('activo', true).order('nombre'),
+    supabase.from('proveedores').select('id, razon_social').eq('activo', true).order('razon_social'),
+    supabase.from('clientes').select('id, nombre').order('nombre'),
+    supabase.from('articulos').select('id, codigo_interno, nombre, unidad').eq('activo', true).order('nombre'),
+    supabase.from('articulos_proveedor').select('articulo_id, proveedor_id, precio').eq('activo', true),
+    supabase.from('cliente_domicilios').select('id, cliente_id, alias, direccion, es_principal, activo').eq('activo', true).order('alias'),
+  ])
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-10">
@@ -25,6 +32,7 @@ export default async function NuevaOrdenCompraPage() {
         clientes={clientes ?? []}
         articulos={articulos ?? []}
         preciosProveedor={preciosProveedor ?? []}
+        domicilios={domicilios ?? []}
       />
     </div>
   )
