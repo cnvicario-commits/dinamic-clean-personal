@@ -29,13 +29,28 @@ export default function ClienteForm() {
       })
       .select('id')
       .single()
-    setLoading(false)
     if (error || !data) {
+      setLoading(false)
       setError('Error al guardar: ' + (error?.message ?? 'desconocido'))
       return
     }
-    // Vamos directo a la ficha del cliente para poder cargar de una vez su
-    // domicilio de entrega, en vez de dejarlo en el listado a buscarlo.
+
+    // Si cargó un domicilio en el alta, lo replicamos como su domicilio de
+    // entrega "Principal" (no bloqueante: si esto falla, el cliente ya quedó
+    // creado igual, solo no se autocompletó el domicilio de entrega).
+    if (domicilio) {
+      await supabase.from('cliente_domicilios').insert({
+        cliente_id: data.id,
+        alias: 'Principal',
+        direccion: domicilio,
+        es_principal: true,
+        activo: true,
+      })
+    }
+
+    setLoading(false)
+    // Vamos directo a la ficha del cliente para poder revisar/agregar más
+    // domicilios de entrega, en vez de dejarlo en el listado a buscarlo.
     router.push(`/clientes/${data.id}`)
   }
   const inputStyle = "px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
