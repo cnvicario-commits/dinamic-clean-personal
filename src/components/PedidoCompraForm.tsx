@@ -46,6 +46,17 @@ export default function PedidoCompraForm({
   const domiciliosDelCliente = domicilios.filter((d) => d.cliente_id === clienteId && d.activo)
   const empresaSeleccionada = empresas.find((e) => e.id === empresaId)
 
+  // Texto congelado de la dirección elegida (igual que en OrdenCompraForm):
+  // si el domicilio del cliente cambia después, el pedido ya emitido no se altera.
+  function resolverLugarEnvioTexto(): string | null {
+    if (lugarEnvio === 'empresa') return empresaSeleccionada?.domicilio || null
+    if (lugarEnvio.startsWith('domicilio:')) {
+      const dom = domicilios.find((d) => d.id === lugarEnvio.slice('domicilio:'.length))
+      return dom?.direccion || null
+    }
+    return null
+  }
+
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
@@ -56,9 +67,17 @@ export default function PedidoCompraForm({
     // Se captura acá, antes de cualquier await: el evento sintético de React
     // no garantiza que currentTarget siga siendo válido después de un await.
     const formEl = e.currentTarget
+    // Qué botón disparó el submit (API nativa del evento, mismo criterio que
+    // ya usamos con FormData): decide si el pedido queda en borrador o pasa
+    // directo a enviada, sin necesitar un paso separado después de guardar.
+    const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null
+    const estadoDeseado: 'borrador' | 'enviada' = submitter?.value === 'enviar' ? 'enviada' : 'borrador'
     setError('')
     if (!empresaId || !clienteId) {
       setError('Elegí empresa y cliente.')
+      return
+    }
+    if (estadoDeseado === 'enviada' && !confirm('¿Confirmás que querés guardar y enviar este pedido?')) {
       return
     }
 
@@ -92,6 +111,8 @@ export default function PedidoCompraForm({
       observaciones_generales: observaciones || null,
       lugar_envio_empresa: lugarEnvio === 'empresa',
       lugar_envio_domicilio_id: lugarEnvio.startsWith('domicilio:') ? lugarEnvio.slice('domicilio:'.length) : null,
+      lugar_envio_texto: resolverLugarEnvioTexto(),
+      estado: estadoDeseado,
     }
 
     let pedidoId = pedido?.id
@@ -115,7 +136,7 @@ export default function PedidoCompraForm({
       const { data: userData } = await supabase.auth.getUser()
       const { data, error: errInsert } = await supabase
         .from('pedidos_compra')
-        .insert({ ...cabecera, estado: 'borrador', creado_por: userData.user?.id })
+        .insert({ ...cabecera, creado_por: userData.user?.id })
         .select('id')
         .single()
       if (errInsert || !data) {
@@ -200,13 +221,26 @@ export default function PedidoCompraForm({
 
       {error && <p className="text-rose-600 text-sm">{error}</p>}
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
-      >
-        {loading ? 'Guardando...' : pedido ? 'Guardar cambios' : 'Crear pedido'}
-      </button>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="submit"
+          name="accion"
+          value="borrador"
+          disabled={loading}
+          className="px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+        >
+          {loading ? 'Guardando...' : 'Guardar borrador'}
+        </button>
+        <button
+          type="submit"
+          name="accion"
+          value="enviar"
+          disabled={loading}
+          className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+        >
+          {loading ? 'Guardando...' : 'Guardar y enviar'}
+        </button>
+      </div>
     </form>
   )
 }

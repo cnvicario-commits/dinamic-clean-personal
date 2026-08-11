@@ -173,6 +173,49 @@ function LineaAsignacionForm({
   )
 }
 
+// Mini-form de confirmación para descartar una línea (motivo opcional). No
+// toca supabase directamente: reporta la decisión al padre, igual que hace
+// LineaAsignacionForm con onAgregar.
+function DescarteLineaForm({
+  procesando,
+  onConfirmar,
+  onCancelar,
+}: {
+  procesando: boolean
+  onConfirmar: (motivo: string) => void
+  onCancelar: () => void
+}) {
+  const [motivo, setMotivo] = useState('')
+
+  return (
+    <div className="flex flex-wrap gap-2 items-start mt-2">
+      <input
+        type="text"
+        placeholder="Motivo del descarte (opcional)"
+        value={motivo}
+        onChange={(e) => setMotivo(e.target.value)}
+        className={`flex-1 min-w-[200px] ${inputStyle}`}
+      />
+      <button
+        type="button"
+        onClick={() => onConfirmar(motivo)}
+        disabled={procesando}
+        className="px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+      >
+        {procesando ? 'Descartando...' : 'Confirmar descarte'}
+      </button>
+      <button
+        type="button"
+        onClick={onCancelar}
+        disabled={procesando}
+        className="px-3 py-2 text-sm text-slate-500 border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50"
+      >
+        Cancelar
+      </button>
+    </div>
+  )
+}
+
 function destinoEtiqueta(a: AsignacionPendiente) {
   if (a.destino === 'deposito') return 'Depósito'
   if (a.destino === 'proveedor') return a.proveedorNombre ?? ''
@@ -206,8 +249,41 @@ export default function PanelComprasAsignacion({
   const [lugarEnvio, setLugarEnvio] = useState(lugarEnvioDefault) // '' | 'empresa' | `domicilio:<id>`
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
+  const [lineaDescarteAbiertaId, setLineaDescarteAbiertaId] = useState<string | null>(null)
+  const [descartandoId, setDescartandoId] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClient()
+
+  async function descartarLinea(itemId: string, motivo: string) {
+    setDescartandoId(itemId)
+    setError('')
+    const { error: err } = await supabase
+      .from('pedidos_compra_items')
+      .update({ descartada: true, motivo_descarte: motivo || null })
+      .eq('id', itemId)
+    setDescartandoId(null)
+    if (err) {
+      setError('Error al descartar la línea: ' + err.message)
+      return
+    }
+    setLineaDescarteAbiertaId(null)
+    router.refresh()
+  }
+
+  async function revertirDescarte(itemId: string) {
+    setDescartandoId(itemId)
+    setError('')
+    const { error: err } = await supabase
+      .from('pedidos_compra_items')
+      .update({ descartada: false, motivo_descarte: null })
+      .eq('id', itemId)
+    setDescartandoId(null)
+    if (err) {
+      setError('Error al revertir el descarte: ' + err.message)
+      return
+    }
+    router.refresh()
+  }
 
   function resolverLugarEnvioTexto(): string | null {
     if (lugarEnvio === 'empresa') return empresaDomicilio || null
@@ -348,27 +424,64 @@ export default function PanelComprasAsignacion({
                 <p className="text-sm font-medium text-slate-800">
                   {l.articulos ? `${l.articulos.codigo_interno} — ${l.articulos.nombre}` : 'Artículo'}
                 </p>
-                <p className="text-xs text-slate-500">
-                  Pedido: {l.cantidad} · Asignado a OC: {l.cantidad_asignada_oc} · Asignado a depósito: {l.cantidad_asignada_deposito}
-                  {' · '}
-                  <span className="font-medium text-slate-700">
-                    Pendiente: {pendientePorLinea.get(l.id) ?? l.cantidad_pendiente}
-                  </span>
-                </p>
+                <div className="flex items-center gap-3">
+                  <p className="text-xs text-slate-500">
+                    Pedido: {l.cantidad} · Asignado a OC: {l.cantidad_asignada_oc} · Asignado a depósito: {l.cantidad_asignada_deposito}
+                    {' · '}
+                    <span className="font-medium text-slate-700">
+                      Pendiente: {pendientePorLinea.get(l.id) ?? l.cantidad_pendiente}
+                    </span>
+                  </p>
+                  {!l.descartada && (
+                    <button
+                      type="button"
+                      onClick={() => setLineaDescarteAbiertaId(l.id)}
+                      className="text-rose-600 hover:underline text-xs whitespace-nowrap"
+                    >
+                      Descartar línea
+                    </button>
+                  )}
+                </div>
               </div>
-              <LineaAsignacionForm
-                // El estado interno (cantidad/proveedor precargados) no se
-                // resetea solo porque cambie una prop: forzamos un remount
-                // limpio cada vez que cambia el pendiente de esta línea (ej.
-                // después de encolar una asignación parcial), para que la
-                // próxima precarga sea con el valor fresco, no el viejo.
-                key={pendientePorLinea.get(l.id) ?? l.cantidad_pendiente}
-                linea={l}
-                pendienteRestante={pendientePorLinea.get(l.id) ?? l.cantidad_pendiente}
-                proveedores={proveedores}
-                preciosProveedor={preciosProveedor}
-                onAgregar={(a) => setAsignaciones((prev) => [...prev, a])}
-              />
+
+              {l.descartada ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-md px-3 py-2">
+                  <p className="text-sm text-slate-600">
+                    Línea descartada{l.motivo_descarte ? `: ${l.motivo_descarte}` : '.'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => revertirDescarte(l.id)}
+                    disabled={descartandoId === l.id}
+                    className="text-teal-600 hover:underline text-sm disabled:opacity-50"
+                  >
+                    {descartandoId === l.id ? 'Revirtiendo...' : 'Revertir descarte'}
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <LineaAsignacionForm
+                    // El estado interno (cantidad/proveedor precargados) no se
+                    // resetea solo porque cambie una prop: forzamos un remount
+                    // limpio cada vez que cambia el pendiente de esta línea (ej.
+                    // después de encolar una asignación parcial), para que la
+                    // próxima precarga sea con el valor fresco, no el viejo.
+                    key={pendientePorLinea.get(l.id) ?? l.cantidad_pendiente}
+                    linea={l}
+                    pendienteRestante={pendientePorLinea.get(l.id) ?? l.cantidad_pendiente}
+                    proveedores={proveedores}
+                    preciosProveedor={preciosProveedor}
+                    onAgregar={(a) => setAsignaciones((prev) => [...prev, a])}
+                  />
+                  {lineaDescarteAbiertaId === l.id && (
+                    <DescarteLineaForm
+                      procesando={descartandoId === l.id}
+                      onConfirmar={(motivo) => descartarLinea(l.id, motivo)}
+                      onCancelar={() => setLineaDescarteAbiertaId(null)}
+                    />
+                  )}
+                </>
+              )}
             </div>
           ))}
         </div>

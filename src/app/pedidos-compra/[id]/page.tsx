@@ -3,7 +3,6 @@ import Link from 'next/link'
 import PedidoCompraForm from '@/components/PedidoCompraForm'
 import PedidoCompraDetalle from '@/components/PedidoCompraDetalle'
 import EstadoBadge from '@/components/EstadoBadge'
-import EstadoPedidoCompraBoton from '@/components/EstadoPedidoCompraBoton'
 import type { PedidoCompraDetalleView } from '@/types/compras'
 
 export default async function PedidoCompraDetallePage({
@@ -48,12 +47,9 @@ export default async function PedidoCompraDetallePage({
         <Link href="/pedidos-compra" className="text-teal-600 hover:underline text-sm mb-4 inline-block">
           ← Volver a pedidos de compra
         </Link>
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-slate-900">{pedidoView.numero_pedido}</h1>
-            <EstadoBadge estado={pedidoView.estado} />
-          </div>
-          <EstadoPedidoCompraBoton id={pedidoView.id} />
+        <div className="flex items-center gap-3 mb-6">
+          <h1 className="text-2xl font-bold text-slate-900">{pedidoView.numero_pedido}</h1>
+          <EstadoBadge estado={pedidoView.estado} />
         </div>
         <PedidoCompraForm
           empresas={empresas ?? []}

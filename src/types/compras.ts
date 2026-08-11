@@ -51,6 +51,7 @@ export type PedidoCompra = {
   observaciones_generales: string | null
   lugar_envio_domicilio_id: string | null // referencia viva a cliente_domicilios (no un texto congelado)
   lugar_envio_empresa: boolean // true = usar el domicilio de la empresa en vez de un domicilio del cliente
+  lugar_envio_texto: string | null // texto de la dirección elegida al guardar, no una referencia (igual que en OC)
   estado: EstadoPedidoCompra
   creado_por: string
   created_at: string
@@ -62,6 +63,8 @@ export type PedidoCompraItem = {
   articulo_id: string
   cantidad: number
   observaciones: string | null
+  descartada: boolean
+  motivo_descarte: string | null
 }
 
 export type OrdenCompra = {
@@ -117,6 +120,11 @@ export type PedidoCompraListado = PedidoCompra & {
   empresas: { nombre: string } | null
   clientes: { nombre: string } | null
 }
+
+// Vista del listado del Panel de compras: agrega el estado calculado
+// pendiente/procesado (no es una columna real, se calcula agregando
+// pedidos_compra_items + ordenes_compra_items + pedidos_deposito_items).
+export type PedidoEnviado = PedidoCompraListado & { procesado: boolean }
 export type PedidoCompraItemConArticulo = PedidoCompraItem & { articulos: ArticuloResumen | null }
 export type PedidoCompraDetalleView = PedidoCompra & {
   empresas: Empresa | null

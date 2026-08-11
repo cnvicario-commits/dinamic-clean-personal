@@ -85,7 +85,9 @@ export default async function PanelComprasDetallePage({
       ...i,
       cantidad_asignada_oc: oc,
       cantidad_asignada_deposito: dep,
-      cantidad_pendiente: i.cantidad - oc - dep,
+      // Una línea descartada cuenta como resuelta: no queda pendiente de
+      // asignar, aunque su cantidad original nunca se haya cubierto.
+      cantidad_pendiente: i.descartada ? 0 : i.cantidad - oc - dep,
     }
   })
 

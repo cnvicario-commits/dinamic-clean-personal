@@ -6,7 +6,9 @@ import EstadoBadge from './EstadoBadge'
 import DuplicarPedidoCompraBoton from './DuplicarPedidoCompraBoton'
 import type { PedidoCompraListado, EstadoPedidoCompra, ClienteResumen, Empresa } from '@/types/compras'
 
-type Columna = 'numero_pedido' | 'empresa' | 'cliente' | 'estado' | 'created_at'
+type Columna = 'numero_pedido' | 'empresa' | 'cliente' | 'estado' | 'lugar_envio' | 'created_at'
+
+const SIN_LUGAR = '__sin_lugar__'
 
 function comparar(a: string, b: string) {
   return a.localeCompare(b, 'es', { sensitivity: 'base' })
@@ -22,6 +24,8 @@ function valorColumna(p: PedidoCompraListado, columna: Columna): string {
       return p.clientes?.nombre ?? ''
     case 'estado':
       return p.estado
+    case 'lugar_envio':
+      return p.lugar_envio_texto ?? ''
     case 'created_at':
       return p.created_at
   }
@@ -39,8 +43,14 @@ export default function PedidosCompraTabla({
   const [filtroEstado, setFiltroEstado] = useState<'' | EstadoPedidoCompra>('')
   const [filtroClienteId, setFiltroClienteId] = useState('')
   const [filtroEmpresaId, setFiltroEmpresaId] = useState('')
+  const [filtroLugarEnvio, setFiltroLugarEnvio] = useState('')
   const [columna, setColumna] = useState<Columna>('created_at')
   const [direccion, setDireccion] = useState<'asc' | 'desc'>('desc')
+
+  const lugaresEnvio = useMemo(() => {
+    const valores = new Set(pedidos.map((p) => p.lugar_envio_texto).filter((v): v is string => !!v))
+    return Array.from(valores).sort(comparar)
+  }, [pedidos])
 
   function ordenarPor(col: Columna) {
     if (columna === col) {
@@ -61,9 +71,11 @@ export default function PedidosCompraTabla({
     if (filtroEstado) base = base.filter((p) => p.estado === filtroEstado)
     if (filtroClienteId) base = base.filter((p) => p.cliente_id === filtroClienteId)
     if (filtroEmpresaId) base = base.filter((p) => p.empresa_id === filtroEmpresaId)
+    if (filtroLugarEnvio === SIN_LUGAR) base = base.filter((p) => !p.lugar_envio_texto)
+    else if (filtroLugarEnvio) base = base.filter((p) => p.lugar_envio_texto === filtroLugarEnvio)
     const signo = direccion === 'asc' ? 1 : -1
     return [...base].sort((a, b) => signo * comparar(valorColumna(a, columna), valorColumna(b, columna)))
-  }, [pedidos, filtroEstado, filtroClienteId, filtroEmpresaId, columna, direccion])
+  }, [pedidos, filtroEstado, filtroClienteId, filtroEmpresaId, filtroLugarEnvio, columna, direccion])
 
   const selectStyle = 'border border-slate-300 rounded-md px-3 py-2 text-sm'
 
@@ -87,6 +99,13 @@ export default function PedidosCompraTabla({
             <option key={e.id} value={e.id}>{e.nombre}</option>
           ))}
         </select>
+        <select value={filtroLugarEnvio} onChange={(e) => setFiltroLugarEnvio(e.target.value)} className={selectStyle}>
+          <option value="">Todos los lugares de entrega</option>
+          <option value={SIN_LUGAR}>Sin lugar especificado</option>
+          {lugaresEnvio.map((l) => (
+            <option key={l} value={l}>{l}</option>
+          ))}
+        </select>
       </div>
 
       <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
@@ -108,6 +127,9 @@ export default function PedidosCompraTabla({
               <th className="px-4 py-3 font-medium cursor-pointer select-none hover:text-slate-700" onClick={() => ordenarPor('estado')}>
                 Estado{indicador('estado')}
               </th>
+              <th className="px-4 py-3 font-medium cursor-pointer select-none hover:text-slate-700" onClick={() => ordenarPor('lugar_envio')}>
+                Lugar de entrega{indicador('lugar_envio')}
+              </th>
               <th className="px-4 py-3 font-medium cursor-pointer select-none hover:text-slate-700" onClick={() => ordenarPor('created_at')}>
                 Fecha{indicador('created_at')}
               </th>
@@ -125,6 +147,7 @@ export default function PedidosCompraTabla({
                 <td className="px-4 py-3 text-slate-600">{p.empresas?.nombre ?? '-'}</td>
                 <td className="px-4 py-3 text-slate-600">{p.clientes?.nombre ?? '-'}</td>
                 <td className="px-4 py-3"><EstadoBadge estado={p.estado} /></td>
+                <td className="px-4 py-3 text-slate-600">{p.lugar_envio_texto ?? '-'}</td>
                 <td className="px-4 py-3 text-slate-600">{new Date(p.created_at).toLocaleDateString('es-AR')}</td>
                 <td className="px-4 py-3">
                   <DuplicarPedidoCompraBoton id={p.id} />
