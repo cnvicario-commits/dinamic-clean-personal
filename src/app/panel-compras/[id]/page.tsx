@@ -14,7 +14,7 @@ export default async function PanelComprasDetallePage({
   const { data: pedido } = await supabase
     .from('pedidos_compra')
     .select(
-      '*, empresas(id, nombre, cuit, domicilio), clientes(id, nombre), pedidos_compra_items(*, articulos(id, codigo_interno, nombre, unidad))'
+      '*, empresas(id, nombre, cuit, domicilio), clientes(id, nombre), pedidos_compra_items(*, articulos(id, codigo_interno, nombre, unidad, proveedor_habitual_id))'
     )
     .eq('id', id)
     .single()

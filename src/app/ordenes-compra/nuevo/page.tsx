@@ -15,7 +15,7 @@ export default async function NuevaOrdenCompraPage() {
     supabase.from('empresas').select('id, nombre, domicilio').eq('activo', true).order('nombre'),
     supabase.from('proveedores').select('id, razon_social').eq('activo', true).order('razon_social'),
     supabase.from('clientes').select('id, nombre').order('nombre'),
-    supabase.from('articulos').select('id, codigo_interno, nombre, unidad, categoria').eq('activo', true).order('nombre'),
+    supabase.from('articulos').select('id, codigo_interno, nombre, unidad, categoria, proveedor_habitual_id').eq('activo', true).order('nombre'),
     supabase.from('articulos_proveedor').select('articulo_id, proveedor_id, precio').eq('activo', true),
     supabase.from('cliente_domicilios').select('id, cliente_id, alias, direccion, es_principal, activo').eq('activo', true).order('alias'),
   ])

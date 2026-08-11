@@ -5,10 +5,10 @@ import ExportarCatalogoArticulos from '@/components/ExportarCatalogoArticulos'
 
 export default async function ArticulosPage() {
   const supabase = await createClient()
-  const { data: articulos } = await supabase
-    .from('articulos')
-    .select('*')
-    .order('nombre')
+  const [{ data: articulos }, { data: proveedores }] = await Promise.all([
+    supabase.from('articulos').select('*').order('nombre'),
+    supabase.from('proveedores').select('id, razon_social').eq('activo', true).order('razon_social'),
+  ])
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-10">
@@ -17,7 +17,7 @@ export default async function ArticulosPage() {
         <ExportarCatalogoArticulos articulos={articulos ?? []} />
       </div>
       <ImportarArticulos />
-      <ArticulosPanel articulos={articulos ?? []} />
+      <ArticulosPanel articulos={articulos ?? []} proveedores={proveedores ?? []} />
     </div>
   )
 }

@@ -39,6 +39,7 @@ export type ArticuloResumen = {
   nombre: string
   unidad: string | null
   categoria: string | null
+  proveedor_habitual_id: string | null
 }
 export type ProveedorResumen = { id: string; razon_social: string }
 

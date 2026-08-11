@@ -27,9 +27,12 @@ function LineaAsignacionForm({
   preciosProveedor: PrecioProveedor[]
   onAgregar: (a: AsignacionPendiente) => void
 }) {
-  const [cantidad, setCantidad] = useState('')
+  // Precargados: cantidad con el total pendiente de la línea (editable, para
+  // reparto parcial) y proveedor con el "habitual" del artículo si tiene uno
+  // cargado (igual editable, sin quedar bloqueado).
+  const [cantidad, setCantidad] = useState(String(pendienteRestante))
   const [destino, setDestino] = useState<DestinoAsignacion>('proveedor')
-  const [proveedorId, setProveedorId] = useState('')
+  const [proveedorId, setProveedorId] = useState(linea.articulos?.proveedor_habitual_id ?? '')
   const [precioManual, setPrecioManual] = useState('')
   const [observaciones, setObservaciones] = useState('')
   const [error, setError] = useState('')
@@ -354,6 +357,12 @@ export default function PanelComprasAsignacion({
                 </p>
               </div>
               <LineaAsignacionForm
+                // El estado interno (cantidad/proveedor precargados) no se
+                // resetea solo porque cambie una prop: forzamos un remount
+                // limpio cada vez que cambia el pendiente de esta línea (ej.
+                // después de encolar una asignación parcial), para que la
+                // próxima precarga sea con el valor fresco, no el viejo.
+                key={pendientePorLinea.get(l.id) ?? l.cantidad_pendiente}
                 linea={l}
                 pendienteRestante={pendientePorLinea.get(l.id) ?? l.cantidad_pendiente}
                 proveedores={proveedores}

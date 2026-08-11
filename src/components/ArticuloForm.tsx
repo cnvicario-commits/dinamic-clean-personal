@@ -10,22 +10,28 @@ type Articulo = {
   nombre: string
   categoria: string | null
   unidad: string | null
+  proveedor_habitual_id: string | null
 }
+
+type ProveedorResumen = { id: string; razon_social: string }
 
 export default function ArticuloForm({
   articulo,
   nombreSugerido,
+  proveedores = [],
   onGuardado,
   onCreated,
 }: {
   articulo?: Articulo
   nombreSugerido?: string
+  proveedores?: ProveedorResumen[]
   onGuardado?: () => void
   onCreated?: (articuloId: string) => void
 }) {
   const [nombre, setNombre] = useState(articulo?.nombre ?? nombreSugerido ?? '')
   const [categoria, setCategoria] = useState(articulo?.categoria ?? '')
   const [unidad, setUnidad] = useState(articulo?.unidad ?? '')
+  const [proveedorHabitualId, setProveedorHabitualId] = useState(articulo?.proveedor_habitual_id ?? '')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
@@ -39,6 +45,7 @@ export default function ArticuloForm({
       nombre,
       categoria: categoria || null,
       unidad: unidad || null,
+      proveedor_habitual_id: proveedorHabitualId || null,
     }
 
     if (articulo) {
@@ -82,6 +89,7 @@ export default function ArticuloForm({
       setNombre('')
       setCategoria('')
       setUnidad('')
+      setProveedorHabitualId('')
     }
     router.refresh()
   }
@@ -99,6 +107,12 @@ export default function ArticuloForm({
       <input type="text" placeholder="Nombre del artículo" value={nombre} onChange={(e) => setNombre(e.target.value)} required className={`flex-1 min-w-[200px] ${inputStyle}`} />
       <input type="text" placeholder="Categoría (opcional)" value={categoria} onChange={(e) => setCategoria(e.target.value)} className={`w-40 ${inputStyle}`} />
       <input type="text" placeholder="Unidad (ej: unidad, pack, litro)" value={unidad} onChange={(e) => setUnidad(e.target.value)} className={`w-48 ${inputStyle}`} />
+      <select value={proveedorHabitualId} onChange={(e) => setProveedorHabitualId(e.target.value)} className={`w-48 ${inputStyle}`}>
+        <option value="">Sin proveedor habitual</option>
+        {proveedores.map((p) => (
+          <option key={p.id} value={p.id}>{p.razon_social}</option>
+        ))}
+      </select>
       <div className="flex gap-2">
         <button type="submit" disabled={loading} className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50">
           {loading ? 'Guardando...' : articulo ? 'Guardar cambios' : 'Agregar'}
