@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
-import BuscadorArticulo from './BuscadorArticulo'
+import GrillaLineasPedido from './GrillaLineasPedido'
 import type {
   EmpresaConDomicilio,
   ClienteResumen,
@@ -12,14 +12,6 @@ import type {
   PedidoCompra,
   PedidoCompraItemConArticulo,
 } from '@/types/compras'
-
-type Linea = {
-  clave: string
-  articuloId: string
-  articuloLabel: string
-  cantidad: string
-  observaciones: string
-}
 
 const inputStyle =
   'px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500'
@@ -53,67 +45,43 @@ export default function PedidoCompraForm({
 
   const domiciliosDelCliente = domicilios.filter((d) => d.cliente_id === clienteId && d.activo)
   const empresaSeleccionada = empresas.find((e) => e.id === empresaId)
-  const [lineas, setLineas] = useState<Linea[]>(
-    (items ?? []).map((i) => ({
-      clave: i.id,
-      articuloId: i.articulo_id,
-      articuloLabel: i.articulos ? `${i.articulos.codigo_interno} — ${i.articulos.nombre}` : 'Artículo',
-      cantidad: String(i.cantidad),
-      observaciones: i.observaciones ?? '',
-    }))
-  )
-
-  // Campos del "agregar línea" (se resetean con este contador vía key).
-  const [nuevoArticulo, setNuevoArticulo] = useState<{ id: string; label: string } | null>(null)
-  const [nuevaCantidad, setNuevaCantidad] = useState('')
-  const [nuevaObs, setNuevaObs] = useState('')
-  const [resetKey, setResetKey] = useState(0)
 
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
-  function agregarLinea() {
-    setError('')
-    if (!nuevoArticulo) {
-      setError('Elegí un artículo antes de agregar la línea.')
-      return
-    }
-    const cant = Number(nuevaCantidad)
-    if (!cant || cant <= 0) {
-      setError('La cantidad debe ser mayor a 0.')
-      return
-    }
-    setLineas((prev) => [
-      ...prev,
-      {
-        clave: crypto.randomUUID(),
-        articuloId: nuevoArticulo.id,
-        articuloLabel: nuevoArticulo.label,
-        cantidad: nuevaCantidad,
-        observaciones: nuevaObs,
-      },
-    ])
-    setNuevoArticulo(null)
-    setNuevaCantidad('')
-    setNuevaObs('')
-    setResetKey((k) => k + 1)
-  }
-
-  function quitarLinea(clave: string) {
-    setLineas((prev) => prev.filter((l) => l.clave !== clave))
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    // Se captura acá, antes de cualquier await: el evento sintético de React
+    // no garantiza que currentTarget siga siendo válido después de un await.
+    const formEl = e.currentTarget
     setError('')
     if (!empresaId || !clienteId) {
       setError('Elegí empresa y cliente.')
       return
     }
-    if (lineas.length === 0) {
-      setError('Agregá al menos una línea de artículo.')
+
+    // La grilla usa inputs no controlados (name={`cantidad_${articuloId}`} /
+    // `obs_${articuloId}`) para no re-renderizar ~300 filas por cada tecla;
+    // acá se leen los valores finales del DOM vía FormData. Se revisan todos
+    // los artículos activos MÁS los de líneas ya guardadas (por si alguno
+    // fue dado de baja después y quedó en la sección de "huérfanos").
+    const idsRelevantes = new Set<string>(articulos.map((a) => a.id))
+    ;(items ?? []).forEach((i) => idsRelevantes.add(i.articulo_id))
+
+    const fd = new FormData(formEl)
+    const lineasFinales = Array.from(idsRelevantes)
+      .map((articuloId) => ({
+        articulo_id: articuloId,
+        cantidad: Number(fd.get(`cantidad_${articuloId}`)),
+        observaciones: String(fd.get(`obs_${articuloId}`) ?? '').trim() || null,
+      }))
+      // Vacío, 0 o negativo: se ignora en silencio, no genera línea ni error.
+      .filter((l) => Number.isFinite(l.cantidad) && l.cantidad > 0)
+
+    if (lineasFinales.length === 0) {
+      setError('Cargá una cantidad en al menos un artículo.')
       return
     }
     setLoading(true)
@@ -159,11 +127,11 @@ export default function PedidoCompraForm({
     }
 
     const { error: errItems } = await supabase.from('pedidos_compra_items').insert(
-      lineas.map((l) => ({
+      lineasFinales.map((l) => ({
         pedido_id: pedidoId,
-        articulo_id: l.articuloId,
-        cantidad: Number(l.cantidad),
-        observaciones: l.observaciones || null,
+        articulo_id: l.articulo_id,
+        cantidad: l.cantidad,
+        observaciones: l.observaciones,
       }))
     )
     setLoading(false)
@@ -228,72 +196,7 @@ export default function PedidoCompraForm({
         rows={2}
       />
 
-      <div>
-        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
-          Líneas ({lineas.length})
-        </h2>
-        {lineas.length > 0 && (
-          <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto mb-4">
-            <table className="w-full text-sm min-w-[560px]">
-              <thead>
-                <tr className="bg-slate-50 text-left text-slate-500 border-b border-slate-200">
-                  <th className="px-4 py-3 font-medium">Artículo</th>
-                  <th className="px-4 py-3 font-medium">Cantidad</th>
-                  <th className="px-4 py-3 font-medium">Observaciones</th>
-                  <th className="px-4 py-3 font-medium"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {lineas.map((l) => (
-                  <tr key={l.clave} className="border-b border-slate-100 last:border-0">
-                    <td className="px-4 py-3 text-slate-800">{l.articuloLabel}</td>
-                    <td className="px-4 py-3 text-slate-600">{l.cantidad}</td>
-                    <td className="px-4 py-3 text-slate-600">{l.observaciones || '-'}</td>
-                    <td className="px-4 py-3">
-                      <button type="button" onClick={() => quitarLinea(l.clave)} className="text-rose-600 hover:underline text-sm">
-                        Quitar
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 flex flex-wrap gap-2 items-start">
-          <div className="flex-1 min-w-[240px]">
-            <BuscadorArticulo
-              key={resetKey}
-              articulos={articulos}
-              onSeleccionar={(a) => setNuevoArticulo({ id: a.id, label: `${a.codigo_interno} — ${a.nombre}` })}
-            />
-          </div>
-          <input
-            type="number"
-            min="0.01"
-            step="any"
-            placeholder="Cantidad"
-            value={nuevaCantidad}
-            onChange={(e) => setNuevaCantidad(e.target.value)}
-            className={`w-32 ${inputStyle}`}
-          />
-          <input
-            type="text"
-            placeholder="Observaciones (opcional)"
-            value={nuevaObs}
-            onChange={(e) => setNuevaObs(e.target.value)}
-            className={`flex-1 min-w-[180px] ${inputStyle}`}
-          />
-          <button
-            type="button"
-            onClick={agregarLinea}
-            className="px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white text-sm font-medium rounded-lg transition-colors"
-          >
-            Agregar línea
-          </button>
-        </div>
-      </div>
+      <GrillaLineasPedido articulos={articulos} items={items} />
 
       {error && <p className="text-rose-600 text-sm">{error}</p>}
 

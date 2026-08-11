@@ -38,6 +38,7 @@ export type ArticuloResumen = {
   codigo_interno: string
   nombre: string
   unidad: string | null
+  categoria: string | null
 }
 export type ProveedorResumen = { id: string; razon_social: string }
 
