@@ -11,6 +11,13 @@ function formatearCliente(nombre: string, alias: string | null) {
 }
 
 export default function PedidoDepositoDetalle({ pedido }: { pedido: PedidoDepositoDetalleView }) {
+  // Mismo texto que la línea "Cliente", agregado al nombre del archivo
+  // descargado junto con el número de pedido (ej. DEP-0001 - ACME-Depósito Central).
+  const clienteEtiqueta = pedido.clientes ? formatearCliente(pedido.clientes.nombre, pedido.lugar_envio_alias) : ''
+  const nombreArchivo = clienteEtiqueta
+    ? `${pedido.numero_pedido_deposito} - ${clienteEtiqueta}`
+    : pedido.numero_pedido_deposito
+
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6 print:hidden">
@@ -18,7 +25,7 @@ export default function PedidoDepositoDetalle({ pedido }: { pedido: PedidoDeposi
         <div className="flex gap-2">
           <EstadoPedidoDepositoBoton id={pedido.id} estado={pedido.estado} />
           <DuplicarPedidoDepositoBoton id={pedido.id} />
-          <BotonImprimir />
+          <BotonImprimir nombreArchivo={nombreArchivo} />
         </div>
       </div>
 
