@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 
 export default function LoginPage() {
@@ -9,7 +8,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const router = useRouter()
   const supabase = createClient()
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -19,15 +17,18 @@ export default function LoginPage() {
 
     const { error } = await supabase.auth.signInWithPassword({ email, password })
 
-    setLoading(false)
-
     if (error) {
+      setLoading(false)
       setError('Email o contraseña incorrectos')
       return
     }
 
-    router.push('/')
-    router.refresh()
+    // Navegación dura (no router.push de Next) a propósito: router.push es
+    // una navegación "soft" que puede reusar una entrada cacheada del router
+    // del cliente de una visita anterior sin sesión (que redirigía a /login),
+    // sin volver a pegarle al servidor ya con la cookie de sesión puesta.
+    // window.location fuerza una carga real de página, que sí la incluye.
+    window.location.href = '/'
   }
 
   return (
