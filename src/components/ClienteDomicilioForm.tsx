@@ -16,6 +16,7 @@ export default function ClienteDomicilioForm({
   const [alias, setAlias] = useState(domicilio?.alias ?? '')
   const [direccion, setDireccion] = useState(domicilio?.direccion ?? '')
   const [esPrincipal, setEsPrincipal] = useState(domicilio?.es_principal ?? false)
+  const [horarioAtencion, setHorarioAtencion] = useState(domicilio?.horario_atencion ?? '')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
@@ -41,7 +42,7 @@ export default function ClienteDomicilioForm({
       }
     }
 
-    const payload = { alias, direccion, es_principal: esPrincipal }
+    const payload = { alias, direccion, es_principal: esPrincipal, horario_atencion: horarioAtencion || null }
     const { error: errGuardar } = domicilio
       ? await supabase.from('cliente_domicilios').update(payload).eq('id', domicilio.id)
       : await supabase.from('cliente_domicilios').insert({ ...payload, cliente_id: clienteId, activo: true })
@@ -57,6 +58,7 @@ export default function ClienteDomicilioForm({
       setAlias('')
       setDireccion('')
       setEsPrincipal(false)
+      setHorarioAtencion('')
     }
     router.refresh()
   }
@@ -67,6 +69,7 @@ export default function ClienteDomicilioForm({
     <form onSubmit={handleSubmit} className="flex flex-wrap gap-2 items-start">
       <input type="text" placeholder="Alias (ej: Planta Norte)" value={alias} onChange={(e) => setAlias(e.target.value)} required className={`w-52 ${inputStyle}`} />
       <input type="text" placeholder="Dirección" value={direccion} onChange={(e) => setDireccion(e.target.value)} required className={`flex-1 min-w-[220px] ${inputStyle}`} />
+      <input type="text" placeholder="Horario de atención (opcional)" value={horarioAtencion} onChange={(e) => setHorarioAtencion(e.target.value)} className={`flex-1 min-w-[200px] ${inputStyle}`} />
       <label className="flex items-center gap-2 text-sm text-slate-600 px-3 py-2">
         <input type="checkbox" checked={esPrincipal} onChange={(e) => setEsPrincipal(e.target.checked)} />
         Es principal

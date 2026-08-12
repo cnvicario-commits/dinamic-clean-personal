@@ -11,6 +11,8 @@ type Proveedor = {
   domicilio: string | null
   telefono: string | null
   activo: boolean
+  provincia: string | null
+  condicion_pago_default: string | null
 }
 
 export default function ProveedoresPanel({ proveedores }: { proveedores: Proveedor[] }) {

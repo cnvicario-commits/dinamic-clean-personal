@@ -14,7 +14,7 @@ export default async function OrdenCompraDetallePage({
   const { data: orden } = await supabase
     .from('ordenes_compra')
     .select(
-      '*, empresas(*), proveedores(id, razon_social), clientes(id, nombre), ordenes_compra_items(*, articulos(id, codigo_interno, nombre, unidad))'
+      '*, empresas(*), proveedores(id, razon_social, domicilio, provincia, condicion_pago_default), clientes(id, nombre), ordenes_compra_items(*, articulos(id, codigo_interno, nombre, unidad))'
     )
     .eq('id', id)
     .single()

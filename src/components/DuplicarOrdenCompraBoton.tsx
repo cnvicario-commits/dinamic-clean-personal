@@ -31,6 +31,8 @@ export default function DuplicarOrdenCompraBoton({ id }: { id: string }) {
         observaciones_generales: origen.observaciones_generales,
         lugar_envio_texto: origen.lugar_envio_texto,
         lugar_envio_alias: origen.lugar_envio_alias,
+        horario_atencion_texto: origen.horario_atencion_texto,
+        condicion_pago: origen.condicion_pago,
         estado: 'borrador',
         creado_por: userData.user?.id,
       })

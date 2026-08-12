@@ -294,6 +294,25 @@ export default function PanelComprasAsignacion({
     return null
   }
 
+  function resolverLugarEnvioAlias(): string | null {
+    if (lugarEnvio === 'empresa') return empresaNombre || null
+    if (lugarEnvio.startsWith('domicilio:')) {
+      const dom = domicilios.find((d) => d.id === lugarEnvio.slice('domicilio:'.length))
+      return dom?.alias || null
+    }
+    return null
+  }
+
+  // Horario del domicilio elegido como lugar de envío, congelado igual que
+  // el texto/alias. La empresa no tiene concepto de horario de atención.
+  function resolverHorarioAtencionTexto(): string | null {
+    if (lugarEnvio.startsWith('domicilio:')) {
+      const dom = domicilios.find((d) => d.id === lugarEnvio.slice('domicilio:'.length))
+      return dom?.horario_atencion || null
+    }
+    return null
+  }
+
   const hayAsignacionesConProveedor = asignaciones.some(
     (a) => a.destino === 'proveedor' || a.destino === 'proveedor_deposito'
   )
@@ -319,6 +338,8 @@ export default function PanelComprasAsignacion({
 
     const { data: userData } = await supabase.auth.getUser()
     const lugarEnvioTexto = resolverLugarEnvioTexto()
+    const lugarEnvioAlias = resolverLugarEnvioAlias()
+    const horarioAtencionTexto = resolverHorarioAtencionTexto()
 
     // Una asignación 'proveedor_deposito' alimenta DOS grupos a la vez (la OC
     // de su proveedor y el único pedido a depósito del pedido de compra),
@@ -343,6 +364,9 @@ export default function PanelComprasAsignacion({
           cliente_id: clienteId,
           pedido_id: pedidoId,
           lugar_envio_texto: lugarEnvioTexto,
+          lugar_envio_alias: lugarEnvioAlias,
+          horario_atencion_texto: horarioAtencionTexto,
+          condicion_pago: proveedores.find((p) => p.id === proveedorId)?.condicion_pago_default ?? null,
           estado: 'borrador',
           creado_por: userData.user?.id,
         })

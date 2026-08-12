@@ -13,11 +13,11 @@ export default async function NuevaOrdenCompraPage() {
     { data: domicilios },
   ] = await Promise.all([
     supabase.from('empresas').select('id, nombre, domicilio').eq('activo', true).order('nombre'),
-    supabase.from('proveedores').select('id, razon_social').eq('activo', true).order('razon_social'),
+    supabase.from('proveedores').select('id, razon_social, domicilio, provincia, condicion_pago_default').eq('activo', true).order('razon_social'),
     supabase.from('clientes').select('id, nombre').order('nombre'),
     supabase.from('articulos').select('id, codigo_interno, nombre, unidad, categoria, proveedor_habitual_id').eq('activo', true).order('nombre'),
     supabase.from('articulos_proveedor').select('articulo_id, proveedor_id, precio').eq('activo', true),
-    supabase.from('cliente_domicilios').select('id, cliente_id, alias, direccion, es_principal, activo').eq('activo', true).order('alias'),
+    supabase.from('cliente_domicilios').select('id, cliente_id, alias, direccion, es_principal, activo, horario_atencion').eq('activo', true).order('alias'),
   ])
 
   return (

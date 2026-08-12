@@ -40,6 +40,7 @@ export default function OrdenCompraForm({
   const [clienteId, setClienteId] = useState('')
   const [observaciones, setObservaciones] = useState('')
   const [lugarEnvio, setLugarEnvio] = useState('') // '' | 'empresa' | `domicilio:<id>`
+  const [condicionPago, setCondicionPago] = useState('')
   const [lineas, setLineas] = useState<Linea[]>([])
 
   const domiciliosDelCliente = domicilios.filter((d) => d.cliente_id === clienteId && d.activo)
@@ -59,6 +60,16 @@ export default function OrdenCompraForm({
     if (lugarEnvio.startsWith('domicilio:')) {
       const dom = domicilios.find((d) => d.id === lugarEnvio.slice('domicilio:'.length))
       return dom?.alias || null
+    }
+    return null
+  }
+
+  // Horario del domicilio elegido como lugar de envío, congelado igual que
+  // el texto/alias. La empresa no tiene concepto de horario de atención.
+  function resolverHorarioAtencionTexto(): string | null {
+    if (lugarEnvio.startsWith('domicilio:')) {
+      const dom = domicilios.find((d) => d.id === lugarEnvio.slice('domicilio:'.length))
+      return dom?.horario_atencion || null
     }
     return null
   }
@@ -143,6 +154,8 @@ export default function OrdenCompraForm({
         observaciones_generales: observaciones || null,
         lugar_envio_texto: resolverLugarEnvioTexto(),
         lugar_envio_alias: resolverLugarEnvioAlias(),
+        horario_atencion_texto: resolverHorarioAtencionTexto(),
+        condicion_pago: condicionPago || null,
         estado: 'borrador',
         creado_por: userData.user?.id,
       })
@@ -183,7 +196,18 @@ export default function OrdenCompraForm({
             <option key={emp.id} value={emp.id}>{emp.nombre}</option>
           ))}
         </select>
-        <select value={proveedorId} onChange={(e) => setProveedorId(e.target.value)} required className={`flex-1 min-w-[200px] ${inputStyle}`}>
+        <select
+          value={proveedorId}
+          onChange={(e) => {
+            const id = e.target.value
+            setProveedorId(id)
+            // Precarga desde el default del proveedor; el campo sigue editable
+            // después para ese caso puntual, sin afectar el valor del proveedor.
+            setCondicionPago(proveedores.find((p) => p.id === id)?.condicion_pago_default ?? '')
+          }}
+          required
+          className={`flex-1 min-w-[200px] ${inputStyle}`}
+        >
           <option value="">Seleccionar proveedor</option>
           {proveedores.map((p) => (
             <option key={p.id} value={p.id}>{p.razon_social}</option>
@@ -204,6 +228,14 @@ export default function OrdenCompraForm({
           ))}
         </select>
       </div>
+
+      <input
+        type="text"
+        placeholder="Condición de pago (opcional)"
+        value={condicionPago}
+        onChange={(e) => setCondicionPago(e.target.value)}
+        className={`w-full ${inputStyle}`}
+      />
 
       <select value={lugarEnvio} onChange={(e) => setLugarEnvio(e.target.value)} className={`w-full ${inputStyle}`}>
         <option value="">Lugar de envío (opcional)</option>

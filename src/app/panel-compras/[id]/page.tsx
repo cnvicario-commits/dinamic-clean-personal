@@ -55,13 +55,13 @@ export default async function PanelComprasDetallePage({
       itemIds.length > 0
         ? supabase.from('pedidos_deposito_items').select('pedido_compra_item_id, cantidad').in('pedido_compra_item_id', itemIds)
         : Promise.resolve({ data: [] as { pedido_compra_item_id: string | null; cantidad: number }[] }),
-      supabase.from('proveedores').select('id, razon_social').eq('activo', true).order('razon_social'),
+      supabase.from('proveedores').select('id, razon_social, domicilio, provincia, condicion_pago_default').eq('activo', true).order('razon_social'),
       articuloIds.length > 0
         ? supabase.from('articulos_proveedor').select('articulo_id, proveedor_id, precio').eq('activo', true).in('articulo_id', articuloIds)
         : Promise.resolve({ data: [] as { articulo_id: string; proveedor_id: string; precio: number }[] }),
       supabase
         .from('cliente_domicilios')
-        .select('id, cliente_id, alias, direccion, es_principal, activo')
+        .select('id, cliente_id, alias, direccion, es_principal, activo, horario_atencion')
         .eq('cliente_id', pedido.cliente_id)
         .eq('activo', true)
         .order('alias'),

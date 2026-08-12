@@ -9,6 +9,8 @@ type Proveedor = {
   cuit: string
   domicilio: string | null
   telefono: string | null
+  provincia: string | null
+  condicion_pago_default: string | null
 }
 
 export default function ProveedorForm({
@@ -22,6 +24,8 @@ export default function ProveedorForm({
   const [cuit, setCuit] = useState(proveedor?.cuit ?? '')
   const [domicilio, setDomicilio] = useState(proveedor?.domicilio ?? '')
   const [telefono, setTelefono] = useState(proveedor?.telefono ?? '')
+  const [provincia, setProvincia] = useState(proveedor?.provincia ?? '')
+  const [condicionPagoDefault, setCondicionPagoDefault] = useState(proveedor?.condicion_pago_default ?? '')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
@@ -36,6 +40,8 @@ export default function ProveedorForm({
       cuit,
       domicilio: domicilio || null,
       telefono: telefono || null,
+      provincia: provincia || null,
+      condicion_pago_default: condicionPagoDefault || null,
     }
     const { error } = proveedor
       ? await supabase.from('proveedores').update(payload).eq('id', proveedor.id)
@@ -52,6 +58,8 @@ export default function ProveedorForm({
       setCuit('')
       setDomicilio('')
       setTelefono('')
+      setProvincia('')
+      setCondicionPagoDefault('')
     }
     router.refresh()
   }
@@ -64,6 +72,8 @@ export default function ProveedorForm({
       <input type="text" placeholder="CUIT" value={cuit} onChange={(e) => setCuit(e.target.value)} required className={`w-40 ${inputStyle}`} />
       <input type="text" placeholder="Domicilio (opcional)" value={domicilio} onChange={(e) => setDomicilio(e.target.value)} className={`flex-1 min-w-[180px] ${inputStyle}`} />
       <input type="text" placeholder="Teléfono (opcional)" value={telefono} onChange={(e) => setTelefono(e.target.value)} className={`w-40 ${inputStyle}`} />
+      <input type="text" placeholder="Provincia (opcional)" value={provincia} onChange={(e) => setProvincia(e.target.value)} className={`w-40 ${inputStyle}`} />
+      <input type="text" placeholder="Condición de pago habitual (opcional)" value={condicionPagoDefault} onChange={(e) => setCondicionPagoDefault(e.target.value)} className={`w-56 ${inputStyle}`} />
       <div className="flex gap-2">
         <button type="submit" disabled={loading} className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50">
           {loading ? 'Guardando...' : proveedor ? 'Guardar cambios' : 'Agregar'}

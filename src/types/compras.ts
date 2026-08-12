@@ -32,6 +32,7 @@ export type ClienteDomicilio = {
   direccion: string
   es_principal: boolean
   activo: boolean
+  horario_atencion: string | null
 }
 export type ArticuloResumen = {
   id: string
@@ -41,7 +42,13 @@ export type ArticuloResumen = {
   categoria: string | null
   proveedor_habitual_id: string | null
 }
-export type ProveedorResumen = { id: string; razon_social: string }
+export type ProveedorResumen = {
+  id: string
+  razon_social: string
+  domicilio: string | null
+  provincia: string | null
+  condicion_pago_default: string | null
+}
 
 export type PedidoCompra = {
   id: string
@@ -79,6 +86,8 @@ export type OrdenCompra = {
   observaciones_generales: string | null
   lugar_envio_texto: string | null // texto de la dirección elegida al crear la OC, no una referencia
   lugar_envio_alias: string | null // alias del domicilio (o nombre de empresa) elegido, congelado igual que el texto
+  condicion_pago: string | null // precargado del condicion_pago_default del proveedor, editable por OC
+  horario_atencion_texto: string | null // horario del domicilio elegido como lugar de envío, congelado igual que el texto/alias
   estado: EstadoOrdenCompra
   creado_por: string
   created_at: string
