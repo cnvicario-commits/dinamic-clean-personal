@@ -11,14 +11,35 @@ function formatearMoneda(valor: number) {
 }
 
 // Fila de la tabla de datos (etiqueta / valor). `destacado` resalta el valor
-// en negrita, usado para "Cliente" en el diseño de referencia.
-function FilaDato({ etiqueta, valor, destacado }: { etiqueta: string; valor: string; destacado?: boolean }) {
+// en negrita (usado para "Cliente"); `grande` además lo agranda y le pone
+// fondo de color (usado para "Lugar de Entrega").
+function FilaDato({
+  etiqueta,
+  valor,
+  destacado,
+  grande,
+}: {
+  etiqueta: string
+  valor: string
+  destacado?: boolean
+  grande?: boolean
+}) {
   return (
-    <tr className="border-b border-slate-100 last:border-0">
-      <td className="px-4 py-2 text-slate-500 w-48 align-top">{etiqueta}</td>
-      <td className={`px-4 py-2 text-slate-800 ${destacado ? 'font-semibold' : ''}`}>{valor}</td>
+    <tr className={`border-b border-slate-100 last:border-0 ${grande ? 'bg-teal-50' : ''}`}>
+      <td className={`px-4 py-2 text-slate-500 w-48 align-top ${grande ? 'py-3' : ''}`}>{etiqueta}</td>
+      <td
+        className={`px-4 py-2 text-slate-800 ${destacado || grande ? 'font-semibold' : ''} ${
+          grande ? 'py-3 text-lg text-teal-800' : ''
+        }`}
+      >
+        {valor}
+      </td>
     </tr>
   )
+}
+
+function formatearCliente(nombre: string, alias: string | null) {
+  return alias ? `${nombre}-${alias}` : nombre
 }
 
 export default function OrdenCompraDetalle({ orden }: { orden: OrdenCompraDetalleView }) {
@@ -67,8 +88,12 @@ export default function OrdenCompraDetalle({ orden }: { orden: OrdenCompraDetall
             <FilaDato etiqueta="Domicilio" valor={orden.proveedores?.domicilio ?? '-'} />
             <FilaDato etiqueta="Provincia" valor={orden.proveedores?.provincia ?? '-'} />
             <FilaDato etiqueta="Condición de Pago" valor={orden.condicion_pago ?? '-'} />
-            <FilaDato etiqueta="Cliente" valor={orden.clientes?.nombre ?? '-'} destacado />
-            <FilaDato etiqueta="Lugar de Entrega" valor={orden.lugar_envio_texto ?? '-'} />
+            <FilaDato
+              etiqueta="Cliente"
+              valor={orden.clientes ? formatearCliente(orden.clientes.nombre, orden.lugar_envio_alias) : '-'}
+              destacado
+            />
+            <FilaDato etiqueta="Lugar de Entrega" valor={orden.lugar_envio_texto ?? '-'} grande />
             <FilaDato etiqueta="Horario de Atención" valor={orden.horario_atencion_texto ?? '-'} />
           </tbody>
         </table>
