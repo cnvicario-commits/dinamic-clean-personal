@@ -28,7 +28,9 @@ export default function PedidosEnviadosTabla({ pedidos }: { pedidos: PedidoEnvia
   const [busqueda, setBusqueda] = useState('')
   const [filtroProcesamiento, setFiltroProcesamiento] = useState<'' | 'pendiente' | 'procesado'>('')
   const [columna, setColumna] = useState<Columna>('created_at')
-  const [direccion, setDireccion] = useState<'asc' | 'desc'>('asc')
+  // Más nuevo primero por defecto, para agilizar el proceso; coincide con el
+  // orden que ya trae panel-compras/page.tsx desde el server.
+  const [direccion, setDireccion] = useState<'asc' | 'desc'>('desc')
 
   function ordenarPor(col: Columna) {
     if (columna === col) {

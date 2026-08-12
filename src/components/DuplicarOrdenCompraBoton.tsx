@@ -30,6 +30,7 @@ export default function DuplicarOrdenCompraBoton({ id }: { id: string }) {
         pedido_id: null, // OC nueva independiente, no arrastra el pedido de origen
         observaciones_generales: origen.observaciones_generales,
         lugar_envio_texto: origen.lugar_envio_texto,
+        lugar_envio_alias: origen.lugar_envio_alias,
         estado: 'borrador',
         creado_por: userData.user?.id,
       })

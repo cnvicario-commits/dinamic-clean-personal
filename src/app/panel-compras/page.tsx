@@ -8,7 +8,7 @@ export default async function PanelComprasPage() {
     .from('pedidos_compra')
     .select('*, empresas(nombre), clientes(nombre)')
     .eq('estado', 'enviada')
-    .order('created_at', { ascending: true })
+    .order('created_at', { ascending: false })
 
   const pedidoIds = (pedidos ?? []).map((p) => p.id)
 

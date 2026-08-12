@@ -54,6 +54,15 @@ export default function OrdenCompraForm({
     return null
   }
 
+  function resolverLugarEnvioAlias(): string | null {
+    if (lugarEnvio === 'empresa') return empresaSeleccionada?.nombre || null
+    if (lugarEnvio.startsWith('domicilio:')) {
+      const dom = domicilios.find((d) => d.id === lugarEnvio.slice('domicilio:'.length))
+      return dom?.alias || null
+    }
+    return null
+  }
+
   // Campos del "agregar línea" (se resetean con este contador vía key).
   const [nuevoArticulo, setNuevoArticulo] = useState<{ id: string; label: string } | null>(null)
   const [nuevaCantidad, setNuevaCantidad] = useState('')
@@ -133,6 +142,7 @@ export default function OrdenCompraForm({
         pedido_id: null, // OC generada directamente, sin pedido de compra de origen
         observaciones_generales: observaciones || null,
         lugar_envio_texto: resolverLugarEnvioTexto(),
+        lugar_envio_alias: resolverLugarEnvioAlias(),
         estado: 'borrador',
         creado_por: userData.user?.id,
       })

@@ -5,10 +5,18 @@ import Link from 'next/link'
 import EstadoBadge from './EstadoBadge'
 import type { OrdenCompraListado, EstadoOrdenCompra, ClienteResumen, Empresa, ProveedorResumen } from '@/types/compras'
 
-type Columna = 'numero_oc' | 'empresa' | 'proveedor' | 'cliente' | 'estado' | 'fecha'
+type Columna = 'numero_oc' | 'empresa' | 'proveedor' | 'cliente' | 'estado' | 'lugar_envio' | 'fecha'
 
 function comparar(a: string, b: string) {
   return a.localeCompare(b, 'es', { sensitivity: 'base' })
+}
+
+// Combina el alias del domicilio (o nombre de empresa) con la dirección
+// congelada, ej. "Depósito Central — Av. Corrientes 1234" (mismo criterio
+// que en el listado de Pedidos de compra).
+function etiquetaLugarEnvio(o: OrdenCompraListado): string {
+  if (o.lugar_envio_alias && o.lugar_envio_texto) return `${o.lugar_envio_alias} — ${o.lugar_envio_texto}`
+  return o.lugar_envio_alias || o.lugar_envio_texto || ''
 }
 
 function valorColumna(o: OrdenCompraListado, columna: Columna): string {
@@ -23,6 +31,8 @@ function valorColumna(o: OrdenCompraListado, columna: Columna): string {
       return o.clientes?.nombre ?? ''
     case 'estado':
       return o.estado
+    case 'lugar_envio':
+      return etiquetaLugarEnvio(o)
     case 'fecha':
       return o.fecha
   }
@@ -123,6 +133,9 @@ export default function OrdenesCompraTabla({
               <th className="px-4 py-3 font-medium cursor-pointer select-none hover:text-slate-700" onClick={() => ordenarPor('estado')}>
                 Estado{indicador('estado')}
               </th>
+              <th className="px-4 py-3 font-medium cursor-pointer select-none hover:text-slate-700" onClick={() => ordenarPor('lugar_envio')}>
+                Lugar de entrega{indicador('lugar_envio')}
+              </th>
               <th className="px-4 py-3 font-medium cursor-pointer select-none hover:text-slate-700" onClick={() => ordenarPor('fecha')}>
                 Fecha{indicador('fecha')}
               </th>
@@ -140,6 +153,7 @@ export default function OrdenesCompraTabla({
                 <td className="px-4 py-3 text-slate-600">{o.empresas?.nombre ?? '-'}</td>
                 <td className="px-4 py-3 text-slate-600">{o.clientes?.nombre ?? '-'}</td>
                 <td className="px-4 py-3"><EstadoBadge estado={o.estado} /></td>
+                <td className="px-4 py-3 text-slate-600">{etiquetaLugarEnvio(o) || '-'}</td>
                 <td className="px-4 py-3 text-slate-600">{new Date(`${o.fecha}T00:00:00`).toLocaleDateString('es-AR')}</td>
               </tr>
             ))}

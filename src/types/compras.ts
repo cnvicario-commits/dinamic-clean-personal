@@ -78,6 +78,7 @@ export type OrdenCompra = {
   fecha: string
   observaciones_generales: string | null
   lugar_envio_texto: string | null // texto de la dirección elegida al crear la OC, no una referencia
+  lugar_envio_alias: string | null // alias del domicilio (o nombre de empresa) elegido, congelado igual que el texto
   estado: EstadoOrdenCompra
   creado_por: string
   created_at: string
