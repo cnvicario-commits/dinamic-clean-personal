@@ -47,6 +47,11 @@ export default function OrdenCompraDetalle({ orden }: { orden: OrdenCompraDetall
   const iva = subtotal * 0.21
   const total = subtotal + iva
 
+  // Mismo texto que la fila "Cliente" de la tabla de datos, agregado al
+  // nombre del archivo descargado (que ya era el número de OC, ej. OC-0025).
+  const clienteEtiqueta = orden.clientes ? formatearCliente(orden.clientes.nombre, orden.lugar_envio_alias) : ''
+  const nombreArchivo = clienteEtiqueta ? `${orden.numero_oc} - ${clienteEtiqueta}` : orden.numero_oc
+
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6 print:hidden">
@@ -54,7 +59,7 @@ export default function OrdenCompraDetalle({ orden }: { orden: OrdenCompraDetall
         <div className="flex gap-2">
           <EstadoOrdenCompraBoton id={orden.id} estado={orden.estado} />
           <DuplicarOrdenCompraBoton id={orden.id} />
-          <BotonImprimir nombreArchivo={orden.numero_oc} />
+          <BotonImprimir nombreArchivo={nombreArchivo} />
         </div>
       </div>
 
