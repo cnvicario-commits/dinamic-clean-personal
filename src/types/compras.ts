@@ -52,6 +52,7 @@ export type PedidoCompra = {
   lugar_envio_domicilio_id: string | null // referencia viva a cliente_domicilios (no un texto congelado)
   lugar_envio_empresa: boolean // true = usar el domicilio de la empresa en vez de un domicilio del cliente
   lugar_envio_texto: string | null // texto de la dirección elegida al guardar, no una referencia (igual que en OC)
+  lugar_envio_alias: string | null // alias del domicilio (o nombre de empresa) elegido al guardar, congelado igual que el texto
   estado: EstadoPedidoCompra
   creado_por: string
   created_at: string

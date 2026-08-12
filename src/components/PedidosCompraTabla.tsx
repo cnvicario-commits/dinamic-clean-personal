@@ -14,6 +14,15 @@ function comparar(a: string, b: string) {
   return a.localeCompare(b, 'es', { sensitivity: 'base' })
 }
 
+// Combina el alias del domicilio (o nombre de empresa) con la dirección
+// congelada, ej. "Depósito Central — Av. Corrientes 1234". Ambos son
+// opcionales por separado (pedidos guardados antes de tener alias, o sin
+// lugar de entrega elegido).
+function etiquetaLugarEnvio(p: PedidoCompraListado): string {
+  if (p.lugar_envio_alias && p.lugar_envio_texto) return `${p.lugar_envio_alias} — ${p.lugar_envio_texto}`
+  return p.lugar_envio_alias || p.lugar_envio_texto || ''
+}
+
 function valorColumna(p: PedidoCompraListado, columna: Columna): string {
   switch (columna) {
     case 'numero_pedido':
@@ -25,7 +34,7 @@ function valorColumna(p: PedidoCompraListado, columna: Columna): string {
     case 'estado':
       return p.estado
     case 'lugar_envio':
-      return p.lugar_envio_texto ?? ''
+      return etiquetaLugarEnvio(p)
     case 'created_at':
       return p.created_at
   }
@@ -48,7 +57,7 @@ export default function PedidosCompraTabla({
   const [direccion, setDireccion] = useState<'asc' | 'desc'>('desc')
 
   const lugaresEnvio = useMemo(() => {
-    const valores = new Set(pedidos.map((p) => p.lugar_envio_texto).filter((v): v is string => !!v))
+    const valores = new Set(pedidos.map((p) => etiquetaLugarEnvio(p)).filter((v) => v !== ''))
     return Array.from(valores).sort(comparar)
   }, [pedidos])
 
@@ -71,8 +80,8 @@ export default function PedidosCompraTabla({
     if (filtroEstado) base = base.filter((p) => p.estado === filtroEstado)
     if (filtroClienteId) base = base.filter((p) => p.cliente_id === filtroClienteId)
     if (filtroEmpresaId) base = base.filter((p) => p.empresa_id === filtroEmpresaId)
-    if (filtroLugarEnvio === SIN_LUGAR) base = base.filter((p) => !p.lugar_envio_texto)
-    else if (filtroLugarEnvio) base = base.filter((p) => p.lugar_envio_texto === filtroLugarEnvio)
+    if (filtroLugarEnvio === SIN_LUGAR) base = base.filter((p) => etiquetaLugarEnvio(p) === '')
+    else if (filtroLugarEnvio) base = base.filter((p) => etiquetaLugarEnvio(p) === filtroLugarEnvio)
     const signo = direccion === 'asc' ? 1 : -1
     return [...base].sort((a, b) => signo * comparar(valorColumna(a, columna), valorColumna(b, columna)))
   }, [pedidos, filtroEstado, filtroClienteId, filtroEmpresaId, filtroLugarEnvio, columna, direccion])
@@ -147,7 +156,7 @@ export default function PedidosCompraTabla({
                 <td className="px-4 py-3 text-slate-600">{p.empresas?.nombre ?? '-'}</td>
                 <td className="px-4 py-3 text-slate-600">{p.clientes?.nombre ?? '-'}</td>
                 <td className="px-4 py-3"><EstadoBadge estado={p.estado} /></td>
-                <td className="px-4 py-3 text-slate-600">{p.lugar_envio_texto ?? '-'}</td>
+                <td className="px-4 py-3 text-slate-600">{etiquetaLugarEnvio(p) || '-'}</td>
                 <td className="px-4 py-3 text-slate-600">{new Date(p.created_at).toLocaleDateString('es-AR')}</td>
                 <td className="px-4 py-3">
                   <DuplicarPedidoCompraBoton id={p.id} />

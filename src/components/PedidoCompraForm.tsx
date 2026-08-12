@@ -46,13 +46,24 @@ export default function PedidoCompraForm({
   const domiciliosDelCliente = domicilios.filter((d) => d.cliente_id === clienteId && d.activo)
   const empresaSeleccionada = empresas.find((e) => e.id === empresaId)
 
-  // Texto congelado de la dirección elegida (igual que en OrdenCompraForm):
-  // si el domicilio del cliente cambia después, el pedido ya emitido no se altera.
+  // Texto y alias congelados de la dirección elegida (igual que en
+  // OrdenCompraForm para el texto): si el domicilio del cliente cambia
+  // después, el pedido ya emitido no se altera. Para "empresa" no hay alias
+  // propiamente dicho, se usa el nombre de la empresa como equivalente.
   function resolverLugarEnvioTexto(): string | null {
     if (lugarEnvio === 'empresa') return empresaSeleccionada?.domicilio || null
     if (lugarEnvio.startsWith('domicilio:')) {
       const dom = domicilios.find((d) => d.id === lugarEnvio.slice('domicilio:'.length))
       return dom?.direccion || null
+    }
+    return null
+  }
+
+  function resolverLugarEnvioAlias(): string | null {
+    if (lugarEnvio === 'empresa') return empresaSeleccionada?.nombre || null
+    if (lugarEnvio.startsWith('domicilio:')) {
+      const dom = domicilios.find((d) => d.id === lugarEnvio.slice('domicilio:'.length))
+      return dom?.alias || null
     }
     return null
   }
@@ -112,6 +123,7 @@ export default function PedidoCompraForm({
       lugar_envio_empresa: lugarEnvio === 'empresa',
       lugar_envio_domicilio_id: lugarEnvio.startsWith('domicilio:') ? lugarEnvio.slice('domicilio:'.length) : null,
       lugar_envio_texto: resolverLugarEnvioTexto(),
+      lugar_envio_alias: resolverLugarEnvioAlias(),
       estado: estadoDeseado,
     }
 

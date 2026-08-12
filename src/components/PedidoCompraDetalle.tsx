@@ -22,12 +22,12 @@ export default function PedidoCompraDetalle({ pedido }: { pedido: PedidoCompraDe
         {' · '}Fecha: {new Date(pedido.created_at).toLocaleDateString('es-AR')}
       </p>
 
-      {(pedido.lugar_envio_empresa || pedido.cliente_domicilios) && (
+      {(pedido.lugar_envio_alias || pedido.lugar_envio_texto) && (
         <p className="text-sm text-slate-600 mb-2">
           Lugar de envío:{' '}
-          {pedido.lugar_envio_empresa
-            ? `${pedido.empresas?.nombre} — ${pedido.empresas?.domicilio}`
-            : `${pedido.cliente_domicilios?.alias} — ${pedido.cliente_domicilios?.direccion}`}
+          {pedido.lugar_envio_alias && pedido.lugar_envio_texto
+            ? `${pedido.lugar_envio_alias} — ${pedido.lugar_envio_texto}`
+            : pedido.lugar_envio_alias || pedido.lugar_envio_texto}
         </p>
       )}
 
