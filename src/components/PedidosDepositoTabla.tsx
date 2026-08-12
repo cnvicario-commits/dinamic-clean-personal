@@ -5,7 +5,7 @@ import Link from 'next/link'
 import EstadoBadge from './EstadoBadge'
 import type { PedidoDepositoListado, EstadoPedidoDeposito, ClienteResumen, Empresa } from '@/types/compras'
 
-type Columna = 'numero_pedido_deposito' | 'empresa' | 'cliente' | 'estado' | 'fecha'
+type Columna = 'numero_pedido_deposito' | 'empresa' | 'cliente' | 'estado' | 'alias' | 'fecha'
 
 function comparar(a: string, b: string) {
   return a.localeCompare(b, 'es', { sensitivity: 'base' })
@@ -21,6 +21,8 @@ function valorColumna(p: PedidoDepositoListado, columna: Columna): string {
       return p.clientes?.nombre ?? ''
     case 'estado':
       return p.estado
+    case 'alias':
+      return p.lugar_envio_alias ?? ''
     case 'fecha':
       return p.fecha
   }
@@ -108,6 +110,9 @@ export default function PedidosDepositoTabla({
               <th className="px-4 py-3 font-medium cursor-pointer select-none hover:text-slate-700" onClick={() => ordenarPor('estado')}>
                 Estado{indicador('estado')}
               </th>
+              <th className="px-4 py-3 font-medium cursor-pointer select-none hover:text-slate-700" onClick={() => ordenarPor('alias')}>
+                Alias{indicador('alias')}
+              </th>
               <th className="px-4 py-3 font-medium cursor-pointer select-none hover:text-slate-700" onClick={() => ordenarPor('fecha')}>
                 Fecha{indicador('fecha')}
               </th>
@@ -124,6 +129,7 @@ export default function PedidosDepositoTabla({
                 <td className="px-4 py-3 text-slate-600">{p.empresas?.nombre ?? '-'}</td>
                 <td className="px-4 py-3 text-slate-600">{p.clientes?.nombre ?? '-'}</td>
                 <td className="px-4 py-3"><EstadoBadge estado={p.estado} /></td>
+                <td className="px-4 py-3 text-slate-600">{p.lugar_envio_alias ?? '-'}</td>
                 <td className="px-4 py-3 text-slate-600">{new Date(`${p.fecha}T00:00:00`).toLocaleDateString('es-AR')}</td>
               </tr>
             ))}

@@ -111,6 +111,8 @@ export type PedidoDeposito = {
   pedido_id: string | null // pedido de compra de origen (null si es un pedido independiente/duplicado)
   fecha: string
   observaciones_generales: string | null
+  lugar_envio_texto: string | null // dirección del lugar de entrega, congelada igual que en pedidos_compra/ordenes_compra
+  lugar_envio_alias: string | null // alias del domicilio (o nombre de empresa) elegido, congelado igual que el texto
   estado: EstadoPedidoDeposito
   creado_por: string
   created_at: string

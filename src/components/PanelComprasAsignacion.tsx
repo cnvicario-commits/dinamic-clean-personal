@@ -404,6 +404,8 @@ export default function PanelComprasAsignacion({
           empresa_id: empresaId,
           cliente_id: clienteId,
           pedido_id: pedidoId,
+          lugar_envio_texto: lugarEnvioTexto,
+          lugar_envio_alias: lugarEnvioAlias,
           estado: 'borrador',
           creado_por: userData.user?.id,
         })

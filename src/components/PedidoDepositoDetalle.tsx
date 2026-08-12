@@ -6,6 +6,10 @@ import EstadoPedidoDepositoBoton from './EstadoPedidoDepositoBoton'
 import DuplicarPedidoDepositoBoton from './DuplicarPedidoDepositoBoton'
 import type { PedidoDepositoDetalleView } from '@/types/compras'
 
+function formatearCliente(nombre: string, alias: string | null) {
+  return alias ? `${nombre}-${alias}` : nombre
+}
+
 export default function PedidoDepositoDetalle({ pedido }: { pedido: PedidoDepositoDetalleView }) {
   return (
     <div>
@@ -23,10 +27,17 @@ export default function PedidoDepositoDetalle({ pedido }: { pedido: PedidoDeposi
         <p className="text-sm">{pedido.empresas?.cuit} · {pedido.empresas?.domicilio}</p>
       </div>
 
-      <p className="text-sm text-slate-500 mb-6">
-        Cliente: <span className="font-medium text-slate-700">{pedido.clientes?.nombre}</span>
+      <p className={`text-sm text-slate-500 ${pedido.lugar_envio_texto ? 'mb-2' : 'mb-6'}`}>
+        Cliente:{' '}
+        <span className="font-medium text-slate-700">
+          {pedido.clientes ? formatearCliente(pedido.clientes.nombre, pedido.lugar_envio_alias) : '-'}
+        </span>
         {' · '}Fecha: {new Date(`${pedido.fecha}T00:00:00`).toLocaleDateString('es-AR')}
       </p>
+
+      {pedido.lugar_envio_texto && (
+        <p className="text-sm text-slate-500 mb-6">Domicilio de entrega: {pedido.lugar_envio_texto}</p>
+      )}
 
       {pedido.observaciones_generales && (
         <p className="text-sm text-slate-600 mb-6">Observaciones: {pedido.observaciones_generales}</p>
