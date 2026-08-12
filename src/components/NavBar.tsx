@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import LogoutButton from './LogoutButton'
@@ -41,65 +41,133 @@ function esActivo(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`)
 }
 
+function ChevronAbajo({ className = '' }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" className={`h-3 w-3 ${className}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+    </svg>
+  )
+}
+
 export default function NavBar() {
-  const [abierto, setAbierto] = useState(false)
-  const [menuAbierto, setMenuAbierto] = useState<string | null>(null)
-  const contenedorRef = useRef<HTMLDivElement>(null)
+  const [abierto, setAbierto] = useState(false) // menú mobile (hamburguesa)
+  const [gruposAbiertos, setGruposAbiertos] = useState<Set<string>>(new Set())
   const pathname = usePathname()
 
+  // Si la pantalla activa pertenece a un grupo, ese grupo arranca expandido
+  // en el sidebar, para que el link activo sea visible sin tener que
+  // desplegarlo a mano.
   useEffect(() => {
-    function handleClickFuera(e: MouseEvent) {
-      if (contenedorRef.current && !contenedorRef.current.contains(e.target as Node)) {
-        setMenuAbierto(null)
-      }
+    const grupoActivo = grupos.find((g) => g.enlaces.some((e) => esActivo(pathname, e.href)))
+    if (grupoActivo) {
+      setGruposAbiertos((prev) => (prev.has(grupoActivo.id) ? prev : new Set(prev).add(grupoActivo.id)))
     }
-    document.addEventListener('mousedown', handleClickFuera)
-    return () => document.removeEventListener('mousedown', handleClickFuera)
-  }, [])
+  }, [pathname])
+
+  function toggleGrupo(id: string) {
+    setGruposAbiertos((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   const linkStyle = (activo: boolean) =>
     `text-sm transition-colors ${activo ? 'text-white font-medium' : 'text-slate-300 hover:text-white'}`
 
   return (
-    <nav className="print:hidden bg-slate-900 text-slate-100 shadow-sm">
-      <div className="flex items-center justify-between px-4 sm:px-6 py-4">
-        <Link href="/dashboard" className="font-bold text-teal-400">
-          Dinamic Clean
-        </Link>
+    <>
+      {/* Barra superior: solo mobile (< md), con menú hamburguesa */}
+      <nav className="print:hidden md:hidden bg-slate-900 text-slate-100 shadow-sm">
+        <div className="flex items-center justify-between px-4 py-4">
+          <Link href="/dashboard" className="font-bold text-teal-400">
+            Dinamic Clean
+          </Link>
+          <button onClick={() => setAbierto(!abierto)} className="p-2 text-slate-100" aria-label="Abrir menú">
+            {abierto ? (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            )}
+          </button>
+        </div>
 
-        <div ref={contenedorRef} className="hidden md:flex items-center gap-6">
+        {abierto && (
+          <div className="flex flex-col px-4 pb-4 gap-3 border-t border-slate-800 pt-3">
+            {transversales.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                onClick={() => setAbierto(false)}
+                className={linkStyle(esActivo(pathname, link.href))}
+              >
+                {link.label}
+              </Link>
+            ))}
+            {grupos.map((grupo) => (
+              <div key={grupo.id} className="flex flex-col gap-3">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mt-1">{grupo.label}</p>
+                {grupo.enlaces.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setAbierto(false)}
+                    className={`pl-3 ${linkStyle(esActivo(pathname, link.href))}`}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
+            ))}
+            <LogoutButton />
+          </div>
+        )}
+      </nav>
+
+      {/* Sidebar lateral: desde md en adelante */}
+      <aside className="print:hidden hidden md:flex md:flex-col md:w-60 md:shrink-0 md:sticky md:top-0 md:self-start md:h-screen bg-slate-900 text-slate-100">
+        <div className="px-5 py-5 border-b border-slate-800">
+          <Link href="/dashboard" className="font-bold text-teal-400">
+            Dinamic Clean
+          </Link>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-1">
           {transversales.map((link) => (
-            <Link key={link.href} href={link.href} className={linkStyle(esActivo(pathname, link.href))}>
+            <Link
+              key={link.href}
+              href={link.href}
+              className={`block px-3 py-2 rounded-md ${linkStyle(esActivo(pathname, link.href))}`}
+            >
               {link.label}
             </Link>
           ))}
 
           {grupos.map((grupo) => {
             const grupoActivo = grupo.enlaces.some((e) => esActivo(pathname, e.href))
+            const expandido = gruposAbiertos.has(grupo.id)
             return (
-              <div key={grupo.id} className="relative">
+              <div key={grupo.id}>
                 <button
                   type="button"
-                  onClick={() => setMenuAbierto(menuAbierto === grupo.id ? null : grupo.id)}
-                  className={`flex items-center gap-1 ${linkStyle(grupoActivo)}`}
+                  onClick={() => toggleGrupo(grupo.id)}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-md ${linkStyle(grupoActivo)}`}
                 >
                   {grupo.label}
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
+                  <ChevronAbajo className={`transition-transform ${expandido ? 'rotate-180' : ''}`} />
                 </button>
-                {menuAbierto === grupo.id && (
-                  <div className="absolute left-0 top-full mt-2 w-56 bg-slate-800 border border-slate-700 rounded-lg shadow-lg overflow-hidden z-20">
+                {expandido && (
+                  <div className="ml-3 mt-1 mb-1 flex flex-col gap-1 border-l border-slate-700 pl-3">
                     {grupo.enlaces.map((link) => (
                       <Link
                         key={link.href}
                         href={link.href}
-                        onClick={() => setMenuAbierto(null)}
-                        className={`block px-4 py-2.5 text-sm border-b border-slate-700 last:border-0 transition-colors ${
-                          esActivo(pathname, link.href)
-                            ? 'text-white bg-slate-700'
-                            : 'text-slate-300 hover:text-white hover:bg-slate-700'
-                        }`}
+                        className={`block px-3 py-2 rounded-md ${linkStyle(esActivo(pathname, link.href))}`}
                       >
                         {link.label}
                       </Link>
@@ -111,59 +179,10 @@ export default function NavBar() {
           })}
         </div>
 
-        <div className="hidden md:block">
+        <div className="px-3 py-4 border-t border-slate-800">
           <LogoutButton />
         </div>
-
-        <button
-          onClick={() => setAbierto(!abierto)}
-          className="md:hidden p-2 text-slate-100"
-          aria-label="Abrir menú"
-        >
-          {abierto ? (
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          )}
-        </button>
-      </div>
-
-      {abierto && (
-        <div className="md:hidden flex flex-col px-4 pb-4 gap-3 border-t border-slate-800 pt-3">
-          {transversales.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              onClick={() => setAbierto(false)}
-              className={linkStyle(esActivo(pathname, link.href))}
-            >
-              {link.label}
-            </Link>
-          ))}
-
-          {grupos.map((grupo) => (
-            <div key={grupo.id} className="flex flex-col gap-3">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mt-1">{grupo.label}</p>
-              {grupo.enlaces.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setAbierto(false)}
-                  className={`pl-3 ${linkStyle(esActivo(pathname, link.href))}`}
-                >
-                  {link.label}
-                </Link>
-              ))}
-            </div>
-          ))}
-
-          <LogoutButton />
-        </div>
-      )}
-    </nav>
+      </aside>
+    </>
   )
 }
