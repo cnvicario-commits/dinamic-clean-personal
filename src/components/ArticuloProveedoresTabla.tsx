@@ -1,6 +1,6 @@
 type Vinculo = {
   id: string
-  codigo_proveedor: string
+  codigo_proveedor: string | null
   nombre_proveedor: string | null
   precio: number
   fecha_actualizacion: string
@@ -28,7 +28,7 @@ export default function ArticuloProveedoresTabla({ vinculos }: { vinculos: Vincu
           {vinculos.map((v) => (
             <tr key={v.id} className={`border-b border-slate-100 last:border-0 ${!v.activo ? 'opacity-50' : ''}`}>
               <td className="px-4 py-3 text-slate-800">{v.proveedores?.razon_social ?? '-'}</td>
-              <td className="px-4 py-3 text-slate-600">{v.codigo_proveedor}</td>
+              <td className="px-4 py-3 text-slate-600">{v.codigo_proveedor || '-'}</td>
               <td className="px-4 py-3 text-slate-600">{v.nombre_proveedor ?? '-'}</td>
               <td className="px-4 py-3">
                 <span className={`font-medium ${v.precio === precioMinimo ? 'text-emerald-600' : 'text-slate-700'}`}>

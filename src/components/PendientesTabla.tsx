@@ -7,6 +7,8 @@ import ArticuloForm from './ArticuloForm'
 
 type Articulo = { id: string; codigo_interno: string; nombre: string }
 
+type Sugerencia = { articulo_id: string; codigo_interno: string; nombre: string; similitud: number }
+
 type Pendiente = {
   id: string
   codigo_proveedor: string | null
@@ -14,6 +16,7 @@ type Pendiente = {
   precio: number | null
   archivo_origen: string | null
   motivo: string | null
+  sugerencias: Sugerencia[] | null
   created_at: string
   proveedores: { id: string; razon_social: string } | null
 }
@@ -82,7 +85,7 @@ function FilaPendiente({ pendiente, articulos }: { pendiente: Pendiente; articul
         <div>
           <p className="text-slate-800 font-medium">{pendiente.nombre_proveedor || 'Sin descripción'}</p>
           <p className="text-sm text-slate-500">
-            {pendiente.proveedores?.razon_social ?? 'Proveedor desconocido'} · Código: {pendiente.codigo_proveedor} · Precio: {pendiente.precio ?? '-'}
+            {pendiente.proveedores?.razon_social ?? 'Proveedor desconocido'} · Código: {pendiente.codigo_proveedor || 'sin código'} · Precio: {pendiente.precio ?? '-'}
             {pendiente.archivo_origen && <> · Archivo: {pendiente.archivo_origen}</>}
           </p>
           {pendiente.motivo && (
@@ -104,6 +107,23 @@ function FilaPendiente({ pendiente, articulos }: { pendiente: Pendiente; articul
           </button>
         </div>
       </div>
+
+      {pendiente.sugerencias && pendiente.sugerencias.length > 0 && (
+        <div className="mt-3 flex flex-col gap-2">
+          <p className="text-sm text-slate-500">¿Es alguno de estos?</p>
+          {pendiente.sugerencias.map((s) => (
+            <button
+              key={s.articulo_id}
+              onClick={() => vincular(s.articulo_id)}
+              disabled={loading}
+              className="text-left px-3 py-2 text-sm bg-teal-50 hover:bg-teal-100 text-teal-800 rounded-lg border border-teal-200 disabled:opacity-50"
+            >
+              {s.codigo_interno} — {s.nombre}{' '}
+              <span className="text-teal-600 font-medium">({Math.round(s.similitud * 100)}% similar)</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {modo === 'vincular' && (
         <div className="mt-4 flex flex-wrap gap-2 items-start">

@@ -7,7 +7,7 @@ export default async function PendientesPage() {
 
   const { data: pendientes, error: errorPendientes } = await supabase
     .from('articulos_proveedor_pendientes')
-    .select('id, codigo_proveedor, nombre_proveedor, precio, archivo_origen, motivo, created_at, proveedores(id, razon_social)')
+    .select('id, codigo_proveedor, nombre_proveedor, precio, archivo_origen, motivo, sugerencias, created_at, proveedores(id, razon_social)')
     .eq('resuelto', false)
     .order('created_at', { ascending: false })
 

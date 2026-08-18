@@ -3,18 +3,21 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import * as XLSX from 'xlsx'
 import { createClient } from '@/utils/supabase/client'
+import { normalizarCodigoProveedor } from '@/utils/normalizarCodigoProveedor'
 import DescargarPlantillaListaPrecios from './DescargarPlantillaListaPrecios'
 
 type Proveedor = { id: string; razon_social: string }
 
 type FilaExcel = {
   fila: number
-  codigo: string
+  codigo: string // '' si sinCodigo (no vino codigo_proveedor ni codigo_interno)
   nombre: string
   precio: number
   codigoInterno: string // '' si no vino en el Excel (la columna es opcional)
-  sinCodigo: boolean // true = no vino codigo_proveedor ni codigo_interno; "codigo" es un valor provisorio
+  sinCodigo: boolean // true = no vino codigo_proveedor ni codigo_interno; nunca matchea por código
 }
+
+type SugerenciaArticulo = { articulo_id: string; codigo_interno: string; nombre: string; similitud: number }
 
 type FilaError = { fila: number; motivo: string }
 
@@ -103,16 +106,11 @@ export default function CargaListaPrecios({ proveedores }: { proveedores: Provee
           codigo = codigoInterno
         }
 
-        let sinCodigo = false
-        if (!codigo) {
-          // Ni codigo_proveedor ni codigo_interno: no se puede vincular
-          // directo ni usar como clave real, pero tampoco se descarta la
-          // fila. Se le arma un código provisorio (identifica la fila del
-          // archivo) para que la línea llegue igual a Pendientes y se
-          // resuelva a mano en vez de perderse en silencio.
-          codigo = `SIN-CODIGO-FILA-${numeroFila}`
-          sinCodigo = true
-        }
+        // Ni codigo_proveedor ni codigo_interno: la fila no se descarta, pero
+        // tampoco se le inventa un código. Queda marcada como "sinCodigo" y
+        // nunca se compara por código (va directo a la sugerencia por nombre).
+        const sinCodigo = !codigo
+
         if (isNaN(precio)) {
           erroresParseo.push({ fila: numeroFila, motivo: 'precio inválido' })
           return
@@ -120,33 +118,55 @@ export default function CargaListaPrecios({ proveedores }: { proveedores: Provee
         filasValidas.push({ fila: numeroFila, codigo, nombre, precio, codigoInterno, sinCodigo })
       })
 
-      // Duplicados de código dentro del mismo archivo: gana la última fila.
-      const porCodigo = new Map<string, FilaExcel>()
-      filasValidas.forEach((f) => porCodigo.set(f.codigo, f))
-      const filasUnicas = Array.from(porCodigo.values())
+      const filasConCodigo = filasValidas.filter((f) => !f.sinCodigo)
+      const filasSinCodigo = filasValidas.filter((f) => f.sinCodigo)
 
-      // Vínculos ya existentes de este proveedor.
+      // Duplicados de código dentro del mismo archivo (comparación
+      // normalizada: espacios, mayúsculas y ceros a la izquierda no cuentan
+      // como códigos distintos): gana la última fila. No aplica a las filas
+      // sin código real, que nunca se pisan entre sí por esta vía.
+      const porCodigoNorm = new Map<string, FilaExcel>()
+      filasConCodigo.forEach((f) => porCodigoNorm.set(normalizarCodigoProveedor(f.codigo), f))
+      const filasUnicasConCodigo = Array.from(porCodigoNorm.values())
+
+      // Vínculos ya existentes de este proveedor (comparación normalizada;
+      // las entradas con codigo_proveedor vacío no participan del matching
+      // por código, solo de la sugerencia por nombre).
       const { data: existentes } = await supabase
         .from('articulos_proveedor')
         .select('id, codigo_proveedor')
         .eq('proveedor_id', proveedorId)
-      const mapaExistentes = new Map((existentes ?? []).map((v) => [v.codigo_proveedor, v.id]))
+      const mapaExistentes = new Map<string, string>()
+      ;(existentes ?? []).forEach((v) => {
+        if (v.codigo_proveedor) mapaExistentes.set(normalizarCodigoProveedor(v.codigo_proveedor), v.id)
+      })
 
-      // Pendientes no resueltas de este proveedor (para no duplicarlas si se reimporta).
+      // Pendientes no resueltas de este proveedor (para no duplicarlas si se
+      // reimporta). Las que tienen codigo_proveedor se indexan normalizado;
+      // las que no (sinCodigo) se indexan por nombre, a falta de un código
+      // real para comparar.
       const { data: pendientesActuales } = await supabase
         .from('articulos_proveedor_pendientes')
-        .select('id, codigo_proveedor')
+        .select('id, codigo_proveedor, nombre_proveedor')
         .eq('proveedor_id', proveedorId)
         .eq('resuelto', false)
-      const mapaPendientes = new Map((pendientesActuales ?? []).map((p) => [p.codigo_proveedor, p.id]))
+      const mapaPendientes = new Map<string, string>()
+      const mapaPendientesPorNombre = new Map<string, string>()
+      ;(pendientesActuales ?? []).forEach((p) => {
+        if (p.codigo_proveedor) {
+          mapaPendientes.set(normalizarCodigoProveedor(p.codigo_proveedor), p.id)
+        } else if (p.nombre_proveedor) {
+          mapaPendientesPorNombre.set(p.nombre_proveedor.trim().toLowerCase(), p.id)
+        }
+      })
 
       // Catálogo interno completo, para poder vincular directo cuando el
       // Excel trae codigo_interno (columna opcional).
       const { data: articulosTodos } = await supabase.from('articulos').select('id, codigo_interno')
       const mapaArticulosPorCodigo = new Map((articulosTodos ?? []).map((a) => [a.codigo_interno, a.id]))
 
-      const conCodigoInterno = filasUnicas.filter((f) => f.codigoInterno !== '')
-      const sinCodigoInterno = filasUnicas.filter((f) => f.codigoInterno === '')
+      const conCodigoInterno = filasUnicasConCodigo.filter((f) => f.codigoInterno !== '')
+      const sinCodigoInterno = filasUnicasConCodigo.filter((f) => f.codigoInterno === '')
 
       // codigo_interno válido -> se vincula directo, sin pasar por pendientes.
       const aVincularPorCodigoInterno = conCodigoInterno.filter((f) => mapaArticulosPorCodigo.has(f.codigoInterno))
@@ -155,18 +175,40 @@ export default function CargaListaPrecios({ proveedores }: { proveedores: Provee
       // pasar desapercibido.
       const conCodigoInternoInvalido = conCodigoInterno.filter((f) => !mapaArticulosPorCodigo.has(f.codigoInterno))
 
-      const aActualizar = sinCodigoInterno.filter((f) => mapaExistentes.has(f.codigo))
-      const candidatosPendiente = [
-        ...sinCodigoInterno.filter((f) => !mapaExistentes.has(f.codigo)),
+      const aActualizar = sinCodigoInterno.filter((f) => mapaExistentes.has(normalizarCodigoProveedor(f.codigo)))
+      const candidatosPendienteConCodigo = [
+        ...sinCodigoInterno.filter((f) => !mapaExistentes.has(normalizarCodigoProveedor(f.codigo))),
         ...conCodigoInternoInvalido,
       ]
-      const aPendienteNueva = candidatosPendiente.filter((f) => !mapaPendientes.has(f.codigo))
-      const aPendienteActualizar = candidatosPendiente.filter((f) => mapaPendientes.has(f.codigo))
+      // Las filas sin código nunca matchean por código: entran al mismo
+      // circuito de pendientes que las que no matchearon, para recibir
+      // también la sugerencia por nombre.
+      const candidatosPendienteTotal = [...candidatosPendienteConCodigo, ...filasSinCodigo]
+
+      function idPendienteExistente(f: FilaExcel): string | undefined {
+        if (f.sinCodigo) return f.nombre ? mapaPendientesPorNombre.get(f.nombre.trim().toLowerCase()) : undefined
+        return mapaPendientes.get(normalizarCodigoProveedor(f.codigo))
+      }
+
+      const aPendienteNueva = candidatosPendienteTotal.filter((f) => !idPendienteExistente(f))
+      const aPendienteActualizar = candidatosPendienteTotal.filter((f) => idPendienteExistente(f))
 
       function motivoDe(f: FilaExcel): string | null {
         if (f.sinCodigo) return 'codigo_proveedor vacío en el archivo (y sin codigo_interno para usar en su lugar)'
         return f.codigoInterno ? `código interno indicado no encontrado: ${f.codigoInterno}` : null
       }
+
+      // Sugerencia automática por parecido de nombre contra lo ya vinculado
+      // a ESTE proveedor, solo para las filas que van a pendientes.
+      const sugerenciasPorFila = new Map<number, SugerenciaArticulo[]>()
+      await enLotes(candidatosPendienteTotal, TAMANO_LOTE, async (f) => {
+        if (!f.nombre) return
+        const { data } = await supabase.rpc('buscar_articulos_similares', {
+          p_proveedor_id: proveedorId,
+          p_nombre: f.nombre,
+        })
+        if (data && data.length > 0) sugerenciasPorFila.set(f.fila, data as SugerenciaArticulo[])
+      })
 
       let actualizados = 0
       let vinculadosPorCodigoInterno = 0
@@ -181,7 +223,7 @@ export default function CargaListaPrecios({ proveedores }: { proveedores: Provee
             nombre_proveedor: f.nombre || null,
             fecha_actualizacion: new Date().toISOString(),
           })
-          .eq('id', mapaExistentes.get(f.codigo))
+          .eq('id', mapaExistentes.get(normalizarCodigoProveedor(f.codigo)))
         if (error) {
           erroresEjecucion.push({ fila: f.fila, motivo: 'Error al actualizar precio: ' + error.message })
         } else {
@@ -191,8 +233,8 @@ export default function CargaListaPrecios({ proveedores }: { proveedores: Provee
 
       // Vinculación directa por código interno: actualiza el vínculo si ya
       // existía para este proveedor+código, o lo crea si es la primera vez.
-      const aVincularExistente = aVincularPorCodigoInterno.filter((f) => mapaExistentes.has(f.codigo))
-      const aVincularNuevo = aVincularPorCodigoInterno.filter((f) => !mapaExistentes.has(f.codigo))
+      const aVincularExistente = aVincularPorCodigoInterno.filter((f) => mapaExistentes.has(normalizarCodigoProveedor(f.codigo)))
+      const aVincularNuevo = aVincularPorCodigoInterno.filter((f) => !mapaExistentes.has(normalizarCodigoProveedor(f.codigo)))
 
       await enLotes(aVincularExistente, TAMANO_LOTE, async (f) => {
         const { error } = await supabase
@@ -203,7 +245,7 @@ export default function CargaListaPrecios({ proveedores }: { proveedores: Provee
             nombre_proveedor: f.nombre || null,
             fecha_actualizacion: new Date().toISOString(),
           })
-          .eq('id', mapaExistentes.get(f.codigo))
+          .eq('id', mapaExistentes.get(normalizarCodigoProveedor(f.codigo)))
         if (error) {
           erroresEjecucion.push({ fila: f.fila, motivo: 'Error al vincular por código interno: ' + error.message })
         } else {
@@ -234,24 +276,26 @@ export default function CargaListaPrecios({ proveedores }: { proveedores: Provee
 
       // Si alguna de estas filas ya tenía una pendiente sin resolver (de una
       // carga anterior), queda resuelta: ya se vinculó directo esta vez.
-      const aLimpiarPendiente = aVincularPorCodigoInterno.filter((f) => mapaPendientes.has(f.codigo))
+      const aLimpiarPendiente = aVincularPorCodigoInterno.filter((f) => mapaPendientes.has(normalizarCodigoProveedor(f.codigo)))
       await enLotes(aLimpiarPendiente, TAMANO_LOTE, async (f) => {
         await supabase
           .from('articulos_proveedor_pendientes')
           .update({ resuelto: true })
-          .eq('id', mapaPendientes.get(f.codigo))
+          .eq('id', mapaPendientes.get(normalizarCodigoProveedor(f.codigo)))
       })
 
       await enLotes(aPendienteActualizar, TAMANO_LOTE, async (f) => {
         const { error } = await supabase
           .from('articulos_proveedor_pendientes')
           .update({
+            codigo_proveedor: f.codigo || null,
             precio: f.precio,
             nombre_proveedor: f.nombre || null,
             archivo_origen: archivo.name,
             motivo: motivoDe(f),
+            sugerencias: sugerenciasPorFila.get(f.fila) ?? null,
           })
-          .eq('id', mapaPendientes.get(f.codigo))
+          .eq('id', idPendienteExistente(f))
         if (error) {
           erroresEjecucion.push({ fila: f.fila, motivo: 'Error al actualizar pendiente: ' + error.message })
         } else {
@@ -266,11 +310,12 @@ export default function CargaListaPrecios({ proveedores }: { proveedores: Provee
           .insert(
             aPendienteNueva.map((f) => ({
               proveedor_id: proveedorId,
-              codigo_proveedor: f.codigo,
+              codigo_proveedor: f.codigo || null,
               nombre_proveedor: f.nombre || null,
               precio: f.precio,
               archivo_origen: archivo.name,
               motivo: motivoDe(f),
+              sugerencias: sugerenciasPorFila.get(f.fila) ?? null,
             }))
           )
           .select()
@@ -306,13 +351,16 @@ export default function CargaListaPrecios({ proveedores }: { proveedores: Provee
           El Excel debe tener las columnas <code className="bg-slate-100 px-1 rounded">codigo_proveedor</code>,{' '}
           <code className="bg-slate-100 px-1 rounded">nombre_proveedor</code> y{' '}
           <code className="bg-slate-100 px-1 rounded">precio</code> en la primera fila (en cualquier orden).
+          El <code className="bg-slate-100 px-1 rounded">codigo_proveedor</code> se compara ignorando espacios,
+          mayúsculas/minúsculas y ceros a la izquierda, para no perder vínculos ya hechos por diferencias de formato.
           Opcionalmente podés agregar <code className="bg-slate-100 px-1 rounded">codigo_interno</code>: si lo
           completás con un código que exista en Artículos, el precio se vincula directo a ese artículo sin pasar por
           Pendientes. Si lo completás pero no existe, la fila va a Pendientes avisando el código que no se encontró.
           Si no tenés <code className="bg-slate-100 px-1 rounded">codigo_proveedor</code> para algún artículo, dejalo
           vacío pero completá <code className="bg-slate-100 px-1 rounded">codigo_interno</code>: se usa ese código
           como reemplazo. Si tampoco tenés <code className="bg-slate-100 px-1 rounded">codigo_interno</code>, la fila
-          igual se guarda en Pendientes para resolverla a mano.
+          igual se guarda en Pendientes para resolverla a mano — si el nombre se parece a un artículo ya cargado de
+          ese proveedor, va a aparecer sugerido ahí para resolverla en un clic.
         </p>
         <DescargarPlantillaListaPrecios />
       </div>
