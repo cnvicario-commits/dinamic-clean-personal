@@ -13,6 +13,7 @@ type FilaExcel = {
   nombre: string
   precio: number
   codigoInterno: string // '' si no vino en el Excel (la columna es opcional)
+  sinCodigo: boolean // true = no vino codigo_proveedor ni codigo_interno; "codigo" es un valor provisorio
 }
 
 type FilaError = { fila: number; motivo: string }
@@ -102,15 +103,21 @@ export default function CargaListaPrecios({ proveedores }: { proveedores: Provee
           codigo = codigoInterno
         }
 
+        let sinCodigo = false
         if (!codigo) {
-          erroresParseo.push({ fila: numeroFila, motivo: 'codigo_proveedor vacío (y sin codigo_interno para usar en su lugar)' })
-          return
+          // Ni codigo_proveedor ni codigo_interno: no se puede vincular
+          // directo ni usar como clave real, pero tampoco se descarta la
+          // fila. Se le arma un código provisorio (identifica la fila del
+          // archivo) para que la línea llegue igual a Pendientes y se
+          // resuelva a mano en vez de perderse en silencio.
+          codigo = `SIN-CODIGO-FILA-${numeroFila}`
+          sinCodigo = true
         }
         if (isNaN(precio)) {
           erroresParseo.push({ fila: numeroFila, motivo: 'precio inválido' })
           return
         }
-        filasValidas.push({ fila: numeroFila, codigo, nombre, precio, codigoInterno })
+        filasValidas.push({ fila: numeroFila, codigo, nombre, precio, codigoInterno, sinCodigo })
       })
 
       // Duplicados de código dentro del mismo archivo: gana la última fila.
@@ -157,6 +164,7 @@ export default function CargaListaPrecios({ proveedores }: { proveedores: Provee
       const aPendienteActualizar = candidatosPendiente.filter((f) => mapaPendientes.has(f.codigo))
 
       function motivoDe(f: FilaExcel): string | null {
+        if (f.sinCodigo) return 'codigo_proveedor vacío en el archivo (y sin codigo_interno para usar en su lugar)'
         return f.codigoInterno ? `código interno indicado no encontrado: ${f.codigoInterno}` : null
       }
 
@@ -303,7 +311,8 @@ export default function CargaListaPrecios({ proveedores }: { proveedores: Provee
           Pendientes. Si lo completás pero no existe, la fila va a Pendientes avisando el código que no se encontró.
           Si no tenés <code className="bg-slate-100 px-1 rounded">codigo_proveedor</code> para algún artículo, dejalo
           vacío pero completá <code className="bg-slate-100 px-1 rounded">codigo_interno</code>: se usa ese código
-          como reemplazo.
+          como reemplazo. Si tampoco tenés <code className="bg-slate-100 px-1 rounded">codigo_interno</code>, la fila
+          igual se guarda en Pendientes para resolverla a mano.
         </p>
         <DescargarPlantillaListaPrecios />
       </div>
