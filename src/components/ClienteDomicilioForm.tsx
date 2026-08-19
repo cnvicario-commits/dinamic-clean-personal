@@ -49,7 +49,11 @@ export default function ClienteDomicilioForm({
 
     setLoading(false)
     if (errGuardar) {
-      setError('Error al guardar: ' + errGuardar.message)
+      setError(
+        errGuardar.code === '23505'
+          ? 'Ya existe un domicilio activo con ese alias. Los alias tienen que ser únicos (se usan para matchear en la importación de pedidos).'
+          : 'Error al guardar: ' + errGuardar.message
+      )
       return
     }
     if (domicilio) {
