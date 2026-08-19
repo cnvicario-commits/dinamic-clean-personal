@@ -1,6 +1,6 @@
 'use client'
 import { useState, useMemo } from 'react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList } from 'recharts'
 import { RUBROS, formatearMesAnio, clavePeriodo, type ResultadoMensual } from '@/types/resultados'
 
 function formatearMonto(valor: number | null | undefined): string {
@@ -22,6 +22,27 @@ const SERIES_GRAFICO: { campo: 'total_ventas' | 'total_costos_directos' | 'resul
   { campo: 'resultado_bruto', nombre: 'Resultado Bruto', color: '#0ea5e9' },
   { campo: 'resultado_periodo', nombre: 'Resultado del Período', color: '#16a34a' },
 ]
+
+// Etiqueta custom sobre cada barra: valor compacto + % de incidencia sobre
+// Total Ventas del mismo mes (el pct se busca por índice en datosGrafico,
+// recharts no pasa el resto de la fila al content de LabelList).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- props vienen del content render-prop de recharts (tipado interno muy amplio), más simple aceptarlas sueltas acá.
+function EtiquetaBarra(props: any) {
+  const { value, pct } = props as { value?: number | string | null; pct?: number | null }
+  const x = Number(props.x)
+  const y = Number(props.y)
+  const width = Number(props.width)
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(width)) return null
+  if (value === null || value === undefined || value === '') return null
+  const numero = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(numero)) return null
+  return (
+    <text x={x + width / 2} y={y - 6} textAnchor="middle" fontSize={10} fill="#475569">
+      {formatearMontoCompacto(numero)}
+      {pct !== null && pct !== undefined && ` (${pct.toFixed(0)}%)`}
+    </text>
+  )
+}
 
 export default function PanelResultados({ resultados }: { resultados: ResultadoMensual[] }) {
   const [desdeClave, setDesdeClave] = useState<number>(() => {
@@ -58,12 +79,22 @@ export default function PanelResultados({ resultados }: { resultados: ResultadoM
     variacion = ((ultimoDelRango.resultado_periodo - anterior.resultado_periodo) / Math.abs(anterior.resultado_periodo)) * 100
   }
 
+  // % de incidencia sobre Total Ventas del mismo mes, para mostrar debajo
+  // del valor en la etiqueta de cada barra (mismo cálculo que en la tabla).
+  function pctSobreVentas(valor: number | null, ventas: number | null): number | null {
+    return ventas ? ((valor ?? 0) / ventas) * 100 : null
+  }
+
   const datosGrafico = rango.map((r) => ({
     label: formatearMesAnio(r.anio, r.mes),
     total_ventas: r.total_ventas,
     total_costos_directos: r.total_costos_directos,
     resultado_bruto: r.resultado_bruto,
     resultado_periodo: r.resultado_periodo,
+    pct_total_ventas: r.total_ventas ? 100 : null,
+    pct_total_costos_directos: pctSobreVentas(r.total_costos_directos, r.total_ventas),
+    pct_resultado_bruto: pctSobreVentas(r.resultado_bruto, r.total_ventas),
+    pct_resultado_periodo: pctSobreVentas(r.resultado_periodo, r.total_ventas),
   }))
 
   if (resultados.length === 0) {
@@ -115,15 +146,22 @@ export default function PanelResultados({ resultados }: { resultados: ResultadoM
             <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
               Comparativo mensual
             </h2>
-            <ResponsiveContainer width="100%" height={320}>
-              <BarChart data={datosGrafico}>
+            <ResponsiveContainer width="100%" height={360}>
+              <BarChart data={datosGrafico} margin={{ top: 24 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="label" tick={{ fontSize: 12 }} />
                 <YAxis tickFormatter={formatearMontoCompacto} tick={{ fontSize: 12 }} />
                 <Tooltip formatter={(valor: unknown) => formatearMonto(typeof valor === 'number' ? valor : Number(valor))} />
                 <Legend />
                 {SERIES_GRAFICO.map((s) => (
-                  <Bar key={s.campo} dataKey={s.campo} name={s.nombre} fill={s.color} />
+                  <Bar key={s.campo} dataKey={s.campo} name={s.nombre} fill={s.color}>
+                    <LabelList
+                      dataKey={s.campo}
+                      content={(props) => (
+                        <EtiquetaBarra {...props} pct={datosGrafico[props.index as number]?.[`pct_${s.campo}` as const]} />
+                      )}
+                    />
+                  </Bar>
                 ))}
               </BarChart>
             </ResponsiveContainer>
