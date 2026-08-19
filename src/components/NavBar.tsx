@@ -11,6 +11,7 @@ const transversales: Enlace[] = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/clientes', label: 'Clientes' },
   { href: '/empresas', label: 'Empresas' },
+  { href: '/resultados', label: 'Resultados' },
 ]
 
 const grupos: Grupo[] = [
