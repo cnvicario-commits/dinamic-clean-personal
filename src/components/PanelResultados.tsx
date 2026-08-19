@@ -1,7 +1,7 @@
 'use client'
 import { useState, useMemo } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList } from 'recharts'
-import { RUBROS, formatearMesAnio, clavePeriodo, type ResultadoMensual } from '@/types/resultados'
+import { RUBROS, formatearMesAnio, clavePeriodo, type ResultadoMensual, type CampoResultado } from '@/types/resultados'
 
 function formatearMonto(valor: number | null | undefined): string {
   if (valor === null || valor === undefined) return '-'
@@ -97,6 +97,45 @@ export default function PanelResultados({ resultados }: { resultados: ResultadoM
     pct_resultado_periodo: pctSobreVentas(r.resultado_periodo, r.total_ventas),
   }))
 
+  // Acumulado del rango elegido (suma de cada rubro, no promedio de los
+  // porcentajes): mismo criterio que la columna "Total" del Excel original.
+  // Solo tiene sentido si el rango cubre más de un mes.
+  function sumarRubro(campo: CampoResultado): number | null {
+    let tieneValor = false
+    let suma = 0
+    rango.forEach((r) => {
+      const v = r[campo]
+      if (v !== null) {
+        tieneValor = true
+        suma += v
+      }
+    })
+    return tieneValor ? suma : null
+  }
+
+  const acumulado =
+    rango.length > 1
+      ? RUBROS.reduce((acc, rubro) => {
+          acc[rubro.campo] = sumarRubro(rubro.campo)
+          return acc
+        }, {} as Record<CampoResultado, number | null>)
+      : null
+
+  if (acumulado) {
+    const ventasAcumuladas = acumulado.total_ventas
+    datosGrafico.push({
+      label: 'Acumulado',
+      total_ventas: acumulado.total_ventas,
+      total_costos_directos: acumulado.total_costos_directos,
+      resultado_bruto: acumulado.resultado_bruto,
+      resultado_periodo: acumulado.resultado_periodo,
+      pct_total_ventas: ventasAcumuladas ? 100 : null,
+      pct_total_costos_directos: pctSobreVentas(acumulado.total_costos_directos, ventasAcumuladas),
+      pct_resultado_bruto: pctSobreVentas(acumulado.resultado_bruto, ventasAcumuladas),
+      pct_resultado_periodo: pctSobreVentas(acumulado.resultado_periodo, ventasAcumuladas),
+    })
+  }
+
   if (resultados.length === 0) {
     return <p className="text-slate-500 text-sm">No hay resultados importados todavía.</p>
   }
@@ -145,6 +184,7 @@ export default function PanelResultados({ resultados }: { resultados: ResultadoM
           <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-4">
             <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
               Comparativo mensual
+              {acumulado && <span className="normal-case font-normal text-slate-400"> — "Acumulado" es la suma del rango elegido</span>}
             </h2>
             <ResponsiveContainer width="100%" height={360}>
               <BarChart data={datosGrafico} margin={{ top: 24 }}>
@@ -180,6 +220,11 @@ export default function PanelResultados({ resultados }: { resultados: ResultadoM
                       {formatearMesAnio(r.anio, r.mes)}
                     </th>
                   ))}
+                  {acumulado && (
+                    <th className="px-4 py-3 font-medium text-right border-l border-slate-300 bg-slate-100">
+                      Acumulado
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -204,6 +249,21 @@ export default function PanelResultados({ resultados }: { resultados: ResultadoM
                         </td>
                       )
                     })}
+                    {acumulado && (() => {
+                      const valor = acumulado[rubro.campo]
+                      const incidencia =
+                        rubro.esIncidenciaSobreVentas && acumulado.total_ventas
+                          ? ((valor ?? 0) / acumulado.total_ventas) * 100
+                          : null
+                      return (
+                        <td className="px-4 py-2 text-right text-slate-700 border-l border-slate-300 bg-slate-50">
+                          <div>{formatearMonto(valor)}</div>
+                          {incidencia !== null && (
+                            <div className="text-xs text-slate-400 font-normal">{incidencia.toFixed(1)}% s/ventas</div>
+                          )}
+                        </td>
+                      )
+                    })()}
                   </tr>
                 ))}
               </tbody>
