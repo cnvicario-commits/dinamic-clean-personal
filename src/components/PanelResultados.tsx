@@ -12,6 +12,10 @@ function formatearMontoCompacto(valor: number): string {
   return new Intl.NumberFormat('es-AR', { notation: 'compact', maximumFractionDigits: 1 }).format(valor)
 }
 
+// Filas resaltadas en la tabla comparativa: los 3 hitos del resultado
+// económico (venta total, margen bruto y resultado final).
+const FILAS_DESTACADAS = new Set(['total_ventas', 'resultado_bruto', 'resultado_periodo'])
+
 const SERIES_GRAFICO: { campo: 'total_ventas' | 'total_costos_directos' | 'resultado_bruto' | 'resultado_periodo'; nombre: string; color: string }[] = [
   { campo: 'total_ventas', nombre: 'Total Ventas', color: '#0d9488' },
   { campo: 'total_costos_directos', nombre: 'Total Costos Directos', color: '#f59e0b' },
@@ -144,7 +148,9 @@ export default function PanelResultados({ resultados }: { resultados: ResultadoM
                 {RUBROS.map((rubro) => (
                   <tr
                     key={rubro.campo}
-                    className={`border-b border-slate-100 last:border-0 ${rubro.campo === 'resultado_periodo' ? 'bg-slate-50 font-semibold' : ''}`}
+                    className={`border-b border-slate-100 last:border-0 ${
+                      FILAS_DESTACADAS.has(rubro.campo) ? 'bg-teal-50 font-semibold text-teal-900' : ''
+                    }`}
                   >
                     <td className="px-4 py-2 text-slate-700 whitespace-nowrap">{rubro.etiqueta}</td>
                     {rango.map((r) => {
