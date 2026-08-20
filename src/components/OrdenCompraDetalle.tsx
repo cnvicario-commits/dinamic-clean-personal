@@ -26,10 +26,10 @@ function FilaDato({
 }) {
   return (
     <tr className={`border-b border-slate-100 last:border-0 ${grande ? 'bg-teal-50' : ''}`}>
-      <td className={`px-4 py-2 text-slate-500 w-48 align-top ${grande ? 'py-3' : ''}`}>{etiqueta}</td>
+      <td className={`px-4 py-1 text-slate-500 w-48 align-top ${grande ? 'py-1.5' : ''}`}>{etiqueta}</td>
       <td
-        className={`px-4 py-2 text-slate-800 ${destacado || grande ? 'font-semibold' : ''} ${
-          grande ? 'py-3 text-lg text-teal-800' : ''
+        className={`px-4 py-1 text-slate-800 ${destacado || grande ? 'font-semibold' : ''} ${
+          grande ? 'py-1.5 text-lg text-teal-800' : ''
         }`}
       >
         {valor}
@@ -42,7 +42,16 @@ function formatearCliente(nombre: string, alias: string | null) {
   return alias ? `${nombre}-${alias}` : nombre
 }
 
-export default function OrdenCompraDetalle({ orden }: { orden: OrdenCompraDetalleView }) {
+export default function OrdenCompraDetalle({
+  orden,
+  ocultarAcciones,
+}: {
+  orden: OrdenCompraDetalleView
+  // true en la vista de descarga masiva (varias OC juntas): ahí hay un
+  // único botón de imprimir arriba de todo, no uno por cada OC, y no tiene
+  // sentido poder cambiar estado/duplicar de a una en ese contexto.
+  ocultarAcciones?: boolean
+}) {
   const subtotal = orden.ordenes_compra_items.reduce((acc, i) => acc + i.cantidad * i.precio_unitario, 0)
   const iva = subtotal * 0.21
   const total = subtotal + iva
@@ -54,14 +63,16 @@ export default function OrdenCompraDetalle({ orden }: { orden: OrdenCompraDetall
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6 print:hidden">
-        <EstadoBadge estado={orden.estado} />
-        <div className="flex gap-2">
-          <EstadoOrdenCompraBoton id={orden.id} estado={orden.estado} />
-          <DuplicarOrdenCompraBoton id={orden.id} />
-          <BotonImprimir nombreArchivo={nombreArchivo} />
+      {!ocultarAcciones && (
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6 print:hidden">
+          <EstadoBadge estado={orden.estado} />
+          <div className="flex gap-2">
+            <EstadoOrdenCompraBoton id={orden.id} estado={orden.estado} />
+            <DuplicarOrdenCompraBoton id={orden.id} />
+            <BotonImprimir nombreArchivo={nombreArchivo} />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 1. Encabezado: nombre de la empresa, sin logo. */}
       <h1 className="text-2xl font-bold text-slate-900 mb-1">{orden.empresas?.nombre}</h1>

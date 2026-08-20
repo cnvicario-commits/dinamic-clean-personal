@@ -37,7 +37,10 @@ export default async function OrdenCompraDetallePage({
       <Link href="/ordenes-compra" className="text-teal-600 hover:underline text-sm mb-4 inline-block print:hidden">
         ← Volver a órdenes de compra
       </Link>
-      <h1 className="text-2xl font-bold text-slate-900 mb-6 print:hidden">{ordenView.numero_oc}</h1>
+      <div className="flex items-center justify-between mb-6 print:hidden">
+        <h1 className="text-2xl font-bold text-slate-900">Orden de compra</h1>
+        <span className="text-lg font-semibold text-slate-600">{ordenView.numero_oc}</span>
+      </div>
       <OrdenCompraDetalle orden={ordenView} />
     </div>
   )

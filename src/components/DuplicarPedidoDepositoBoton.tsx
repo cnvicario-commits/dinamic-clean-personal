@@ -43,7 +43,7 @@ export default function DuplicarPedidoDepositoBoton({ id }: { id: string }) {
     }
 
     if (items && items.length > 0) {
-      await supabase.from('pedidos_deposito_items').insert(
+      const { error: errItemsInsert } = await supabase.from('pedidos_deposito_items').insert(
         items.map((i) => ({
           pedido_deposito_id: nuevo.id,
           pedido_compra_item_id: null, // pedido a depósito nuevo independiente
@@ -52,6 +52,12 @@ export default function DuplicarPedidoDepositoBoton({ id }: { id: string }) {
           observaciones: i.observaciones,
         }))
       )
+      if (errItemsInsert) {
+        setLoading(false)
+        alert('El pedido se duplicó pero hubo un error al copiar las líneas: ' + errItemsInsert.message)
+        router.push(`/pedidos-deposito/${nuevo.id}`)
+        return
+      }
     }
 
     setLoading(false)

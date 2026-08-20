@@ -46,7 +46,7 @@ export default function DuplicarOrdenCompraBoton({ id }: { id: string }) {
     }
 
     if (items && items.length > 0) {
-      await supabase.from('ordenes_compra_items').insert(
+      const { error: errItemsInsert } = await supabase.from('ordenes_compra_items').insert(
         items.map((i) => ({
           oc_id: nuevo.id,
           pedido_compra_item_id: null, // OC nueva independiente, no arrastra el origen
@@ -56,6 +56,14 @@ export default function DuplicarOrdenCompraBoton({ id }: { id: string }) {
           observaciones: i.observaciones,
         }))
       )
+      if (errItemsInsert) {
+        setLoading(false)
+        // No existe una pantalla de edición de OC: si esto falla hay que
+        // avisar sí o sí, no hay forma de cargar las líneas a mano después.
+        alert('La OC se duplicó pero hubo un error al copiar las líneas: ' + errItemsInsert.message)
+        router.push(`/ordenes-compra/${nuevo.id}`)
+        return
+      }
     }
 
     setLoading(false)

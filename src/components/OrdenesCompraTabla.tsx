@@ -55,6 +55,7 @@ export default function OrdenesCompraTabla({
   const [filtroProveedorId, setFiltroProveedorId] = useState('')
   const [columna, setColumna] = useState<Columna>('fecha')
   const [direccion, setDireccion] = useState<'asc' | 'desc'>('desc')
+  const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set())
 
   function ordenarPor(col: Columna) {
     if (columna === col) {
@@ -79,6 +80,31 @@ export default function OrdenesCompraTabla({
     const signo = direccion === 'asc' ? 1 : -1
     return [...base].sort((a, b) => signo * comparar(valorColumna(a, columna), valorColumna(b, columna)))
   }, [ordenes, filtroEstado, filtroClienteId, filtroEmpresaId, filtroProveedorId, columna, direccion])
+
+  function toggleSeleccionado(id: string) {
+    setSeleccionados((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  // El checkbox del header selecciona/deselecciona las filas actualmente
+  // filtradas (no necesariamente todas las órdenes de la lista completa).
+  const todosFiltradosSeleccionados = filtrados.length > 0 && filtrados.every((o) => seleccionados.has(o.id))
+
+  function toggleTodos() {
+    setSeleccionados((prev) => {
+      const next = new Set(prev)
+      if (todosFiltradosSeleccionados) {
+        filtrados.forEach((o) => next.delete(o.id))
+      } else {
+        filtrados.forEach((o) => next.add(o.id))
+      }
+      return next
+    })
+  }
 
   const selectStyle = 'border border-slate-300 rounded-md px-3 py-2 text-sm'
 
@@ -111,13 +137,32 @@ export default function OrdenesCompraTabla({
         </select>
       </div>
 
-      <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
-        Listado ({filtrados.length})
-      </h2>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
+          Listado ({filtrados.length})
+        </h2>
+        {seleccionados.size > 0 && (
+          <Link
+            href={`/ordenes-compra/imprimir?ids=${Array.from(seleccionados).join(',')}`}
+            target="_blank"
+            className="px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            Descargar seleccionadas ({seleccionados.size})
+          </Link>
+        )}
+      </div>
       <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto">
         <table className="w-full text-sm min-w-[860px]">
           <thead>
             <tr className="bg-slate-50 text-left text-slate-500 border-b border-slate-200">
+              <th className="px-4 py-3 font-medium w-10">
+                <input
+                  type="checkbox"
+                  checked={todosFiltradosSeleccionados}
+                  onChange={toggleTodos}
+                  aria-label="Seleccionar todas"
+                />
+              </th>
               <th className="px-4 py-3 font-medium cursor-pointer select-none hover:text-slate-700" onClick={() => ordenarPor('numero_oc')}>
                 Número{indicador('numero_oc')}
               </th>
@@ -144,6 +189,14 @@ export default function OrdenesCompraTabla({
           <tbody>
             {filtrados.map((o) => (
               <tr key={o.id} className="border-b border-slate-100 last:border-0">
+                <td className="px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={seleccionados.has(o.id)}
+                    onChange={() => toggleSeleccionado(o.id)}
+                    aria-label={`Seleccionar ${o.numero_oc}`}
+                  />
+                </td>
                 <td className="px-4 py-3 text-slate-800">
                   <Link href={`/ordenes-compra/${o.id}`} className="text-teal-600 hover:underline">
                     {o.numero_oc}
