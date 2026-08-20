@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import * as XLSX from 'xlsx'
 import { createClient } from '@/utils/supabase/client'
-import { RUBROS, formatearMesAnio, clavePeriodo, type CampoResultado } from '@/types/resultados'
+import { RUBROS, CAMPOS_CON_DETALLE, rubroSlugDeCampo, formatearMesAnio, clavePeriodo, type CampoResultado } from '@/types/resultados'
 
 const MESES: Record<string, number> = {
   enero: 1,
@@ -44,7 +44,7 @@ type Resumen = {
   creados: string[]
   actualizados: string[]
   etiquetasNoEncontradas: string[]
-  filasDetalleCostosDirectos: number
+  filasDetalle: number
   avisos: string[]
 }
 
@@ -175,16 +175,41 @@ export default function ImportarResultadosMensuales() {
         return registro
       })
 
-      // Detalle de "Total Costos Directos": todas las filas entre
-      // "COSTOS DIRECTOS" (encabezado de rubro) y "TOTAL COSTOS DIRECTOS"
+      // Detalle de cada rubro con desglose (Costos Directos, RRHH,
+      // Estructura y Servicios, Honorarios y Abonos, Gastos Financieros,
+      // Gastos Comerciales, Otros Gastos, Impuestos): todas las filas entre
+      // el encabezado de sección (ej. "COSTOS DIRECTOS") y su "TOTAL X"
       // (sin incluir ninguna de las dos), leídas dinámicamente porque los
       // conceptos pueden variar mes a mes o año a año.
-      const filaInicioCostos = filaPorEtiqueta.get('costos directos')
-      const filaFinCostos = filaPorEtiqueta.get('total costos directos')
       const detalleRegistros: { anio: number; mes: number; rubro: string; concepto: string; monto: number }[] = []
 
-      if (filaInicioCostos !== undefined && filaFinCostos !== undefined && filaFinCostos > filaInicioCostos + 1) {
-        for (let fi = filaInicioCostos + 1; fi < filaFinCostos; fi++) {
+      // Busca el encabezado de sección subiendo desde justo antes de su
+      // propia fila "TOTAL X", no con el mapa de primera-coincidencia: un
+      // concepto de detalle puede tener el mismo texto que el encabezado de
+      // OTRA sección más abajo (ej. "Otros Gastos" es un concepto dentro de
+      // Costos Directos Y el nombre de la sección "OTROS GASTOS"), así que
+      // hay que quedarse con la ocurrencia más cercana al total, no la primera.
+      function buscarEncabezadoCercano(desde: number, patron: string): number | undefined {
+        for (let i = desde; i > indiceEncabezado; i--) {
+          if (normalizarConcepto(String(filas[i]?.[1] ?? '')) === patron) return i
+        }
+        return undefined
+      }
+
+      CAMPOS_CON_DETALLE.forEach((campo) => {
+        const entrada = ETIQUETAS.find((e) => e.campo === campo)
+        if (!entrada) return
+        const patronInicio = entrada.patron.replace(/^total /, '')
+        const filaFin = filaPorEtiqueta.get(entrada.patron)
+        const filaInicio = filaFin !== undefined ? buscarEncabezadoCercano(filaFin - 1, patronInicio) : undefined
+        const rubro = rubroSlugDeCampo(campo)
+
+        if (filaInicio === undefined || filaFin === undefined || filaFin <= filaInicio + 1) {
+          avisos.push(`No se encontró el rango de detalle para "${entrada.patron}".`)
+          return
+        }
+
+        for (let fi = filaInicio + 1; fi < filaFin; fi++) {
           const concepto = limpiarConcepto(String(filas[fi]?.[1] ?? ''))
           if (!concepto) continue // fila vacía
           const normalizado = concepto.toLowerCase()
@@ -192,12 +217,10 @@ export default function ImportarResultadosMensuales() {
           columnasMes.forEach(({ indice, anio, mes }) => {
             const monto = normalizarNumero(filas[fi][indice])
             if (monto === null) return // sin dato ese mes, no se guarda la fila
-            detalleRegistros.push({ anio, mes, rubro: 'costos_directos', concepto, monto })
+            detalleRegistros.push({ anio, mes, rubro, concepto, monto })
           })
         }
-      } else {
-        avisos.push('No se encontró el rango "COSTOS DIRECTOS" → "TOTAL COSTOS DIRECTOS" para extraer el detalle.')
-      }
+      })
 
       // Se consulta antes de guardar para poder distinguir en el resumen
       // qué meses son altas nuevas y cuáles ya existían (se actualizan).
@@ -217,24 +240,27 @@ export default function ImportarResultadosMensuales() {
       const creados = registros.filter((r) => !existentesSet.has(clavePeriodo(r.anio, r.mes)))
       const actualizados = registros.filter((r) => existentesSet.has(clavePeriodo(r.anio, r.mes)))
 
-      // Reemplazo completo del detalle de cada mes (borrar + insertar, no
-      // upsert parcial): así un concepto que desaparezca en una carga
+      // Reemplazo completo del detalle de cada mes/rubro (borrar + insertar,
+      // no upsert parcial): así un concepto que desaparezca en una carga
       // posterior no queda huérfano de una carga anterior.
+      const rubrosDetalle = CAMPOS_CON_DETALLE.map(rubroSlugDeCampo)
       await Promise.all(
-        columnasMes.map(({ anio, mes }) =>
-          supabase.from('resultados_mensuales_detalle').delete().eq('anio', anio).eq('mes', mes).eq('rubro', 'costos_directos')
+        columnasMes.flatMap(({ anio, mes }) =>
+          rubrosDetalle.map((rubro) =>
+            supabase.from('resultados_mensuales_detalle').delete().eq('anio', anio).eq('mes', mes).eq('rubro', rubro)
+          )
         )
       )
       if (detalleRegistros.length > 0) {
         const { error: errDetalle } = await supabase.from('resultados_mensuales_detalle').insert(detalleRegistros)
-        if (errDetalle) avisos.push('Error al guardar el detalle de costos directos: ' + errDetalle.message)
+        if (errDetalle) avisos.push('Error al guardar el detalle por rubro: ' + errDetalle.message)
       }
 
       setResumen({
         creados: creados.map((r) => formatearMesAnio(r.anio, r.mes)),
         actualizados: actualizados.map((r) => formatearMesAnio(r.anio, r.mes)),
         etiquetasNoEncontradas,
-        filasDetalleCostosDirectos: detalleRegistros.length,
+        filasDetalle: detalleRegistros.length,
         avisos,
       })
       setArchivo(null)
@@ -261,9 +287,10 @@ export default function ImportarResultadosMensuales() {
           <p className="text-sm text-slate-600">
             Subí el mismo Excel que ya se usa para calcular el resultado económico (hoja llamada "Resultado"). Se
             buscan los meses en la fila de encabezado (columna CONCEPTO en adelante, formato "Enero 2026") y se
-            guardan los totales por rubro (no el detalle interno, salvo Costos Directos: ese detalle sí se guarda
-            para poder desplegarlo en el panel). La columna "Total" se ignora. Si ya existe un registro para un
-            año/mes, se actualiza.
+            guardan los totales por rubro, además del detalle interno de los rubros con desglose (Costos Directos,
+            RRHH, Estructura y Servicios, Honorarios y Abonos, Gastos Financieros, Gastos Comerciales, Otros Gastos
+            e Impuestos) para poder desplegarlos en el panel. La columna "Total" se ignora. Si ya existe un registro
+            para un año/mes, se actualiza.
           </p>
 
           <form onSubmit={handleSubmit} className="flex flex-wrap gap-2 items-start">
@@ -304,7 +331,7 @@ export default function ImportarResultadosMensuales() {
                 </div>
               </div>
               <p className="text-xs text-slate-500 mb-2">
-                Filas de detalle de Costos Directos guardadas: {resumen.filasDetalleCostosDirectos}
+                Filas de detalle guardadas (todos los rubros con desglose): {resumen.filasDetalle}
               </p>
               {resumen.etiquetasNoEncontradas.length > 0 && (
                 <p className="text-sm text-amber-600 mb-1">

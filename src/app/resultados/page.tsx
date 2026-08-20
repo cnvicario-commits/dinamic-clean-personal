@@ -5,13 +5,13 @@ import type { ResultadoMensual, ResultadoMensualDetalle } from '@/types/resultad
 
 export default async function ResultadosPage() {
   const supabase = await createClient()
-  const [{ data: resultados, error }, { data: detalleCostosDirectos }] = await Promise.all([
+  const [{ data: resultados, error }, { data: detalle }] = await Promise.all([
     supabase
       .from('resultados_mensuales')
       .select('*')
       .order('anio', { ascending: true })
       .order('mes', { ascending: true }),
-    supabase.from('resultados_mensuales_detalle').select('*').eq('rubro', 'costos_directos'),
+    supabase.from('resultados_mensuales_detalle').select('*'),
   ])
 
   return (
@@ -26,7 +26,7 @@ export default async function ResultadosPage() {
 
       <PanelResultados
         resultados={(resultados ?? []) as ResultadoMensual[]}
-        detalleCostosDirectos={(detalleCostosDirectos ?? []) as ResultadoMensualDetalle[]}
+        detalle={(detalle ?? []) as ResultadoMensualDetalle[]}
       />
     </div>
   )

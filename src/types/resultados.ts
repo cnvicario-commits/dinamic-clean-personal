@@ -26,8 +26,9 @@ export type ResultadoMensual = {
 // Campos numéricos importables/graficables (todo menos id/anio/mes/timestamps).
 export type CampoResultado = keyof Omit<ResultadoMensual, 'id' | 'anio' | 'mes' | 'created_at' | 'updated_at'>
 
-// Detalle de conceptos por rubro (por ahora solo 'costos_directos'), para
-// el desplegable de "Total Costos Directos" en el panel.
+// Detalle de conceptos por rubro (una fila del Excel entre el encabezado
+// de sección, ej. "COSTOS DIRECTOS", y su fila "TOTAL X"), para el
+// desplegable de cada rubro con detalle en el panel.
 export type ResultadoMensualDetalle = {
   id: string
   anio: number
@@ -35,6 +36,29 @@ export type ResultadoMensualDetalle = {
   rubro: string
   concepto: string
   monto: number | null
+}
+
+// Rubros con detalle desplegable: todos los "total_*" del Excel salvo
+// total_ventas (que ya se desglosa aparte en Ventas Dinamic/Moral) y los
+// campos calculados (resultado_bruto, resultado_periodo, que no son una
+// lista de conceptos del Excel).
+export const CAMPOS_CON_DETALLE: CampoResultado[] = [
+  'total_costos_directos',
+  'total_rrhh',
+  'total_estructura_servicios',
+  'total_honorarios_abonos',
+  'total_gastos_financieros',
+  'total_gastos_comerciales',
+  'total_otros_gastos',
+  'total_impuestos',
+]
+
+// 'total_recursos_humanos' -> 'recursos_humanos': mismo criterio que ya se
+// usaba para costos_directos, generalizado. Usado tanto por el importador
+// (valor guardado en la columna `rubro`) como por el panel (para filtrar
+// el detalle de cada fila).
+export function rubroSlugDeCampo(campo: CampoResultado): string {
+  return campo.replace(/^total_/, '')
 }
 
 // Metadatos de cada rubro, en el mismo orden que aparecen en el Excel

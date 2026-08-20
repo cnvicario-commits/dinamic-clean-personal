@@ -3,6 +3,8 @@ import { useState, useMemo, Fragment } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList } from 'recharts'
 import {
   RUBROS,
+  CAMPOS_CON_DETALLE,
+  rubroSlugDeCampo,
   formatearMesAnio,
   clavePeriodo,
   type ResultadoMensual,
@@ -57,12 +59,22 @@ function EtiquetaBarra(props: any) {
 
 export default function PanelResultados({
   resultados,
-  detalleCostosDirectos,
+  detalle,
 }: {
   resultados: ResultadoMensual[]
-  detalleCostosDirectos: ResultadoMensualDetalle[]
+  detalle: ResultadoMensualDetalle[]
 }) {
-  const [detalleAbierto, setDetalleAbierto] = useState(false)
+  // Qué filas de rubro están desplegadas, por campo (ej. 'total_rrhh').
+  const [filasAbiertas, setFilasAbiertas] = useState<Set<CampoResultado>>(new Set())
+  function toggleDetalle(campo: CampoResultado) {
+    setFilasAbiertas((prev) => {
+      const next = new Set(prev)
+      if (next.has(campo)) next.delete(campo)
+      else next.add(campo)
+      return next
+    })
+  }
+
   const [desdeClave, setDesdeClave] = useState<number>(() => {
     if (resultados.length === 0) return 0
     const idx = Math.max(0, resultados.length - 12)
@@ -154,25 +166,30 @@ export default function PanelResultados({
     })
   }
 
-  // Detalle desplegable de "Total Costos Directos": conceptos presentes en
-  // los meses del rango visible (unión, orden alfabético — la tabla no
-  // preserva el orden del Excel), con un mapa concepto+mes -> monto para
-  // acceso O(1) al armar cada celda.
+  // Detalle desplegable de cada rubro con desglose: conceptos presentes en
+  // los meses del rango visible (unión por rubro, orden alfabético — la
+  // tabla no preserva el orden del Excel), con un mapa rubro+concepto+mes
+  // -> monto para acceso O(1) al armar cada celda.
   const mapaDetalle = useMemo(() => {
     const mapa = new Map<string, number>()
-    detalleCostosDirectos.forEach((d) => {
-      if (d.monto !== null) mapa.set(`${d.concepto}|${d.anio}-${d.mes}`, d.monto)
+    detalle.forEach((d) => {
+      if (d.monto !== null) mapa.set(`${d.rubro}|${d.concepto}|${d.anio}-${d.mes}`, d.monto)
     })
     return mapa
-  }, [detalleCostosDirectos])
+  }, [detalle])
 
-  const conceptosCostosDirectos = useMemo(() => {
+  const conceptosPorRubro = useMemo(() => {
     const clavesRango = new Set(rango.map((r) => clavePeriodo(r.anio, r.mes)))
-    const nombres = new Set(
-      detalleCostosDirectos.filter((d) => clavesRango.has(clavePeriodo(d.anio, d.mes))).map((d) => d.concepto)
-    )
-    return Array.from(nombres).sort(comparar)
-  }, [detalleCostosDirectos, rango])
+    const agrupado = new Map<string, Set<string>>()
+    detalle.forEach((d) => {
+      if (!clavesRango.has(clavePeriodo(d.anio, d.mes))) return
+      if (!agrupado.has(d.rubro)) agrupado.set(d.rubro, new Set())
+      agrupado.get(d.rubro)!.add(d.concepto)
+    })
+    const resultado = new Map<string, string[]>()
+    agrupado.forEach((conjunto, rubro) => resultado.set(rubro, Array.from(conjunto).sort(comparar)))
+    return resultado
+  }, [detalle, rango])
 
   if (resultados.length === 0) {
     return <p className="text-slate-500 text-sm">No hay resultados importados todavía.</p>
@@ -267,7 +284,10 @@ export default function PanelResultados({
               </thead>
               <tbody>
                 {RUBROS.map((rubro) => {
-                  const esCostosDirectos = rubro.campo === 'total_costos_directos'
+                  const tieneDetalle = CAMPOS_CON_DETALLE.includes(rubro.campo)
+                  const rubroSlug = tieneDetalle ? rubroSlugDeCampo(rubro.campo) : null
+                  const abierto = tieneDetalle && filasAbiertas.has(rubro.campo)
+                  const conceptos = rubroSlug ? conceptosPorRubro.get(rubroSlug) ?? [] : []
                   const totalColumnas = 1 + rango.length + (acumulado ? 1 : 0)
                   return (
                     <Fragment key={rubro.campo}>
@@ -277,13 +297,13 @@ export default function PanelResultados({
                         }`}
                       >
                         <td className="px-4 py-2 text-slate-700 whitespace-nowrap">
-                          {esCostosDirectos ? (
+                          {tieneDetalle ? (
                             <button
                               type="button"
-                              onClick={() => setDetalleAbierto((v) => !v)}
+                              onClick={() => toggleDetalle(rubro.campo)}
                               className="inline-flex items-center gap-1.5 hover:underline"
                             >
-                              <span className={`inline-block transition-transform ${detalleAbierto ? 'rotate-90' : ''}`}>
+                              <span className={`inline-block transition-transform ${abierto ? 'rotate-90' : ''}`}>
                                 ▶
                               </span>
                               {rubro.etiqueta}
@@ -322,28 +342,28 @@ export default function PanelResultados({
                         })()}
                       </tr>
 
-                      {esCostosDirectos && detalleAbierto && (
-                        conceptosCostosDirectos.length === 0 ? (
+                      {abierto && rubroSlug && (
+                        conceptos.length === 0 ? (
                           <tr className="border-b border-slate-100 bg-slate-50/60">
                             <td colSpan={totalColumnas} className="px-4 py-2 text-xs text-slate-400 italic">
                               Sin detalle cargado para este rango.
                             </td>
                           </tr>
                         ) : (
-                          conceptosCostosDirectos.map((concepto) => (
+                          conceptos.map((concepto) => (
                             <tr key={concepto} className="border-b border-slate-100 last:border-0 bg-slate-50/60">
                               <td className="px-4 py-1 pl-9 text-xs text-slate-500 whitespace-nowrap italic">
                                 {concepto}
                               </td>
                               {rango.map((r) => (
                                 <td key={r.id} className="px-4 py-1 text-right text-xs text-slate-500">
-                                  {formatearMonto(mapaDetalle.get(`${concepto}|${r.anio}-${r.mes}`) ?? null)}
+                                  {formatearMonto(mapaDetalle.get(`${rubroSlug}|${concepto}|${r.anio}-${r.mes}`) ?? null)}
                                 </td>
                               ))}
                               {acumulado && (
                                 <td className="px-4 py-1 text-right text-xs text-slate-500 border-l border-slate-300 bg-slate-100/60">
                                   {formatearMonto(
-                                    rango.reduce((suma, r) => suma + (mapaDetalle.get(`${concepto}|${r.anio}-${r.mes}`) ?? 0), 0)
+                                    rango.reduce((suma, r) => suma + (mapaDetalle.get(`${rubroSlug}|${concepto}|${r.anio}-${r.mes}`) ?? 0), 0)
                                   )}
                                 </td>
                               )}
