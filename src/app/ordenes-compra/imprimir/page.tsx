@@ -26,7 +26,7 @@ export default async function ImprimirOrdenesCompraPage({
   const { data: ordenes } = await supabase
     .from('ordenes_compra')
     .select(
-      '*, empresas(*), proveedores(id, razon_social, domicilio, provincia, condicion_pago_default), clientes(id, nombre), ordenes_compra_items(*, articulos(id, codigo_interno, nombre, unidad))'
+      '*, empresas(*), proveedores(id, razon_social, domicilio, provincia, condicion_pago_default), clientes(id, nombre), ordenes_compra_items(*, articulos(id, codigo_interno, nombre, unidad)), pedidos_compra(numero_pedido)'
     )
     .in('id', ids)
 

@@ -10,10 +10,12 @@ function formatearMoneda(valor: number) {
   return valor.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-// Fila de la tabla de datos (etiqueta / valor). `destacado` resalta el valor
-// en negrita (usado para "Cliente"); `grande` además lo agranda y le pone
-// fondo de color (usado para "Lugar de Entrega").
-function FilaDato({
+// Campo de la grilla de datos (etiqueta arriba, valor abajo). 2 por fila en
+// vez de 1 por fila: reduce a la mitad el alto total del bloque. `destacado`
+// resalta el valor en negrita (usado para "Cliente"); `grande` además lo
+// agranda, le pone fondo de color y ocupa las 2 columnas (usado para
+// "Lugar de Entrega", que sigue siendo el campo más visible del bloque).
+function CampoDato({
   etiqueta,
   valor,
   destacado,
@@ -25,16 +27,16 @@ function FilaDato({
   grande?: boolean
 }) {
   return (
-    <tr className={`border-b border-slate-100 last:border-0 ${grande ? 'bg-teal-50' : ''}`}>
-      <td className={`px-4 py-1 text-slate-500 w-48 align-top ${grande ? 'py-1.5' : ''}`}>{etiqueta}</td>
-      <td
-        className={`px-4 py-1 text-slate-800 ${destacado || grande ? 'font-semibold' : ''} ${
-          grande ? 'py-1.5 text-lg text-teal-800' : ''
+    <div className={grande ? 'col-span-2 bg-teal-50 rounded-md px-3 py-2' : 'px-3 py-1'}>
+      <p className="text-xs text-slate-500">{etiqueta}</p>
+      <p
+        className={`text-sm text-slate-800 ${destacado || grande ? 'font-semibold' : ''} ${
+          grande ? 'text-lg text-teal-800' : ''
         }`}
       >
         {valor}
-      </td>
-    </tr>
+      </p>
+    </div>
   )
 }
 
@@ -77,10 +79,17 @@ export default function OrdenCompraDetalle({
       {/* 1. Encabezado: nombre de la empresa, sin logo. */}
       <h1 className="text-2xl font-bold text-slate-900 mb-1">{orden.empresas?.nombre}</h1>
 
-      {/* 2. N° de OC */}
-      <p className="text-sm font-semibold text-slate-600 uppercase tracking-wide mb-4">
-        Orden de Compra N° {orden.numero_oc}
-      </p>
+      {/* 2. N° de OC (+ referencia al pedido de compra de origen, si vino de uno) */}
+      <div className="mb-4">
+        <p className="text-sm font-semibold text-slate-600 uppercase tracking-wide">
+          Orden de Compra N° {orden.numero_oc}
+        </p>
+        {orden.pedidos_compra && (
+          <p className="text-xs text-slate-400 mt-0.5">
+            Ref. Pedido de compra N° {orden.pedidos_compra.numero_pedido}
+          </p>
+        )}
+      </div>
 
       {/* 3. Banner destacado: lugar de entrega. El más grande del documento,
           por eso el color de fondo se fuerza a imprimir (los navegadores lo
@@ -94,25 +103,22 @@ export default function OrdenCompraDetalle({
         </div>
       )}
 
-      {/* 4. Tabla de datos */}
-      <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto print:shadow-none print:border-black mb-6">
-        <table className="w-full text-sm">
-          <tbody>
-            <FilaDato etiqueta="Fecha" valor={new Date(`${orden.fecha}T00:00:00`).toLocaleDateString('es-AR')} />
-            <FilaDato etiqueta="OC N°" valor={orden.numero_oc} />
-            <FilaDato etiqueta="Proveedor" valor={orden.proveedores?.razon_social ?? '-'} />
-            <FilaDato etiqueta="Domicilio" valor={orden.proveedores?.domicilio ?? '-'} />
-            <FilaDato etiqueta="Provincia" valor={orden.proveedores?.provincia ?? '-'} />
-            <FilaDato etiqueta="Condición de Pago" valor={orden.condicion_pago ?? '-'} />
-            <FilaDato
-              etiqueta="Cliente"
-              valor={orden.clientes ? formatearCliente(orden.clientes.nombre, orden.lugar_envio_alias) : '-'}
-              destacado
-            />
-            <FilaDato etiqueta="Lugar de Entrega" valor={orden.lugar_envio_texto ?? '-'} grande />
-            <FilaDato etiqueta="Horario de Atención" valor={orden.horario_atencion_texto ?? '-'} />
-          </tbody>
-        </table>
+      {/* 4. Grilla de datos: 2 columnas en vez de 1 fila por campo, reduce a
+          la mitad el alto total del bloque. */}
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1 bg-white border border-slate-200 rounded-lg shadow-sm p-3 print:shadow-none print:border-black mb-6">
+        <CampoDato etiqueta="Fecha" valor={new Date(`${orden.fecha}T00:00:00`).toLocaleDateString('es-AR')} />
+        <CampoDato etiqueta="OC N°" valor={orden.numero_oc} />
+        <CampoDato etiqueta="Proveedor" valor={orden.proveedores?.razon_social ?? '-'} />
+        <CampoDato etiqueta="Domicilio" valor={orden.proveedores?.domicilio ?? '-'} />
+        <CampoDato etiqueta="Provincia" valor={orden.proveedores?.provincia ?? '-'} />
+        <CampoDato etiqueta="Condición de Pago" valor={orden.condicion_pago ?? '-'} />
+        <CampoDato
+          etiqueta="Cliente"
+          valor={orden.clientes ? formatearCliente(orden.clientes.nombre, orden.lugar_envio_alias) : '-'}
+          destacado
+        />
+        <CampoDato etiqueta="Horario de Atención" valor={orden.horario_atencion_texto ?? '-'} />
+        <CampoDato etiqueta="Lugar de Entrega" valor={orden.lugar_envio_texto ?? '-'} grande />
       </div>
 
       {/* 5. Tabla de líneas + 6. Totales con IVA */}
@@ -120,39 +126,42 @@ export default function OrdenCompraDetalle({
         Líneas ({orden.ordenes_compra_items.length})
       </h2>
       <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto print:shadow-none print:border-black">
-        <table className="w-full text-sm min-w-[560px]">
+        <table className="w-full text-xs min-w-[560px]">
           <thead>
             <tr className="bg-slate-50 text-left text-slate-500 border-b border-slate-200">
-              <th className="px-4 py-3 font-medium">Código</th>
-              <th className="px-4 py-3 font-medium">Descripción</th>
-              <th className="px-4 py-3 font-medium">Precio</th>
-              <th className="px-4 py-3 font-medium">Cantidad</th>
-              <th className="px-4 py-3 font-medium">Subtotal</th>
+              <th className="px-4 py-2 font-medium">Código</th>
+              <th className="px-4 py-2 font-medium">Descripción</th>
+              <th className="px-4 py-2 font-medium text-right">Precio</th>
+              <th className="px-4 py-2 font-medium text-right">Cantidad</th>
+              <th className="px-4 py-2 font-medium text-right">Subtotal</th>
             </tr>
           </thead>
           <tbody>
             {orden.ordenes_compra_items.map((i) => (
               <tr key={i.id} className="border-b border-slate-100 last:border-0">
-                <td className="px-4 py-3 text-slate-600">{i.articulos?.codigo_interno ?? '-'}</td>
-                <td className="px-4 py-3 text-slate-800">{i.articulos?.nombre ?? '-'}</td>
-                <td className="px-4 py-3 text-slate-600">$ {formatearMoneda(i.precio_unitario)}</td>
-                <td className="px-4 py-3 text-slate-600">{i.cantidad}</td>
-                <td className="px-4 py-3 text-slate-600">$ {formatearMoneda(i.cantidad * i.precio_unitario)}</td>
+                <td className="px-4 py-2 text-slate-600 whitespace-nowrap">{i.articulos?.codigo_interno ?? '-'}</td>
+                <td className="px-4 py-2 text-slate-800">{i.articulos?.nombre ?? '-'}</td>
+                <td className="px-4 py-2 text-slate-600 text-right whitespace-nowrap">$ {formatearMoneda(i.precio_unitario)}</td>
+                <td className="px-4 py-2 text-slate-600 text-right whitespace-nowrap">{i.cantidad}</td>
+                <td className="px-4 py-2 text-slate-600 text-right whitespace-nowrap">$ {formatearMoneda(i.cantidad * i.precio_unitario)}</td>
               </tr>
             ))}
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan={4} className="px-4 py-2 text-right text-slate-600">Subtotal</td>
-              <td className="px-4 py-2 text-slate-700">$ {formatearMoneda(subtotal)}</td>
+              <td colSpan={3}></td>
+              <td className="px-4 py-1 text-right text-slate-600">Subtotal</td>
+              <td className="px-4 py-1 text-slate-700 text-right whitespace-nowrap">$ {formatearMoneda(subtotal)}</td>
             </tr>
             <tr>
-              <td colSpan={4} className="px-4 py-2 text-right text-slate-600">IVA 21%</td>
-              <td className="px-4 py-2 text-slate-700">$ {formatearMoneda(iva)}</td>
+              <td colSpan={3}></td>
+              <td className="px-4 py-1 text-right text-slate-600">IVA 21%</td>
+              <td className="px-4 py-1 text-slate-700 text-right whitespace-nowrap">$ {formatearMoneda(iva)}</td>
             </tr>
             <tr className="border-t border-slate-200">
-              <td colSpan={4} className="px-4 py-3 text-right font-semibold text-slate-700">Total</td>
-              <td className="px-4 py-3 font-semibold text-slate-900">$ {formatearMoneda(total)}</td>
+              <td colSpan={3}></td>
+              <td className="px-4 py-2 text-right font-semibold text-slate-700">Total</td>
+              <td className="px-4 py-2 font-semibold text-slate-900 text-right whitespace-nowrap">$ {formatearMoneda(total)}</td>
             </tr>
           </tfoot>
         </table>

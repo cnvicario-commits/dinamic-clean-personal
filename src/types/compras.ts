@@ -164,6 +164,9 @@ export type OrdenCompraDetalleView = OrdenCompra & {
   proveedores: ProveedorResumen | null
   clientes: ClienteResumen | null
   ordenes_compra_items: OrdenCompraItemConArticulo[]
+  // Pedido de compra de origen, si esta OC se generó desde uno (vía Panel
+  // de compras). Solo se usa como referencia visual en el PDF.
+  pedidos_compra: { numero_pedido: string } | null
 }
 
 export type PedidoDepositoItemConArticulo = PedidoDepositoItem & { articulos: ArticuloResumen | null }
