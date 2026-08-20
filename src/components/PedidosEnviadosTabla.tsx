@@ -5,7 +5,7 @@ import Link from 'next/link'
 import EstadoProcesamientoBadge from './EstadoProcesamientoBadge'
 import type { PedidoEnviado } from '@/types/compras'
 
-type Columna = 'numero_pedido' | 'empresa' | 'cliente' | 'created_at'
+type Columna = 'numero_pedido' | 'empresa' | 'cliente' | 'creado_por' | 'created_at'
 
 function comparar(a: string, b: string) {
   return a.localeCompare(b, 'es', { sensitivity: 'base' })
@@ -19,6 +19,8 @@ function valorColumna(p: PedidoEnviado, columna: Columna): string {
       return p.empresas?.nombre ?? ''
     case 'cliente':
       return p.clientes?.nombre ?? ''
+    case 'creado_por':
+      return p.creado_por_nombre ?? ''
     case 'created_at':
       return p.created_at
   }
@@ -99,6 +101,9 @@ export default function PedidosEnviadosTabla({ pedidos }: { pedidos: PedidoEnvia
                 Cliente{indicador('cliente')}
               </th>
               <th className="px-4 py-3 font-medium">Procesamiento</th>
+              <th className="px-4 py-3 font-medium cursor-pointer select-none hover:text-slate-700" onClick={() => ordenarPor('creado_por')}>
+                Creado por{indicador('creado_por')}
+              </th>
               <th className="px-4 py-3 font-medium cursor-pointer select-none hover:text-slate-700" onClick={() => ordenarPor('created_at')}>
                 Fecha{indicador('created_at')}
               </th>
@@ -112,6 +117,7 @@ export default function PedidosEnviadosTabla({ pedidos }: { pedidos: PedidoEnvia
                 <td className="px-4 py-3 text-slate-600">{p.empresas?.nombre ?? '-'}</td>
                 <td className="px-4 py-3 text-slate-600">{p.clientes?.nombre ?? '-'}</td>
                 <td className="px-4 py-3"><EstadoProcesamientoBadge procesado={p.procesado} /></td>
+                <td className="px-4 py-3 text-slate-600">{p.creado_por_nombre ?? '-'}</td>
                 <td className="px-4 py-3 text-slate-600">{new Date(p.created_at).toLocaleDateString('es-AR')}</td>
                 <td className="px-4 py-3">
                   <Link href={`/panel-compras/${p.id}`} className="text-teal-600 hover:underline text-sm">

@@ -6,7 +6,7 @@ import EstadoBadge from './EstadoBadge'
 import DuplicarPedidoCompraBoton from './DuplicarPedidoCompraBoton'
 import type { PedidoCompraListado, EstadoPedidoCompra, ClienteResumen, Empresa } from '@/types/compras'
 
-type Columna = 'numero_pedido' | 'empresa' | 'cliente' | 'estado' | 'lugar_envio' | 'created_at'
+type Columna = 'numero_pedido' | 'empresa' | 'cliente' | 'estado' | 'lugar_envio' | 'creado_por' | 'created_at'
 
 const SIN_LUGAR = '__sin_lugar__'
 
@@ -35,6 +35,8 @@ function valorColumna(p: PedidoCompraListado, columna: Columna): string {
       return p.estado
     case 'lugar_envio':
       return etiquetaLugarEnvio(p)
+    case 'creado_por':
+      return p.creado_por_nombre ?? ''
     case 'created_at':
       return p.created_at
   }
@@ -139,6 +141,9 @@ export default function PedidosCompraTabla({
               <th className="px-4 py-3 font-medium cursor-pointer select-none hover:text-slate-700" onClick={() => ordenarPor('lugar_envio')}>
                 Lugar de entrega{indicador('lugar_envio')}
               </th>
+              <th className="px-4 py-3 font-medium cursor-pointer select-none hover:text-slate-700" onClick={() => ordenarPor('creado_por')}>
+                Creado por{indicador('creado_por')}
+              </th>
               <th className="px-4 py-3 font-medium cursor-pointer select-none hover:text-slate-700" onClick={() => ordenarPor('created_at')}>
                 Fecha{indicador('created_at')}
               </th>
@@ -157,6 +162,7 @@ export default function PedidosCompraTabla({
                 <td className="px-4 py-3 text-slate-600">{p.clientes?.nombre ?? '-'}</td>
                 <td className="px-4 py-3"><EstadoBadge estado={p.estado} /></td>
                 <td className="px-4 py-3 text-slate-600">{etiquetaLugarEnvio(p) || '-'}</td>
+                <td className="px-4 py-3 text-slate-600">{p.creado_por_nombre ?? '-'}</td>
                 <td className="px-4 py-3 text-slate-600">{new Date(p.created_at).toLocaleDateString('es-AR')}</td>
                 <td className="px-4 py-3">
                   <DuplicarPedidoCompraBoton id={p.id} />

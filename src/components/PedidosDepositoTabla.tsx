@@ -5,7 +5,7 @@ import Link from 'next/link'
 import EstadoBadge from './EstadoBadge'
 import type { PedidoDepositoListado, EstadoPedidoDeposito, ClienteResumen, Empresa } from '@/types/compras'
 
-type Columna = 'numero_pedido_deposito' | 'empresa' | 'cliente' | 'estado' | 'alias' | 'fecha'
+type Columna = 'numero_pedido_deposito' | 'empresa' | 'cliente' | 'estado' | 'alias' | 'creado_por' | 'fecha'
 
 function comparar(a: string, b: string) {
   return a.localeCompare(b, 'es', { sensitivity: 'base' })
@@ -23,6 +23,8 @@ function valorColumna(p: PedidoDepositoListado, columna: Columna): string {
       return p.estado
     case 'alias':
       return p.lugar_envio_alias ?? ''
+    case 'creado_por':
+      return p.creado_por_nombre ?? ''
     case 'fecha':
       return p.fecha
   }
@@ -113,6 +115,9 @@ export default function PedidosDepositoTabla({
               <th className="px-4 py-3 font-medium cursor-pointer select-none hover:text-slate-700" onClick={() => ordenarPor('alias')}>
                 Alias{indicador('alias')}
               </th>
+              <th className="px-4 py-3 font-medium cursor-pointer select-none hover:text-slate-700" onClick={() => ordenarPor('creado_por')}>
+                Creado por{indicador('creado_por')}
+              </th>
               <th className="px-4 py-3 font-medium cursor-pointer select-none hover:text-slate-700" onClick={() => ordenarPor('fecha')}>
                 Fecha{indicador('fecha')}
               </th>
@@ -130,6 +135,7 @@ export default function PedidosDepositoTabla({
                 <td className="px-4 py-3 text-slate-600">{p.clientes?.nombre ?? '-'}</td>
                 <td className="px-4 py-3"><EstadoBadge estado={p.estado} /></td>
                 <td className="px-4 py-3 text-slate-600">{p.lugar_envio_alias ?? '-'}</td>
+                <td className="px-4 py-3 text-slate-600">{p.creado_por_nombre ?? '-'}</td>
                 <td className="px-4 py-3 text-slate-600">{new Date(`${p.fecha}T00:00:00`).toLocaleDateString('es-AR')}</td>
               </tr>
             ))}

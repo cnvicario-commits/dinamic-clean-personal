@@ -4,11 +4,17 @@ import type { PedidoEnviado } from '@/types/compras'
 
 export default async function PanelComprasPage() {
   const supabase = await createClient()
-  const { data: pedidos } = await supabase
-    .from('pedidos_compra')
-    .select('*, empresas(nombre), clientes(nombre)')
-    .eq('estado', 'enviada')
-    .order('created_at', { ascending: false })
+  const [{ data: pedidos }, { data: perfiles }] = await Promise.all([
+    supabase
+      .from('pedidos_compra')
+      .select('*, empresas(nombre), clientes(nombre)')
+      .eq('estado', 'enviada')
+      .order('created_at', { ascending: false }),
+    // perfiles no tiene FK declarada hacia pedidos_compra: se resuelve
+    // nombre_completo armando este Map en vez de un join real de Supabase.
+    supabase.from('perfiles').select('id, nombre_completo'),
+  ])
+  const nombrePorId = new Map((perfiles ?? []).map((p) => [p.id, p.nombre_completo]))
 
   const pedidoIds = (pedidos ?? []).map((p) => p.id)
 
@@ -51,7 +57,7 @@ export default async function PanelComprasPage() {
     const procesado =
       itemsDelPedido.length > 0 &&
       itemsDelPedido.every((i) => i.descartada || i.cantidad - (asignado.get(i.id) ?? 0) <= 0)
-    return { ...p, procesado }
+    return { ...p, procesado, creado_por_nombre: nombrePorId.get(p.creado_por) ?? null }
   })
 
   return (

@@ -132,6 +132,10 @@ export type PedidoDepositoItem = {
 export type PedidoCompraListado = PedidoCompra & {
   empresas: { nombre: string } | null
   clientes: { nombre: string } | null
+  // Nombre de perfiles.nombre_completo resuelto en el server a partir de
+  // creado_por (no es un join real de Supabase: perfiles no tiene FK
+  // declarada hacia pedidos_compra, se resuelve armando un Map aparte).
+  creado_por_nombre: string | null
 }
 
 // Vista del listado del Panel de compras: agrega el estado calculado
@@ -173,6 +177,7 @@ export type PedidoDepositoItemConArticulo = PedidoDepositoItem & { articulos: Ar
 export type PedidoDepositoListado = PedidoDeposito & {
   empresas: { nombre: string } | null
   clientes: { nombre: string } | null
+  creado_por_nombre: string | null
 }
 export type PedidoDepositoDetalleView = PedidoDeposito & {
   empresas: Empresa | null
