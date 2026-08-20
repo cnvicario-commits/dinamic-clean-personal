@@ -1,7 +1,18 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, Fragment } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList } from 'recharts'
-import { RUBROS, formatearMesAnio, clavePeriodo, type ResultadoMensual, type CampoResultado } from '@/types/resultados'
+import {
+  RUBROS,
+  formatearMesAnio,
+  clavePeriodo,
+  type ResultadoMensual,
+  type ResultadoMensualDetalle,
+  type CampoResultado,
+} from '@/types/resultados'
+
+function comparar(a: string, b: string) {
+  return a.localeCompare(b, 'es', { sensitivity: 'base' })
+}
 
 function formatearMonto(valor: number | null | undefined): string {
   if (valor === null || valor === undefined) return '-'
@@ -44,7 +55,14 @@ function EtiquetaBarra(props: any) {
   )
 }
 
-export default function PanelResultados({ resultados }: { resultados: ResultadoMensual[] }) {
+export default function PanelResultados({
+  resultados,
+  detalleCostosDirectos,
+}: {
+  resultados: ResultadoMensual[]
+  detalleCostosDirectos: ResultadoMensualDetalle[]
+}) {
+  const [detalleAbierto, setDetalleAbierto] = useState(false)
   const [desdeClave, setDesdeClave] = useState<number>(() => {
     if (resultados.length === 0) return 0
     const idx = Math.max(0, resultados.length - 12)
@@ -135,6 +153,26 @@ export default function PanelResultados({ resultados }: { resultados: ResultadoM
       pct_resultado_periodo: pctSobreVentas(acumulado.resultado_periodo, ventasAcumuladas),
     })
   }
+
+  // Detalle desplegable de "Total Costos Directos": conceptos presentes en
+  // los meses del rango visible (unión, orden alfabético — la tabla no
+  // preserva el orden del Excel), con un mapa concepto+mes -> monto para
+  // acceso O(1) al armar cada celda.
+  const mapaDetalle = useMemo(() => {
+    const mapa = new Map<string, number>()
+    detalleCostosDirectos.forEach((d) => {
+      if (d.monto !== null) mapa.set(`${d.concepto}|${d.anio}-${d.mes}`, d.monto)
+    })
+    return mapa
+  }, [detalleCostosDirectos])
+
+  const conceptosCostosDirectos = useMemo(() => {
+    const clavesRango = new Set(rango.map((r) => clavePeriodo(r.anio, r.mes)))
+    const nombres = new Set(
+      detalleCostosDirectos.filter((d) => clavesRango.has(clavePeriodo(d.anio, d.mes))).map((d) => d.concepto)
+    )
+    return Array.from(nombres).sort(comparar)
+  }, [detalleCostosDirectos, rango])
 
   if (resultados.length === 0) {
     return <p className="text-slate-500 text-sm">No hay resultados importados todavía.</p>
@@ -228,44 +266,94 @@ export default function PanelResultados({ resultados }: { resultados: ResultadoM
                 </tr>
               </thead>
               <tbody>
-                {RUBROS.map((rubro) => (
-                  <tr
-                    key={rubro.campo}
-                    className={`border-b border-slate-100 last:border-0 ${
-                      FILAS_DESTACADAS.has(rubro.campo) ? 'bg-teal-50 font-semibold text-teal-900' : ''
-                    }`}
-                  >
-                    <td className="px-4 py-2 text-slate-700 whitespace-nowrap">{rubro.etiqueta}</td>
-                    {rango.map((r) => {
-                      const valor = r[rubro.campo]
-                      const incidencia =
-                        rubro.esIncidenciaSobreVentas && r.total_ventas ? ((valor ?? 0) / r.total_ventas) * 100 : null
-                      return (
-                        <td key={r.id} className="px-4 py-2 text-right text-slate-700">
-                          <div>{formatearMonto(valor)}</div>
-                          {incidencia !== null && (
-                            <div className="text-xs text-slate-400 font-normal">{incidencia.toFixed(1)}% s/ventas</div>
+                {RUBROS.map((rubro) => {
+                  const esCostosDirectos = rubro.campo === 'total_costos_directos'
+                  const totalColumnas = 1 + rango.length + (acumulado ? 1 : 0)
+                  return (
+                    <Fragment key={rubro.campo}>
+                      <tr
+                        className={`border-b border-slate-100 last:border-0 ${
+                          FILAS_DESTACADAS.has(rubro.campo) ? 'bg-teal-50 font-semibold text-teal-900' : ''
+                        }`}
+                      >
+                        <td className="px-4 py-2 text-slate-700 whitespace-nowrap">
+                          {esCostosDirectos ? (
+                            <button
+                              type="button"
+                              onClick={() => setDetalleAbierto((v) => !v)}
+                              className="inline-flex items-center gap-1.5 hover:underline"
+                            >
+                              <span className={`inline-block transition-transform ${detalleAbierto ? 'rotate-90' : ''}`}>
+                                ▶
+                              </span>
+                              {rubro.etiqueta}
+                            </button>
+                          ) : (
+                            rubro.etiqueta
                           )}
                         </td>
-                      )
-                    })}
-                    {acumulado && (() => {
-                      const valor = acumulado[rubro.campo]
-                      const incidencia =
-                        rubro.esIncidenciaSobreVentas && acumulado.total_ventas
-                          ? ((valor ?? 0) / acumulado.total_ventas) * 100
-                          : null
-                      return (
-                        <td className="px-4 py-2 text-right text-slate-700 border-l border-slate-300 bg-slate-50">
-                          <div>{formatearMonto(valor)}</div>
-                          {incidencia !== null && (
-                            <div className="text-xs text-slate-400 font-normal">{incidencia.toFixed(1)}% s/ventas</div>
-                          )}
-                        </td>
-                      )
-                    })()}
-                  </tr>
-                ))}
+                        {rango.map((r) => {
+                          const valor = r[rubro.campo]
+                          const incidencia =
+                            rubro.esIncidenciaSobreVentas && r.total_ventas ? ((valor ?? 0) / r.total_ventas) * 100 : null
+                          return (
+                            <td key={r.id} className="px-4 py-2 text-right text-slate-700">
+                              <div>{formatearMonto(valor)}</div>
+                              {incidencia !== null && (
+                                <div className="text-xs text-slate-400 font-normal">{incidencia.toFixed(1)}% s/ventas</div>
+                              )}
+                            </td>
+                          )
+                        })}
+                        {acumulado && (() => {
+                          const valor = acumulado[rubro.campo]
+                          const incidencia =
+                            rubro.esIncidenciaSobreVentas && acumulado.total_ventas
+                              ? ((valor ?? 0) / acumulado.total_ventas) * 100
+                              : null
+                          return (
+                            <td className="px-4 py-2 text-right text-slate-700 border-l border-slate-300 bg-slate-50">
+                              <div>{formatearMonto(valor)}</div>
+                              {incidencia !== null && (
+                                <div className="text-xs text-slate-400 font-normal">{incidencia.toFixed(1)}% s/ventas</div>
+                              )}
+                            </td>
+                          )
+                        })()}
+                      </tr>
+
+                      {esCostosDirectos && detalleAbierto && (
+                        conceptosCostosDirectos.length === 0 ? (
+                          <tr className="border-b border-slate-100 bg-slate-50/60">
+                            <td colSpan={totalColumnas} className="px-4 py-2 text-xs text-slate-400 italic">
+                              Sin detalle cargado para este rango.
+                            </td>
+                          </tr>
+                        ) : (
+                          conceptosCostosDirectos.map((concepto) => (
+                            <tr key={concepto} className="border-b border-slate-100 last:border-0 bg-slate-50/60">
+                              <td className="px-4 py-1 pl-9 text-xs text-slate-500 whitespace-nowrap italic">
+                                {concepto}
+                              </td>
+                              {rango.map((r) => (
+                                <td key={r.id} className="px-4 py-1 text-right text-xs text-slate-500">
+                                  {formatearMonto(mapaDetalle.get(`${concepto}|${r.anio}-${r.mes}`) ?? null)}
+                                </td>
+                              ))}
+                              {acumulado && (
+                                <td className="px-4 py-1 text-right text-xs text-slate-500 border-l border-slate-300 bg-slate-100/60">
+                                  {formatearMonto(
+                                    rango.reduce((suma, r) => suma + (mapaDetalle.get(`${concepto}|${r.anio}-${r.mes}`) ?? 0), 0)
+                                  )}
+                                </td>
+                              )}
+                            </tr>
+                          ))
+                        )
+                      )}
+                    </Fragment>
+                  )
+                })}
               </tbody>
             </table>
           </div>

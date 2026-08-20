@@ -26,6 +26,17 @@ export type ResultadoMensual = {
 // Campos numéricos importables/graficables (todo menos id/anio/mes/timestamps).
 export type CampoResultado = keyof Omit<ResultadoMensual, 'id' | 'anio' | 'mes' | 'created_at' | 'updated_at'>
 
+// Detalle de conceptos por rubro (por ahora solo 'costos_directos'), para
+// el desplegable de "Total Costos Directos" en el panel.
+export type ResultadoMensualDetalle = {
+  id: string
+  anio: number
+  mes: number
+  rubro: string
+  concepto: string
+  monto: number | null
+}
+
 // Metadatos de cada rubro, en el mismo orden que aparecen en el Excel
 // original — reutilizado tanto por el importador (matching de etiquetas)
 // como por el panel (filas de la tabla comparativa).
