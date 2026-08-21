@@ -77,12 +77,18 @@ export default function NavBar() {
   const linkStyle = (activo: boolean) =>
     `text-sm transition-colors ${activo ? 'text-white font-medium' : 'text-slate-300 hover:text-white'}`
 
+  // El portal es la puerta de entrada antes de los módulos, con su propio
+  // diseño de pantalla completa: no lleva el sidebar al costado. Los hooks
+  // de arriba se siguen ejecutando siempre (mismo orden en cada render),
+  // solo se omite el render.
+  if (pathname === '/portal') return null
+
   return (
     <>
       {/* Barra superior: solo mobile (< md), con menú hamburguesa */}
       <nav className="print:hidden md:hidden bg-slate-900 text-slate-100 shadow-sm">
         <div className="flex items-center justify-between px-4 py-4">
-          <Link href="/dashboard" className="font-bold text-teal-400">
+          <Link href="/portal" className="font-bold text-teal-400">
             Dinamic Clean
           </Link>
           <button onClick={() => setAbierto(!abierto)} className="p-2 text-slate-100" aria-label="Abrir menú">
@@ -133,7 +139,7 @@ export default function NavBar() {
       {/* Sidebar lateral: desde md en adelante */}
       <aside className="print:hidden hidden md:flex md:flex-col md:w-60 md:shrink-0 md:sticky md:top-0 md:self-start md:h-screen bg-slate-900 text-slate-100">
         <div className="px-5 py-5 border-b border-slate-800">
-          <Link href="/dashboard" className="font-bold text-teal-400">
+          <Link href="/portal" className="font-bold text-teal-400">
             Dinamic Clean
           </Link>
         </div>
