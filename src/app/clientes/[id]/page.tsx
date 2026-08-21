@@ -40,9 +40,11 @@ export default async function ClienteDetallePage({
         ← Volver a clientes
       </Link>
       <h1 className="text-2xl font-bold text-slate-900 mb-1">{cliente.nombre}</h1>
-      {cliente.domicilio && (
-        <p className="text-sm text-slate-500 mb-6">Domicilio principal (ficha del cliente): {cliente.domicilio}</p>
-      )}
+      <div className="text-sm text-slate-500 mb-6 space-y-0.5">
+        {cliente.domicilio && <p>Domicilio principal (ficha del cliente): {cliente.domicilio}</p>}
+        {cliente.cuit && <p>CUIT: {cliente.cuit}</p>}
+        {cliente.persona_contacto && <p>Persona de contacto: {cliente.persona_contacto}</p>}
+      </div>
 
       <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
         Domicilios de entrega

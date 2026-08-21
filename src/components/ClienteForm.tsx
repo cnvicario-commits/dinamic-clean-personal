@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 export default function ClienteForm() {
   const [nombre, setNombre] = useState('')
+  const [cuit, setCuit] = useState('')
+  const [personaContacto, setPersonaContacto] = useState('')
   const [codigoCostos, setCodigoCostos] = useState('')
   const [presupuesto4hs, setPresupuesto4hs] = useState('0')
   const [presupuesto8hs, setPresupuesto8hs] = useState('0')
@@ -21,6 +23,8 @@ export default function ClienteForm() {
       .from('clientes')
       .insert({
         nombre,
+        cuit: cuit || null,
+        persona_contacto: personaContacto || null,
         codigo_costos: codigoCostos || null,
         presupuesto_4hs: parseInt(presupuesto4hs) || 0,
         presupuesto_8hs: parseInt(presupuesto8hs) || 0,
@@ -57,6 +61,8 @@ export default function ClienteForm() {
   return (
     <form onSubmit={handleSubmit} className="flex flex-wrap gap-2 items-start">
       <input type="text" placeholder="Nombre del cliente" value={nombre} onChange={(e) => setNombre(e.target.value)} required className={`flex-1 min-w-[200px] ${inputStyle}`} />
+      <input type="text" placeholder="CUIT (opcional)" value={cuit} onChange={(e) => setCuit(e.target.value)} className={`w-40 ${inputStyle}`} />
+      <input type="text" placeholder="Persona de contacto (opcional)" value={personaContacto} onChange={(e) => setPersonaContacto(e.target.value)} className={`w-52 ${inputStyle}`} />
       <input type="text" placeholder="Código de costos (ej: DCLI7836)" value={codigoCostos} onChange={(e) => setCodigoCostos(e.target.value)} className={`w-52 ${inputStyle}`} />
       <input type="text" placeholder="Domicilio (opcional)" value={domicilio} onChange={(e) => setDomicilio(e.target.value)} className={`flex-1 min-w-[200px] ${inputStyle}`} />
       <div className="flex flex-col">
