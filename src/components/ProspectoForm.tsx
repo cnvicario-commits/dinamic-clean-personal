@@ -30,8 +30,7 @@ export default function ProspectoForm({
   const [loading, setLoading] = useState(false)
   const supabase = createClient()
 
-  async function crear(e: React.FormEvent) {
-    e.preventDefault()
+  async function crear() {
     setError('')
     if (!nombre.trim()) {
       setError('El nombre es obligatorio.')
@@ -61,13 +60,17 @@ export default function ProspectoForm({
   const inputStyle = 'px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500'
 
   return (
-    <form onSubmit={crear} className="bg-slate-50 border border-slate-200 rounded-lg p-4 flex flex-wrap gap-2 items-start">
+    // No es un <form>: este componente se embebe dentro del <form> del alta
+    // de oportunidad (OportunidadForm.tsx), y un <form> anidado en otro no
+    // es válido HTML — el navegador termina disparando el submit del de
+    // afuera en vez del de acá. Por eso "Crear prospecto" es un botón
+    // type="button" con onClick, no un submit.
+    <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 flex flex-wrap gap-2 items-start">
       <input
         type="text"
         placeholder="Nombre del prospecto"
         value={nombre}
         onChange={(e) => setNombre(e.target.value)}
-        required
         className={`flex-1 min-w-[200px] ${inputStyle}`}
       />
       <SelectConCrear
@@ -114,13 +117,14 @@ export default function ProspectoForm({
         className={`w-48 ${inputStyle}`}
       />
       <button
-        type="submit"
+        type="button"
+        onClick={crear}
         disabled={loading}
         className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
       >
         {loading ? 'Creando...' : 'Crear prospecto'}
       </button>
       {error && <p className="text-rose-600 text-sm w-full">{error}</p>}
-    </form>
+    </div>
   )
 }
