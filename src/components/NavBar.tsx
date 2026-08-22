@@ -16,6 +16,14 @@ const transversales: Enlace[] = [
 
 const grupos: Grupo[] = [
   {
+    id: 'ventas',
+    label: 'Ventas',
+    enlaces: [
+      { href: '/ventas', label: 'Tablero' },
+      { href: '/ventas/nueva', label: 'Nueva oportunidad' },
+    ],
+  },
+  {
     id: 'rrhh',
     label: 'RRHH',
     enlaces: [
