@@ -3,7 +3,7 @@ import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import * as XLSX from 'xlsx'
 import EstadoOportunidadBadge from './EstadoOportunidadBadge'
-import { ESTADOS, type OportunidadListado, type EstadoOportunidad, type PerfilResumen, type CatalogoItem } from '@/types/crm'
+import { ESTADOS, nombreResponsable, type OportunidadListado, type EstadoOportunidad, type PerfilResumen, type CatalogoItem } from '@/types/crm'
 
 type Columna =
   | 'numero_referencia'
@@ -52,7 +52,7 @@ function valorColumna(o: OportunidadListado, columna: Columna): string {
     case 'proxima_fecha_seguimiento':
       return o.proxima_fecha_seguimiento ?? ''
     case 'responsable':
-      return o.perfiles?.nombre_completo ?? ''
+      return nombreResponsable(o)
   }
 }
 
@@ -125,7 +125,7 @@ export default function ListadoOportunidadesTabla({
       fecha_seguimiento: o.proxima_fecha_seguimiento ?? '',
       comentarios: o.comentarios ?? '',
       comision: o.comision_monto ?? '',
-      responsable: o.perfiles?.nombre_completo ?? '',
+      responsable: nombreResponsable(o),
     }))
     const hoja = XLSX.utils.json_to_sheet(filas)
     const libro = XLSX.utils.book_new()
@@ -247,7 +247,7 @@ export default function ListadoOportunidadesTabla({
                 <td className="px-4 py-3 text-slate-600">
                   {o.comision_monto ? `$ ${formatearMonto(o.comision_monto)}` : '-'}
                 </td>
-                <td className="px-4 py-3 text-slate-600">{o.perfiles?.nombre_completo ?? '-'}</td>
+                <td className="px-4 py-3 text-slate-600">{nombreResponsable(o)}</td>
               </tr>
             ))}
           </tbody>

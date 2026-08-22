@@ -45,10 +45,26 @@ export type CrmOportunidad = {
   comision_monto: number | null
   comision_liquidada: boolean
   comentarios: string | null
-  responsable_id: string
+  // responsable_id es null cuando quien gestionó la oportunidad no tiene cuenta en la
+  // app (ej. historial importado de gente que ya no trabaja acá o nunca tuvo login) —
+  // en ese caso el nombre queda en responsable_nombre_libre. Nunca los dos en null.
+  responsable_id: string | null
+  responsable_nombre_libre: string | null
   proxima_fecha_seguimiento: string | null
   created_at: string
   updated_at: string | null
+}
+
+// Nombre a mostrar del responsable de una oportunidad, sea cuenta real (perfiles) o
+// texto libre (histórico sin cuenta en la app).
+export function nombreResponsable(o: { perfiles: { nombre_completo: string } | null; responsable_nombre_libre: string | null }): string {
+  return o.perfiles?.nombre_completo ?? o.responsable_nombre_libre ?? '-'
+}
+
+// Mismo criterio, para quién registró un seguimiento (crm_seguimientos.usuario_id /
+// usuario_nombre_libre).
+export function nombreUsuarioSeguimiento(s: { perfiles: { nombre_completo: string } | null; usuario_nombre_libre: string | null }): string {
+  return s.perfiles?.nombre_completo ?? s.usuario_nombre_libre ?? '-'
 }
 
 // Vista con los joins ya resueltos, tal como la trae el Tablero (server
@@ -70,7 +86,8 @@ export type OportunidadResumen = {
   monto_estimado: number | null
   comision_monto: number | null
   comision_liquidada: boolean
-  responsable_id: string
+  responsable_id: string | null
+  responsable_nombre_libre: string | null
   crm_prospectos: {
     tipo_cliente_id: string | null
     crm_tipos_cliente: { nombre: string } | null

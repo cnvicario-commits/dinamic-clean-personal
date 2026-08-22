@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { createClient } from '@/utils/supabase/server'
 import EstadoOportunidadBadge from '@/components/EstadoOportunidadBadge'
 import RegistrarSeguimientoForm from '@/components/RegistrarSeguimientoForm'
+import { nombreResponsable, nombreUsuarioSeguimiento } from '@/types/crm'
 
 function formatearFecha(fecha: string | null) {
   if (!fecha) return '-'
@@ -96,7 +97,7 @@ export default async function FichaOportunidadPage({
         <Campo etiqueta="Fecha de envío" valor={formatearFecha(oportunidad.fecha_envio)} />
         <Campo etiqueta="Fecha de cierre" valor={formatearFecha(oportunidad.fecha_cierre)} />
         <Campo etiqueta="Próximo seguimiento" valor={formatearFecha(oportunidad.proxima_fecha_seguimiento)} />
-        <Campo etiqueta="Responsable" valor={oportunidad.perfiles?.nombre_completo ?? '-'} />
+        <Campo etiqueta="Responsable" valor={nombreResponsable(oportunidad)} />
       </div>
 
       {oportunidad.comentarios && (
@@ -121,7 +122,7 @@ export default async function FichaOportunidadPage({
                 <p className="text-sm font-medium text-slate-800">
                   {s.tipo_contacto ?? 'Contacto'} — {formatearFecha(s.fecha_contacto)}
                 </p>
-                <p className="text-xs text-slate-500">{s.perfiles?.nombre_completo ?? '-'}</p>
+                <p className="text-xs text-slate-500">{nombreUsuarioSeguimiento(s)}</p>
               </div>
               {s.nota && <p className="text-sm text-slate-600">{s.nota}</p>}
               {s.proxima_fecha_seguimiento && (

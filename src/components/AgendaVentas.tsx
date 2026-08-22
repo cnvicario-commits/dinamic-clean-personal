@@ -1,7 +1,7 @@
 'use client'
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
-import type { OportunidadVista, PerfilResumen } from '@/types/crm'
+import { nombreResponsable, type OportunidadVista, type PerfilResumen } from '@/types/crm'
 
 function hoyStr(): string {
   const hoy = new Date()
@@ -47,7 +47,7 @@ function Tarjeta({ oportunidad, hoy }: { oportunidad: OportunidadVista; hoy: str
       <p className="text-xs text-slate-500 mt-0.5">{oportunidad.crm_tipos_servicio?.nombre ?? 'Sin tipo de servicio'}</p>
       <div className="flex items-center justify-between mt-1.5 text-xs">
         <span className="text-teal-700 font-semibold">$ {formatearMonto(oportunidad.monto_estimado)}</span>
-        <span className="text-slate-500">{oportunidad.perfiles?.nombre_completo ?? '-'}</span>
+        <span className="text-slate-500">{nombreResponsable(oportunidad)}</span>
       </div>
     </Link>
   )

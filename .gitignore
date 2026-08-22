@@ -42,3 +42,4 @@ next-env.d.ts
 
 # archivos de referencia (datos económicos/financieros reales, no versionar)
 /Referencias/
+/PLANILLA_DE_SEGUIMIENTO*.xlsx

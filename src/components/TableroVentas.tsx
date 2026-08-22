@@ -3,7 +3,7 @@ import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { DndContext, useDraggable, useDroppable, type DragEndEvent } from '@dnd-kit/core'
 import { createClient } from '@/utils/supabase/client'
-import { ESTADOS, type OportunidadVista, type EstadoOportunidad, type PerfilResumen, type CatalogoItem } from '@/types/crm'
+import { ESTADOS, nombreResponsable, type OportunidadVista, type EstadoOportunidad, type PerfilResumen, type CatalogoItem } from '@/types/crm'
 
 function formatearMonto(valor: number | null): string {
   if (valor === null) return '-'
@@ -36,7 +36,7 @@ function Tarjeta({ oportunidad }: { oportunidad: OportunidadVista }) {
         <p className="text-sm font-semibold text-teal-700 mt-1.5">$ {formatearMonto(oportunidad.monto_estimado)}</p>
         <div className="flex items-center justify-between mt-2 text-xs text-slate-500">
           <span>{formatearFecha(oportunidad.proxima_fecha_seguimiento)}</span>
-          <span>{oportunidad.perfiles?.nombre_completo ?? '-'}</span>
+          <span>{nombreResponsable(oportunidad)}</span>
         </div>
       </div>
       <Link
