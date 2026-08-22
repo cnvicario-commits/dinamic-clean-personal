@@ -21,6 +21,7 @@ const grupos: Grupo[] = [
     enlaces: [
       { href: '/ventas', label: 'Tablero' },
       { href: '/ventas/nueva', label: 'Nueva oportunidad' },
+      { href: '/ventas/listado', label: 'Listado' },
     ],
   },
   {

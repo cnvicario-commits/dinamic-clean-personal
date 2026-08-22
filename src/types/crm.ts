@@ -59,3 +59,22 @@ export type OportunidadVista = CrmOportunidad & {
   crm_tipos_servicio: { nombre: string } | null
   perfiles: { nombre_completo: string } | null
 }
+
+// Vista más completa para el Listado tipo planilla: incluye los datos de
+// contacto del prospecto y el nombre del referidor, que el Tablero no
+// necesita mostrar.
+export type OportunidadListado = CrmOportunidad & {
+  crm_prospectos: {
+    id: string
+    nombre: string
+    tipo_cliente_id: string | null
+    contacto_nombre: string | null
+    telefono: string | null
+    email: string | null
+    referido_por_id: string | null
+    crm_tipos_cliente: { nombre: string } | null
+    crm_referidores: { nombre: string } | null
+  } | null
+  crm_tipos_servicio: { nombre: string } | null
+  perfiles: { nombre_completo: string } | null
+}
