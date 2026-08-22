@@ -136,6 +136,12 @@ export default function TableroVentas({
         </div>
         <div className="flex gap-2">
           <Link
+            href="/ventas/agenda"
+            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors"
+          >
+            Agenda
+          </Link>
+          <Link
             href="/ventas/listado"
             className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors"
           >
