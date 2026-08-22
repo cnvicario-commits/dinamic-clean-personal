@@ -24,20 +24,27 @@ function Tarjeta({ oportunidad }: { oportunidad: OportunidadVista }) {
   return (
     <div
       ref={setNodeRef}
-      {...listeners}
-      {...attributes}
       style={style}
-      className={`bg-white border border-slate-200 rounded-lg shadow-sm p-3 mb-2 cursor-grab active:cursor-grabbing touch-none ${
-        isDragging ? 'opacity-50 relative z-10' : ''
-      }`}
+      className={`bg-white border border-slate-200 rounded-lg shadow-sm p-3 mb-2 ${isDragging ? 'opacity-50 relative z-10' : ''}`}
     >
-      <p className="text-sm font-medium text-slate-800">{oportunidad.crm_prospectos?.nombre ?? '-'}</p>
-      <p className="text-xs text-slate-500 mt-0.5">{oportunidad.crm_tipos_servicio?.nombre ?? 'Sin tipo de servicio'}</p>
-      <p className="text-sm font-semibold text-teal-700 mt-1.5">$ {formatearMonto(oportunidad.monto_estimado)}</p>
-      <div className="flex items-center justify-between mt-2 text-xs text-slate-500">
-        <span>{formatearFecha(oportunidad.proxima_fecha_seguimiento)}</span>
-        <span>{oportunidad.perfiles?.nombre_completo ?? '-'}</span>
+      {/* El área de arrastre es solo esta parte (no toda la tarjeta), para
+          que el link "Ver detalle" de abajo se pueda clickear sin que
+          dnd-kit lo interprete como el inicio de un drag. */}
+      <div {...listeners} {...attributes} className="cursor-grab active:cursor-grabbing touch-none">
+        <p className="text-sm font-medium text-slate-800">{oportunidad.crm_prospectos?.nombre ?? '-'}</p>
+        <p className="text-xs text-slate-500 mt-0.5">{oportunidad.crm_tipos_servicio?.nombre ?? 'Sin tipo de servicio'}</p>
+        <p className="text-sm font-semibold text-teal-700 mt-1.5">$ {formatearMonto(oportunidad.monto_estimado)}</p>
+        <div className="flex items-center justify-between mt-2 text-xs text-slate-500">
+          <span>{formatearFecha(oportunidad.proxima_fecha_seguimiento)}</span>
+          <span>{oportunidad.perfiles?.nombre_completo ?? '-'}</span>
+        </div>
       </div>
+      <Link
+        href={`/ventas/${oportunidad.id}`}
+        className="block text-center text-xs text-teal-600 hover:underline mt-2 pt-2 border-t border-slate-100"
+      >
+        Ver detalle →
+      </Link>
     </div>
   )
 }

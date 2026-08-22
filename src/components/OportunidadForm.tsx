@@ -57,24 +57,28 @@ export default function OportunidadForm({
       return
     }
     setLoading(true)
-    const { error: errInsert } = await supabase.from('crm_oportunidades').insert({
-      prospecto_id: prospecto.id,
-      numero_referencia: numeroReferencia || null,
-      fecha_ingreso: fechaIngreso,
-      tipo_servicio_id: tipoServicioId || null,
-      cantidad_personal: cantidadPersonal ? Number(cantidadPersonal) : null,
-      monto_estimado: montoEstimado ? Number(montoEstimado) : null,
-      fecha_envio: fechaEnvio || null,
-      comision_monto: comisionMonto ? Number(comisionMonto) : null,
-      responsable_id: responsableId,
-      comentarios: comentarios || null,
-    })
+    const { data, error: errInsert } = await supabase
+      .from('crm_oportunidades')
+      .insert({
+        prospecto_id: prospecto.id,
+        numero_referencia: numeroReferencia || null,
+        fecha_ingreso: fechaIngreso,
+        tipo_servicio_id: tipoServicioId || null,
+        cantidad_personal: cantidadPersonal ? Number(cantidadPersonal) : null,
+        monto_estimado: montoEstimado ? Number(montoEstimado) : null,
+        fecha_envio: fechaEnvio || null,
+        comision_monto: comisionMonto ? Number(comisionMonto) : null,
+        responsable_id: responsableId,
+        comentarios: comentarios || null,
+      })
+      .select('id')
+      .single()
     setLoading(false)
-    if (errInsert) {
-      setError('Error al guardar: ' + errInsert.message)
+    if (errInsert || !data) {
+      setError('Error al guardar: ' + (errInsert?.message ?? 'desconocido'))
       return
     }
-    router.push('/ventas')
+    router.push(`/ventas/${data.id}`)
   }
 
   return (
