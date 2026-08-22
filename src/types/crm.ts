@@ -60,6 +60,24 @@ export type OportunidadVista = CrmOportunidad & {
   perfiles: { nombre_completo: string } | null
 }
 
+// Vista liviana para el Resumen ejecutivo: solo lo necesario para agrupar y
+// sumar (estado, monto, comisión, tipo de cliente, responsable) — no trae
+// datos de contacto ni de seguimiento, que ahí no se muestran.
+export type OportunidadResumen = {
+  id: string
+  estado: EstadoOportunidad
+  fecha_ingreso: string
+  monto_estimado: number | null
+  comision_monto: number | null
+  comision_liquidada: boolean
+  responsable_id: string
+  crm_prospectos: {
+    tipo_cliente_id: string | null
+    crm_tipos_cliente: { nombre: string } | null
+  } | null
+  perfiles: { nombre_completo: string } | null
+}
+
 // Vista más completa para el Listado tipo planilla: incluye los datos de
 // contacto del prospecto y el nombre del referidor, que el Tablero no
 // necesita mostrar.

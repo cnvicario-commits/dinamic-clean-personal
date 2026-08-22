@@ -148,6 +148,12 @@ export default function TableroVentas({
             Ver listado
           </Link>
           <Link
+            href="/ventas/resumen"
+            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors"
+          >
+            Resumen ejecutivo
+          </Link>
+          <Link
             href="/ventas/nueva"
             className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition-colors"
           >
