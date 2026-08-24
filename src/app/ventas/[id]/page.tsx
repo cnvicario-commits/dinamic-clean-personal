@@ -2,25 +2,12 @@ import Link from 'next/link'
 import { createClient } from '@/utils/supabase/server'
 import EstadoOportunidadBadge from '@/components/EstadoOportunidadBadge'
 import RegistrarSeguimientoForm from '@/components/RegistrarSeguimientoForm'
-import { nombreResponsable, nombreUsuarioSeguimiento } from '@/types/crm'
+import DatosOportunidad from '@/components/DatosOportunidad'
+import { nombreUsuarioSeguimiento } from '@/types/crm'
 
 function formatearFecha(fecha: string | null) {
   if (!fecha) return '-'
   return new Date(`${fecha}T00:00:00`).toLocaleDateString('es-AR')
-}
-
-function formatearMonto(valor: number | null) {
-  if (valor === null) return '-'
-  return valor.toLocaleString('es-AR', { minimumFractionDigits: 2 })
-}
-
-function Campo({ etiqueta, valor }: { etiqueta: string; valor: string }) {
-  return (
-    <div>
-      <p className="text-xs text-slate-500">{etiqueta}</p>
-      <p className="text-sm text-slate-800">{valor}</p>
-    </div>
-  )
 }
 
 export default async function FichaOportunidadPage({
@@ -58,6 +45,12 @@ export default async function FichaOportunidadPage({
     .order('fecha_contacto', { ascending: false })
     .order('created_at', { ascending: false })
 
+  const { data: tiposServicio } = await supabase
+    .from('crm_tipos_servicio')
+    .select('id, nombre')
+    .eq('activo', true)
+    .order('nombre')
+
   const prospecto = oportunidad.crm_prospectos
 
   return (
@@ -70,39 +63,8 @@ export default async function FichaOportunidadPage({
         <h1 className="text-2xl font-bold text-slate-900">{prospecto?.nombre ?? '-'}</h1>
         <EstadoOportunidadBadge estado={oportunidad.estado} />
       </div>
-      <div className="mb-6">
-        {oportunidad.numero_referencia && (
-          <p className="text-sm text-slate-500">Ref: {oportunidad.numero_referencia}</p>
-        )}
-      </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 bg-white border border-slate-200 rounded-lg shadow-sm p-4 mb-6">
-        <Campo etiqueta="Tipo de cliente" valor={prospecto?.crm_tipos_cliente?.nombre ?? '-'} />
-        <Campo etiqueta="Contacto" valor={prospecto?.contacto_nombre ?? '-'} />
-        <Campo etiqueta="Teléfono" valor={prospecto?.telefono ?? '-'} />
-        <Campo etiqueta="Email" valor={prospecto?.email ?? '-'} />
-        <Campo etiqueta="Referido por" valor={prospecto?.crm_referidores?.nombre ?? '-'} />
-        <Campo etiqueta="Tipo de servicio" valor={oportunidad.crm_tipos_servicio?.nombre ?? '-'} />
-        <Campo etiqueta="Cantidad de personal" valor={oportunidad.cantidad_personal?.toString() ?? '-'} />
-        <Campo etiqueta="Monto estimado" valor={`$ ${formatearMonto(oportunidad.monto_estimado)}`} />
-        <Campo
-          etiqueta="Comisión"
-          valor={
-            oportunidad.comision_monto
-              ? `$ ${formatearMonto(oportunidad.comision_monto)} (${oportunidad.comision_liquidada ? 'liquidada' : 'pendiente'})`
-              : '-'
-          }
-        />
-        <Campo etiqueta="Fecha de ingreso" valor={formatearFecha(oportunidad.fecha_ingreso)} />
-        <Campo etiqueta="Fecha de envío" valor={formatearFecha(oportunidad.fecha_envio)} />
-        <Campo etiqueta="Fecha de cierre" valor={formatearFecha(oportunidad.fecha_cierre)} />
-        <Campo etiqueta="Próximo seguimiento" valor={formatearFecha(oportunidad.proxima_fecha_seguimiento)} />
-        <Campo etiqueta="Responsable" valor={nombreResponsable(oportunidad)} />
-      </div>
-
-      {oportunidad.comentarios && (
-        <p className="text-sm text-slate-600 mb-6">Comentarios: {oportunidad.comentarios}</p>
-      )}
+      <DatosOportunidad oportunidad={oportunidad} tiposServicio={tiposServicio ?? []} />
 
       <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
         Historial de seguimientos ({seguimientos?.length ?? 0})
