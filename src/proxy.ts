@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { puedeAcceder, type Rol } from '@/utils/permisos'
 
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -43,6 +44,22 @@ export async function proxy(request: NextRequest) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
+  }
+
+  // Control de acceso por rol: solo a nivel de app (oculta/bloquea la
+  // navegación), no reemplaza RLS. Ver src/utils/permisos.ts.
+  if (session && request.nextUrl.pathname !== '/login') {
+    const { data: perfil } = await supabase
+      .from('perfiles')
+      .select('rol')
+      .eq('id', session.user.id)
+      .single()
+
+    if (!puedeAcceder((perfil?.rol as Rol) ?? null, request.nextUrl.pathname)) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/sin-acceso'
+      return NextResponse.redirect(url)
+    }
   }
 
   return supabaseResponse

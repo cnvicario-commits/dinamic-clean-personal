@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import LogoutButton from './LogoutButton'
+import { puedeAcceder, type Rol } from '@/utils/permisos'
 
 type Enlace = { href: string; label: string }
 type Grupo = { id: string; label: string; enlaces: Enlace[] }
@@ -12,6 +13,7 @@ const transversales: Enlace[] = [
   { href: '/clientes', label: 'Clientes' },
   { href: '/empresas', label: 'Empresas' },
   { href: '/resultados', label: 'Resultados' },
+  { href: '/usuarios', label: 'Usuarios' },
 ]
 
 const grupos: Grupo[] = [
@@ -61,19 +63,28 @@ function ChevronAbajo({ className = '' }: { className?: string }) {
   )
 }
 
-export default function NavBar() {
+export default function NavBar({ rol }: { rol: Rol | null }) {
   const [abierto, setAbierto] = useState(false) // menú mobile (hamburguesa)
   const [gruposAbiertos, setGruposAbiertos] = useState<Set<string>>(new Set())
   const pathname = usePathname()
+
+  // Mismo criterio que src/proxy.ts (que es quien realmente bloquea la
+  // navegación): acá solo se ocultan los links que el rol no puede usar. Un
+  // grupo sin ningún link visible no se muestra.
+  const transversalesVisibles = transversales.filter((link) => puedeAcceder(rol, link.href))
+  const gruposVisibles = grupos
+    .map((grupo) => ({ ...grupo, enlaces: grupo.enlaces.filter((link) => puedeAcceder(rol, link.href)) }))
+    .filter((grupo) => grupo.enlaces.length > 0)
 
   // Si la pantalla activa pertenece a un grupo, ese grupo arranca expandido
   // en el sidebar, para que el link activo sea visible sin tener que
   // desplegarlo a mano.
   useEffect(() => {
-    const grupoActivo = grupos.find((g) => g.enlaces.some((e) => esActivo(pathname, e.href)))
+    const grupoActivo = gruposVisibles.find((g) => g.enlaces.some((e) => esActivo(pathname, e.href)))
     if (grupoActivo) {
       setGruposAbiertos((prev) => (prev.has(grupoActivo.id) ? prev : new Set(prev).add(grupoActivo.id)))
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname])
 
   function toggleGrupo(id: string) {
@@ -117,7 +128,7 @@ export default function NavBar() {
 
         {abierto && (
           <div className="flex flex-col px-4 pb-4 gap-3 border-t border-slate-800 pt-3">
-            {transversales.map((link) => (
+            {transversalesVisibles.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -127,7 +138,7 @@ export default function NavBar() {
                 {link.label}
               </Link>
             ))}
-            {grupos.map((grupo) => (
+            {gruposVisibles.map((grupo) => (
               <div key={grupo.id} className="flex flex-col gap-3">
                 <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mt-1">{grupo.label}</p>
                 {grupo.enlaces.map((link) => (
@@ -156,7 +167,7 @@ export default function NavBar() {
         </div>
 
         <div className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-1">
-          {transversales.map((link) => (
+          {transversalesVisibles.map((link) => (
             <Link
               key={link.href}
               href={link.href}
@@ -166,7 +177,7 @@ export default function NavBar() {
             </Link>
           ))}
 
-          {grupos.map((grupo) => {
+          {gruposVisibles.map((grupo) => {
             const grupoActivo = grupo.enlaces.some((e) => esActivo(pathname, e.href))
             const expandido = gruposAbiertos.has(grupo.id)
             return (
