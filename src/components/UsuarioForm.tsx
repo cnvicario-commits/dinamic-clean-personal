@@ -24,23 +24,32 @@ export default function UsuarioForm() {
       return
     }
     setLoading(true)
-    const res = await fetch('/api/usuarios', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nombreCompleto: nombreCompleto.trim(), email: email.trim(), password, rol }),
-    })
-    const data = await res.json()
-    setLoading(false)
-    if (!res.ok) {
-      setError(data.error ?? 'Error al crear el usuario.')
-      return
+    try {
+      const res = await fetch('/api/usuarios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombreCompleto: nombreCompleto.trim(), email: email.trim(), password, rol }),
+      })
+      // Si el servidor se cae o tarda demasiado, la respuesta puede no ser
+      // JSON válido (ej. una página de error de Vercel) — sin este catch,
+      // res.json() explota y el botón queda trabado en "Creando..." para
+      // siempre, sin mostrar ningún error.
+      const data = await res.json().catch(() => ({ error: 'El servidor no respondió correctamente. Probá de nuevo en un momento.' }))
+      if (!res.ok) {
+        setError(data.error ?? 'Error al crear el usuario.')
+        return
+      }
+      setNombreCompleto('')
+      setEmail('')
+      setPassword('')
+      setRol('')
+      setOk(true)
+      router.refresh()
+    } catch {
+      setError('No se pudo conectar con el servidor. Probá de nuevo.')
+    } finally {
+      setLoading(false)
     }
-    setNombreCompleto('')
-    setEmail('')
-    setPassword('')
-    setRol('')
-    setOk(true)
-    router.refresh()
   }
 
   return (

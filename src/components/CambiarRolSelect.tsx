@@ -13,19 +13,25 @@ export default function CambiarRolSelect({ perfilId, rolActual }: { perfilId: st
     setRol(nuevoRol)
     setError('')
     setLoading(true)
-    const res = await fetch('/api/usuarios', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: perfilId, rol: nuevoRol }),
-    })
-    const data = await res.json()
-    setLoading(false)
-    if (!res.ok) {
-      setError(data.error ?? 'Error al cambiar el rol.')
+    try {
+      const res = await fetch('/api/usuarios', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: perfilId, rol: nuevoRol }),
+      })
+      const data = await res.json().catch(() => ({ error: 'El servidor no respondió correctamente. Probá de nuevo en un momento.' }))
+      if (!res.ok) {
+        setError(data.error ?? 'Error al cambiar el rol.')
+        setRol(rolActual ?? '')
+        return
+      }
+      router.refresh()
+    } catch {
+      setError('No se pudo conectar con el servidor. Probá de nuevo.')
       setRol(rolActual ?? '')
-      return
+    } finally {
+      setLoading(false)
     }
-    router.refresh()
   }
 
   return (
