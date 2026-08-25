@@ -93,19 +93,36 @@ export async function PATCH(request: Request) {
     }
 
     const body = await request.json()
-    const { id, rol } = body as { id?: string; rol?: string }
+    const { id, rol, password } = body as { id?: string; rol?: string; password?: string }
 
-    if (!id || !rol) {
-      return NextResponse.json({ error: 'Faltan datos: id y rol son obligatorios.' }, { status: 400 })
+    if (!id) {
+      return NextResponse.json({ error: 'Falta el id del usuario.' }, { status: 400 })
     }
-    if (!ROLES_VALIDOS.includes(rol as (typeof ROLES_VALIDOS)[number])) {
-      return NextResponse.json({ error: 'Rol inválido.' }, { status: 400 })
+    if (!rol && !password) {
+      return NextResponse.json({ error: 'No hay nada para actualizar.' }, { status: 400 })
     }
 
     const admin = createAdminClient()
-    const { error } = await admin.from('perfiles').update({ rol }).eq('id', id)
-    if (error) {
-      return NextResponse.json({ error: 'Error al actualizar el rol: ' + error.message }, { status: 500 })
+
+    // rol y password son independientes: se puede mandar uno solo o los dos.
+    if (rol) {
+      if (!ROLES_VALIDOS.includes(rol as (typeof ROLES_VALIDOS)[number])) {
+        return NextResponse.json({ error: 'Rol inválido.' }, { status: 400 })
+      }
+      const { error } = await admin.from('perfiles').update({ rol }).eq('id', id)
+      if (error) {
+        return NextResponse.json({ error: 'Error al actualizar el rol: ' + error.message }, { status: 500 })
+      }
+    }
+
+    if (password) {
+      if (password.length < 6) {
+        return NextResponse.json({ error: 'La contraseña tiene que tener al menos 6 caracteres.' }, { status: 400 })
+      }
+      const { error } = await admin.auth.admin.updateUserById(id, { password })
+      if (error) {
+        return NextResponse.json({ error: 'Error al cambiar la contraseña: ' + error.message }, { status: 500 })
+      }
     }
 
     return NextResponse.json({ ok: true })

@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import UsuarioForm from '@/components/UsuarioForm'
 import CambiarRolSelect from '@/components/CambiarRolSelect'
+import CambiarPasswordBoton from '@/components/CambiarPasswordBoton'
 import { ROLES, type Rol } from '@/utils/permisos'
 
 export default async function UsuariosPage() {
@@ -43,6 +44,7 @@ export default async function UsuariosPage() {
             <tr className="bg-slate-50 text-left text-slate-500 border-b border-slate-200">
               <th className="px-4 py-3 font-medium">Nombre</th>
               <th className="px-4 py-3 font-medium">Rol</th>
+              <th className="px-4 py-3 font-medium">Contraseña</th>
             </tr>
           </thead>
           <tbody>
@@ -51,6 +53,9 @@ export default async function UsuariosPage() {
                 <td className="px-4 py-3 text-slate-800">{p.nombre_completo}</td>
                 <td className="px-4 py-3">
                   <CambiarRolSelect perfilId={p.id} rolActual={(p.rol as Rol) ?? null} />
+                </td>
+                <td className="px-4 py-3">
+                  <CambiarPasswordBoton perfilId={p.id} />
                 </td>
               </tr>
             ))}
