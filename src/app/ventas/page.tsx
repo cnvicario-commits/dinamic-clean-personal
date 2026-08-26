@@ -8,7 +8,7 @@ export default async function VentasPage() {
     supabase
       .from('crm_oportunidades')
       .select(
-        '*, crm_prospectos(id, nombre, tipo_cliente_id), crm_tipos_servicio(nombre), perfiles(nombre_completo)'
+        '*, crm_prospectos(id, nombre, tipo_cliente_id, contacto_nombre, telefono), crm_tipos_servicio(nombre), perfiles(nombre_completo)'
       )
       .order('created_at', { ascending: false }),
     supabase.from('perfiles').select('id, nombre_completo').order('nombre_completo'),

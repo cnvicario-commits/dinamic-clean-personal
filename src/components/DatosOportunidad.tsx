@@ -3,7 +3,9 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import SelectConCrear from './SelectConCrear'
+import BotonWhatsApp from './BotonWhatsApp'
 import { nombreResponsable, type CatalogoItem } from '@/types/crm'
+import { mensajeSaludoWhatsapp } from '@/utils/whatsapp'
 
 function formatearFecha(fecha: string | null) {
   if (!fecha) return '-'
@@ -45,6 +47,7 @@ export default function DatosOportunidad({
     comentarios: string | null
     crm_tipos_servicio: { nombre: string } | null
     crm_prospectos: {
+      nombre: string
       crm_tipos_cliente: { nombre: string } | null
       contacto_nombre: string | null
       telefono: string | null
@@ -127,24 +130,30 @@ export default function DatosOportunidad({
         ) : (
           oportunidad.numero_referencia && <p className="text-sm text-slate-500">Ref: {oportunidad.numero_referencia}</p>
         )}
-        {!editando ? (
-          <button
-            type="button"
-            onClick={() => setEditando(true)}
-            className="text-sm text-teal-600 hover:underline"
-          >
-            Editar
-          </button>
-        ) : (
-          <div className="flex gap-3">
-            <button type="button" onClick={cancelar} className="text-sm text-slate-500 hover:underline" disabled={loading}>
-              Cancelar
+        <div className="flex items-center gap-3">
+          <BotonWhatsApp
+            telefono={prospecto?.telefono}
+            mensaje={mensajeSaludoWhatsapp(prospecto?.contacto_nombre, prospecto?.nombre ?? '', oportunidad.crm_tipos_servicio?.nombre)}
+          />
+          {!editando ? (
+            <button
+              type="button"
+              onClick={() => setEditando(true)}
+              className="text-sm text-teal-600 hover:underline"
+            >
+              Editar
             </button>
-            <button type="button" onClick={guardar} className="text-sm text-teal-600 font-medium hover:underline" disabled={loading}>
-              {loading ? 'Guardando...' : 'Guardar cambios'}
-            </button>
-          </div>
-        )}
+          ) : (
+            <div className="flex gap-3">
+              <button type="button" onClick={cancelar} className="text-sm text-slate-500 hover:underline" disabled={loading}>
+                Cancelar
+              </button>
+              <button type="button" onClick={guardar} className="text-sm text-teal-600 font-medium hover:underline" disabled={loading}>
+                {loading ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {error && <p className="text-rose-600 text-sm mb-2">{error}</p>}

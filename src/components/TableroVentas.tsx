@@ -3,7 +3,9 @@ import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { DndContext, useDraggable, useDroppable, type DragEndEvent } from '@dnd-kit/core'
 import { createClient } from '@/utils/supabase/client'
+import BotonWhatsApp from './BotonWhatsApp'
 import { ESTADOS, nombreResponsable, type OportunidadVista, type EstadoOportunidad, type PerfilResumen, type CatalogoItem } from '@/types/crm'
+import { mensajeSaludoWhatsapp } from '@/utils/whatsapp'
 
 function formatearMonto(valor: number | null): string {
   if (valor === null) return '-'
@@ -39,12 +41,23 @@ function Tarjeta({ oportunidad }: { oportunidad: OportunidadVista }) {
           <span>{nombreResponsable(oportunidad)}</span>
         </div>
       </div>
-      <Link
-        href={`/ventas/${oportunidad.id}`}
-        className="block text-center text-xs text-teal-600 hover:underline mt-2 pt-2 border-t border-slate-100"
-      >
-        Ver detalle →
-      </Link>
+      <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100">
+        <Link
+          href={`/ventas/${oportunidad.id}`}
+          className="flex-1 text-center text-xs text-teal-600 hover:underline"
+        >
+          Ver detalle →
+        </Link>
+        <BotonWhatsApp
+          telefono={oportunidad.crm_prospectos?.telefono}
+          mensaje={mensajeSaludoWhatsapp(
+            oportunidad.crm_prospectos?.contacto_nombre,
+            oportunidad.crm_prospectos?.nombre ?? '',
+            oportunidad.crm_tipos_servicio?.nombre
+          )}
+          className="text-xs text-emerald-600 hover:underline"
+        />
+      </div>
     </div>
   )
 }

@@ -71,7 +71,13 @@ export function nombreUsuarioSeguimiento(s: { perfiles: { nombre_completo: strin
 // component): prospecto (+ su tipo de cliente, para poder filtrar), tipo de
 // servicio y responsable.
 export type OportunidadVista = CrmOportunidad & {
-  crm_prospectos: { id: string; nombre: string; tipo_cliente_id: string | null } | null
+  crm_prospectos: {
+    id: string
+    nombre: string
+    tipo_cliente_id: string | null
+    contacto_nombre: string | null
+    telefono: string | null
+  } | null
   crm_tipos_servicio: { nombre: string } | null
   perfiles: { nombre_completo: string } | null
 }
