@@ -7,13 +7,30 @@ export default function BotonWhatsApp({
   telefono,
   mensaje,
   className,
+  classNameDeshabilitado,
 }: {
   telefono: string | null | undefined
   mensaje: string
   className?: string
+  classNameDeshabilitado?: string
 }) {
   const link = armarLinkWhatsapp(telefono, mensaje)
-  if (!link) return null
+
+  if (!link) {
+    // Siempre visible (a pedido), pero sin acción: así queda claro que la
+    // opción existe y por qué no se puede usar todavía para este prospecto.
+    return (
+      <span
+        title="Este prospecto no tiene un teléfono cargado"
+        className={
+          classNameDeshabilitado ??
+          'inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-400 text-xs font-medium rounded-lg cursor-not-allowed'
+        }
+      >
+        Enviar WhatsApp
+      </span>
+    )
+  }
 
   return (
     <a

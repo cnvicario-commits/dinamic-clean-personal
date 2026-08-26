@@ -56,6 +56,7 @@ function Tarjeta({ oportunidad }: { oportunidad: OportunidadVista }) {
             oportunidad.crm_tipos_servicio?.nombre
           )}
           className="text-xs text-emerald-600 hover:underline"
+          classNameDeshabilitado="text-xs text-slate-300 cursor-not-allowed"
         />
       </div>
     </div>
