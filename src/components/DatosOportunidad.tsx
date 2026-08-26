@@ -46,6 +46,7 @@ export default function DatosOportunidad({
     comentarios: string | null
     crm_tipos_servicio: { nombre: string } | null
     crm_prospectos: {
+      id: string
       nombre: string
       crm_tipos_cliente: { nombre: string } | null
       contacto_nombre: string | null
@@ -68,6 +69,7 @@ export default function DatosOportunidad({
   const [comisionMonto, setComisionMonto] = useState(oportunidad.comision_monto?.toString() ?? '')
   const [comisionLiquidada, setComisionLiquidada] = useState(oportunidad.comision_liquidada)
   const [comentarios, setComentarios] = useState(oportunidad.comentarios ?? '')
+  const [telefono, setTelefono] = useState(oportunidad.crm_prospectos?.telefono ?? '')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -84,6 +86,7 @@ export default function DatosOportunidad({
     setComisionMonto(oportunidad.comision_monto?.toString() ?? '')
     setComisionLiquidada(oportunidad.comision_liquidada)
     setComentarios(oportunidad.comentarios ?? '')
+    setTelefono(oportunidad.crm_prospectos?.telefono ?? '')
     setError('')
     setEditando(false)
   }
@@ -104,11 +107,27 @@ export default function DatosOportunidad({
         comentarios: comentarios.trim() || null,
       })
       .eq('id', oportunidad.id)
-    setLoading(false)
     if (errUpdate) {
+      setLoading(false)
       setError('Error al guardar: ' + errUpdate.message)
       return
     }
+
+    // El teléfono vive en crm_prospectos, no en crm_oportunidades — se
+    // actualiza aparte, sobre el prospecto de esta oportunidad.
+    if (oportunidad.crm_prospectos) {
+      const { error: errProspecto } = await supabase
+        .from('crm_prospectos')
+        .update({ telefono: telefono.trim() || null })
+        .eq('id', oportunidad.crm_prospectos.id)
+      if (errProspecto) {
+        setLoading(false)
+        setError('Se guardó la oportunidad, pero falló el teléfono: ' + errProspecto.message)
+        return
+      }
+    }
+
+    setLoading(false)
     setEditando(false)
     router.refresh()
   }
@@ -155,10 +174,21 @@ export default function DatosOportunidad({
       {error && <p className="text-rose-600 text-sm mb-2">{error}</p>}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 bg-white border border-slate-200 rounded-lg shadow-sm p-4">
-        {/* Datos del prospecto: no se editan acá (viven en crm_prospectos). */}
+        {/* Datos del prospecto: no se editan acá (viven en crm_prospectos),
+            salvo el teléfono — se usa para el botón de WhatsApp y muchas
+            veces se carga o se corrige después del alta. */}
         <Campo etiqueta="Tipo de cliente" valor={prospecto?.crm_tipos_cliente?.nombre ?? '-'} />
         <Campo etiqueta="Contacto" valor={prospecto?.contacto_nombre ?? '-'} />
-        <Campo etiqueta="Teléfono" valor={prospecto?.telefono ?? '-'} />
+
+        {editando ? (
+          <div>
+            <p className="text-xs text-slate-500 mb-1">Teléfono</p>
+            <input type="text" value={telefono} onChange={(e) => setTelefono(e.target.value)} className={inputStyle} />
+          </div>
+        ) : (
+          <Campo etiqueta="Teléfono" valor={prospecto?.telefono ?? '-'} />
+        )}
+
         <Campo etiqueta="Email" valor={prospecto?.email ?? '-'} />
         <Campo etiqueta="Referido por" valor={prospecto?.crm_referidores?.nombre ?? '-'} />
 
