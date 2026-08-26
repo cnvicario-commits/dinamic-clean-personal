@@ -30,6 +30,8 @@ const inputStyle = 'w-full px-2 py-1 border border-slate-300 rounded-md text-sm 
 export default function DatosOportunidad({
   oportunidad,
   tiposServicio,
+  tiposCliente,
+  referidores,
 }: {
   oportunidad: {
     id: string
@@ -48,17 +50,23 @@ export default function DatosOportunidad({
     crm_prospectos: {
       id: string
       nombre: string
-      crm_tipos_cliente: { nombre: string } | null
+      tipo_cliente_id: string | null
       contacto_nombre: string | null
       telefono: string | null
       email: string | null
+      referido_por_id: string | null
+      crm_tipos_cliente: { nombre: string } | null
       crm_referidores: { nombre: string } | null
     } | null
     perfiles: { nombre_completo: string } | null
     responsable_nombre_libre: string | null
   }
   tiposServicio: CatalogoItem[]
+  tiposCliente: CatalogoItem[]
+  referidores: CatalogoItem[]
 }) {
+  const prospecto = oportunidad.crm_prospectos
+
   const [editando, setEditando] = useState(false)
   const [numeroReferencia, setNumeroReferencia] = useState(oportunidad.numero_referencia ?? '')
   const [tipoServicioId, setTipoServicioId] = useState(oportunidad.tipo_servicio_id ?? '')
@@ -69,7 +77,17 @@ export default function DatosOportunidad({
   const [comisionMonto, setComisionMonto] = useState(oportunidad.comision_monto?.toString() ?? '')
   const [comisionLiquidada, setComisionLiquidada] = useState(oportunidad.comision_liquidada)
   const [comentarios, setComentarios] = useState(oportunidad.comentarios ?? '')
-  const [telefono, setTelefono] = useState(oportunidad.crm_prospectos?.telefono ?? '')
+
+  // Datos del prospecto (viven en crm_prospectos, no en crm_oportunidades):
+  // es dinámico, la info de contacto puede cambiar con el tiempo.
+  const [tipoClienteId, setTipoClienteId] = useState(prospecto?.tipo_cliente_id ?? '')
+  const [tiposClienteState, setTiposClienteState] = useState(tiposCliente)
+  const [contactoNombre, setContactoNombre] = useState(prospecto?.contacto_nombre ?? '')
+  const [telefono, setTelefono] = useState(prospecto?.telefono ?? '')
+  const [email, setEmail] = useState(prospecto?.email ?? '')
+  const [referidoPorId, setReferidoPorId] = useState(prospecto?.referido_por_id ?? '')
+  const [referidoresState, setReferidoresState] = useState(referidores)
+
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -86,7 +104,11 @@ export default function DatosOportunidad({
     setComisionMonto(oportunidad.comision_monto?.toString() ?? '')
     setComisionLiquidada(oportunidad.comision_liquidada)
     setComentarios(oportunidad.comentarios ?? '')
-    setTelefono(oportunidad.crm_prospectos?.telefono ?? '')
+    setTipoClienteId(prospecto?.tipo_cliente_id ?? '')
+    setContactoNombre(prospecto?.contacto_nombre ?? '')
+    setTelefono(prospecto?.telefono ?? '')
+    setEmail(prospecto?.email ?? '')
+    setReferidoPorId(prospecto?.referido_por_id ?? '')
     setError('')
     setEditando(false)
   }
@@ -94,6 +116,7 @@ export default function DatosOportunidad({
   async function guardar() {
     setError('')
     setLoading(true)
+
     const { error: errUpdate } = await supabase
       .from('crm_oportunidades')
       .update({
@@ -113,16 +136,22 @@ export default function DatosOportunidad({
       return
     }
 
-    // El teléfono vive en crm_prospectos, no en crm_oportunidades — se
-    // actualiza aparte, sobre el prospecto de esta oportunidad.
-    if (oportunidad.crm_prospectos) {
+    // Los datos de contacto viven en crm_prospectos, no en crm_oportunidades
+    // — se actualizan aparte, sobre el prospecto de esta oportunidad.
+    if (prospecto) {
       const { error: errProspecto } = await supabase
         .from('crm_prospectos')
-        .update({ telefono: telefono.trim() || null })
-        .eq('id', oportunidad.crm_prospectos.id)
+        .update({
+          tipo_cliente_id: tipoClienteId || null,
+          contacto_nombre: contactoNombre.trim() || null,
+          telefono: telefono.trim() || null,
+          email: email.trim() || null,
+          referido_por_id: referidoPorId || null,
+        })
+        .eq('id', prospecto.id)
       if (errProspecto) {
         setLoading(false)
-        setError('Se guardó la oportunidad, pero falló el teléfono: ' + errProspecto.message)
+        setError('Se guardó la oportunidad, pero falló el prospecto: ' + errProspecto.message)
         return
       }
     }
@@ -131,8 +160,6 @@ export default function DatosOportunidad({
     setEditando(false)
     router.refresh()
   }
-
-  const prospecto = oportunidad.crm_prospectos
 
   return (
     <div className="mb-6">
@@ -174,11 +201,33 @@ export default function DatosOportunidad({
       {error && <p className="text-rose-600 text-sm mb-2">{error}</p>}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 bg-white border border-slate-200 rounded-lg shadow-sm p-4">
-        {/* Datos del prospecto: no se editan acá (viven en crm_prospectos),
-            salvo el teléfono — se usa para el botón de WhatsApp y muchas
-            veces se carga o se corrige después del alta. */}
-        <Campo etiqueta="Tipo de cliente" valor={prospecto?.crm_tipos_cliente?.nombre ?? '-'} />
-        <Campo etiqueta="Contacto" valor={prospecto?.contacto_nombre ?? '-'} />
+        {editando ? (
+          <div>
+            <p className="text-xs text-slate-500 mb-1">Tipo de cliente</p>
+            <SelectConCrear
+              tabla="crm_tipos_cliente"
+              items={tiposClienteState}
+              value={tipoClienteId}
+              onChange={(id, items) => {
+                setTipoClienteId(id)
+                setTiposClienteState(items)
+              }}
+              placeholder="Elegir tipo de cliente"
+              className={inputStyle}
+            />
+          </div>
+        ) : (
+          <Campo etiqueta="Tipo de cliente" valor={prospecto?.crm_tipos_cliente?.nombre ?? '-'} />
+        )}
+
+        {editando ? (
+          <div>
+            <p className="text-xs text-slate-500 mb-1">Contacto</p>
+            <input type="text" value={contactoNombre} onChange={(e) => setContactoNombre(e.target.value)} className={inputStyle} />
+          </div>
+        ) : (
+          <Campo etiqueta="Contacto" valor={prospecto?.contacto_nombre ?? '-'} />
+        )}
 
         {editando ? (
           <div>
@@ -189,8 +238,33 @@ export default function DatosOportunidad({
           <Campo etiqueta="Teléfono" valor={prospecto?.telefono ?? '-'} />
         )}
 
-        <Campo etiqueta="Email" valor={prospecto?.email ?? '-'} />
-        <Campo etiqueta="Referido por" valor={prospecto?.crm_referidores?.nombre ?? '-'} />
+        {editando ? (
+          <div>
+            <p className="text-xs text-slate-500 mb-1">Email</p>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputStyle} />
+          </div>
+        ) : (
+          <Campo etiqueta="Email" valor={prospecto?.email ?? '-'} />
+        )}
+
+        {editando ? (
+          <div>
+            <p className="text-xs text-slate-500 mb-1">Referido por</p>
+            <SelectConCrear
+              tabla="crm_referidores"
+              items={referidoresState}
+              value={referidoPorId}
+              onChange={(id, items) => {
+                setReferidoPorId(id)
+                setReferidoresState(items)
+              }}
+              placeholder="Referido por (opcional)"
+              className={inputStyle}
+            />
+          </div>
+        ) : (
+          <Campo etiqueta="Referido por" valor={prospecto?.crm_referidores?.nombre ?? '-'} />
+        )}
 
         {editando ? (
           <div>

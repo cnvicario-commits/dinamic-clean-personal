@@ -21,7 +21,7 @@ export default async function FichaOportunidadPage({
   const { data: oportunidad } = await supabase
     .from('crm_oportunidades')
     .select(
-      '*, crm_prospectos(id, nombre, contacto_nombre, telefono, email, crm_tipos_cliente(nombre), crm_referidores(nombre)), crm_tipos_servicio(nombre), perfiles(nombre_completo)'
+      '*, crm_prospectos(id, nombre, contacto_nombre, telefono, email, tipo_cliente_id, referido_por_id, crm_tipos_cliente(nombre), crm_referidores(nombre)), crm_tipos_servicio(nombre), perfiles(nombre_completo)'
     )
     .eq('id', id)
     .single()
@@ -45,11 +45,11 @@ export default async function FichaOportunidadPage({
     .order('fecha_contacto', { ascending: false })
     .order('created_at', { ascending: false })
 
-  const { data: tiposServicio } = await supabase
-    .from('crm_tipos_servicio')
-    .select('id, nombre')
-    .eq('activo', true)
-    .order('nombre')
+  const [{ data: tiposServicio }, { data: tiposCliente }, { data: referidores }] = await Promise.all([
+    supabase.from('crm_tipos_servicio').select('id, nombre').eq('activo', true).order('nombre'),
+    supabase.from('crm_tipos_cliente').select('id, nombre').eq('activo', true).order('nombre'),
+    supabase.from('crm_referidores').select('id, nombre').eq('activo', true).order('nombre'),
+  ])
 
   const prospecto = oportunidad.crm_prospectos
 
@@ -64,7 +64,12 @@ export default async function FichaOportunidadPage({
         <EstadoOportunidadBadge estado={oportunidad.estado} />
       </div>
 
-      <DatosOportunidad oportunidad={oportunidad} tiposServicio={tiposServicio ?? []} />
+      <DatosOportunidad
+        oportunidad={oportunidad}
+        tiposServicio={tiposServicio ?? []}
+        tiposCliente={tiposCliente ?? []}
+        referidores={referidores ?? []}
+      />
 
       <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
         Historial de seguimientos ({seguimientos?.length ?? 0})
