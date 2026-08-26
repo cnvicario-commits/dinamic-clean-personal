@@ -5,16 +5,14 @@ import { armarLinkWhatsapp } from '@/utils/whatsapp'
 // tarjeta del Kanban (client component).
 export default function BotonWhatsApp({
   telefono,
-  mensaje,
   className,
   classNameDeshabilitado,
 }: {
   telefono: string | null | undefined
-  mensaje: string
   className?: string
   classNameDeshabilitado?: string
 }) {
-  const link = armarLinkWhatsapp(telefono, mensaje)
+  const link = armarLinkWhatsapp(telefono)
 
   if (!link) {
     // Siempre visible (a pedido), pero sin acción: así queda claro que la

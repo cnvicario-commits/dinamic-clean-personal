@@ -1,6 +1,7 @@
 // Arma links "click to chat" de WhatsApp (wa.me) para prospectos del CRM de
 // ventas. No usa ninguna librería ni API: es el formato estándar
-// https://wa.me/<numero>?text=<mensaje>.
+// https://wa.me/<numero> (sin mensaje precargado, a pedido — abre el chat
+// con el campo de texto en blanco).
 
 // Limpia un teléfono guardado en formato local argentino (con espacios,
 // guiones, con o sin 0/15) y lo deja en el formato que espera WhatsApp:
@@ -29,22 +30,9 @@ export function limpiarTelefono(raw: string): string | null {
   return digits
 }
 
-export function armarLinkWhatsapp(telefono: string | null | undefined, mensaje: string): string | null {
+export function armarLinkWhatsapp(telefono: string | null | undefined): string | null {
   if (!telefono) return null
   const limpio = limpiarTelefono(telefono)
   if (!limpio) return null
-  return `https://wa.me/${limpio}?text=${encodeURIComponent(mensaje)}`
-}
-
-// Mensaje precargado (editable por quien lo manda antes de enviarlo, como
-// cualquier link de WhatsApp): saluda al contacto si hay uno cargado, si no
-// al prospecto por su nombre, y menciona el tipo de servicio si se conoce.
-export function mensajeSaludoWhatsapp(
-  nombreContacto: string | null | undefined,
-  nombreProspecto: string,
-  tipoServicio: string | null | undefined
-): string {
-  const saludo = nombreContacto || nombreProspecto
-  const motivo = tipoServicio ? ` por ${tipoServicio}` : ''
-  return `Hola ${saludo}, te escribo de Dinamic Clean${motivo}.`
+  return `https://wa.me/${limpio}`
 }

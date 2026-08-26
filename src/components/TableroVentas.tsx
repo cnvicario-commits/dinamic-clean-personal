@@ -5,7 +5,6 @@ import { DndContext, useDraggable, useDroppable, type DragEndEvent } from '@dnd-
 import { createClient } from '@/utils/supabase/client'
 import BotonWhatsApp from './BotonWhatsApp'
 import { ESTADOS, nombreResponsable, type OportunidadVista, type EstadoOportunidad, type PerfilResumen, type CatalogoItem } from '@/types/crm'
-import { mensajeSaludoWhatsapp } from '@/utils/whatsapp'
 
 function formatearMonto(valor: number | null): string {
   if (valor === null) return '-'
@@ -50,11 +49,6 @@ function Tarjeta({ oportunidad }: { oportunidad: OportunidadVista }) {
         </Link>
         <BotonWhatsApp
           telefono={oportunidad.crm_prospectos?.telefono}
-          mensaje={mensajeSaludoWhatsapp(
-            oportunidad.crm_prospectos?.contacto_nombre,
-            oportunidad.crm_prospectos?.nombre ?? '',
-            oportunidad.crm_tipos_servicio?.nombre
-          )}
           className="text-xs text-emerald-600 hover:underline"
           classNameDeshabilitado="text-xs text-slate-300 cursor-not-allowed"
         />

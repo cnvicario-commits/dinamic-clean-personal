@@ -5,7 +5,6 @@ import { createClient } from '@/utils/supabase/client'
 import SelectConCrear from './SelectConCrear'
 import BotonWhatsApp from './BotonWhatsApp'
 import { nombreResponsable, type CatalogoItem } from '@/types/crm'
-import { mensajeSaludoWhatsapp } from '@/utils/whatsapp'
 
 function formatearFecha(fecha: string | null) {
   if (!fecha) return '-'
@@ -131,10 +130,7 @@ export default function DatosOportunidad({
           oportunidad.numero_referencia && <p className="text-sm text-slate-500">Ref: {oportunidad.numero_referencia}</p>
         )}
         <div className="flex items-center gap-3">
-          <BotonWhatsApp
-            telefono={prospecto?.telefono}
-            mensaje={mensajeSaludoWhatsapp(prospecto?.contacto_nombre, prospecto?.nombre ?? '', oportunidad.crm_tipos_servicio?.nombre)}
-          />
+          <BotonWhatsApp telefono={prospecto?.telefono} />
           {!editando ? (
             <button
               type="button"
