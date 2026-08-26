@@ -112,6 +112,22 @@ export default function TableroVentas({
     if (error) {
       setOportunidades((prev) => prev.map((o) => (o.id === oportunidadId ? { ...o, estado: actual.estado } : o)))
       alert('Error al cambiar el estado: ' + error.message)
+      return
+    }
+
+    // Deja registro en el historial de seguimientos sin que haya que
+    // cargarlo a mano — así la ficha siempre muestra quién y cuándo movió
+    // la oportunidad de columna. Si esto falla no se avisa ni se revierte
+    // nada: el cambio de estado ya se guardó bien, que es lo importante.
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const etiquetaAnterior = ESTADOS.find((e) => e.valor === actual.estado)?.etiqueta ?? actual.estado
+      const etiquetaNueva = ESTADOS.find((e) => e.valor === nuevoEstado)?.etiqueta ?? nuevoEstado
+      await supabase.from('crm_seguimientos').insert({
+        oportunidad_id: oportunidadId,
+        nota: `Estado cambiado de "${etiquetaAnterior}" a "${etiquetaNueva}".`,
+        usuario_id: user.id,
+      })
     }
   }
 

@@ -9,7 +9,7 @@ export default async function ResumenVentasPage() {
     supabase
       .from('crm_oportunidades')
       .select(
-        'id, estado, fecha_ingreso, monto_estimado, comision_monto, comision_liquidada, responsable_id, responsable_nombre_libre, crm_prospectos(tipo_cliente_id, crm_tipos_cliente(nombre)), perfiles(nombre_completo)'
+        'id, estado, fecha_ingreso, monto_estimado, comision_monto, comision_liquidada, responsable_id, responsable_nombre_libre, crm_prospectos(tipo_cliente_id, crm_tipos_cliente(nombre), crm_referidores(nombre)), perfiles(nombre_completo)'
       )
       .order('fecha_ingreso', { ascending: false }),
     supabase.from('perfiles').select('id, nombre_completo').order('nombre_completo'),

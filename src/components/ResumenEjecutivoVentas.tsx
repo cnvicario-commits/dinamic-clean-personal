@@ -57,6 +57,18 @@ export default function ResumenEjecutivoVentas({
       .map(([nombre, v]) => ({ nombre, ...v }))
       .sort((a, b) => b.cantidad - a.cantidad)
 
+    const gruposReferidor = new Map<string, { cantidad: number; monto: number }>()
+    for (const o of filtradas) {
+      const nombre = o.crm_prospectos?.crm_referidores?.nombre ?? 'Sin referidor'
+      const actual = gruposReferidor.get(nombre) ?? { cantidad: 0, monto: 0 }
+      actual.cantidad += 1
+      actual.monto += o.monto_estimado ?? 0
+      gruposReferidor.set(nombre, actual)
+    }
+    const porReferidor = Array.from(gruposReferidor.entries())
+      .map(([nombre, v]) => ({ nombre, ...v }))
+      .sort((a, b) => b.cantidad - a.cantidad)
+
     const aceptadas = filtradas.filter((o) => o.estado === 'aceptado')
     const rechazadas = filtradas.filter((o) => o.estado === 'rechazado')
     const denomConversion = aceptadas.length + rechazadas.length
@@ -71,6 +83,7 @@ export default function ResumenEjecutivoVentas({
       totalMonto,
       porEstado,
       porTipoCliente,
+      porReferidor,
       montoAceptado: aceptadas.reduce((acc, o) => acc + (o.monto_estimado ?? 0), 0),
       tasaConversion,
       comisionTotal,
@@ -172,6 +185,39 @@ export default function ResumenEjecutivoVentas({
               </tr>
             ) : (
               resumen.porTipoCliente.map((fila) => (
+                <tr key={fila.nombre} className="border-b border-slate-100 last:border-0">
+                  <td className="px-4 py-3 text-slate-800">{fila.nombre}</td>
+                  <td className="px-4 py-3 text-slate-600">{fila.cantidad}</td>
+                  <td className="px-4 py-3 text-slate-600">{formatearPorcentaje(fila.cantidad, resumen.totalCantidad)}</td>
+                  <td className="px-4 py-3 text-slate-600">$ {formatearMonto(fila.monto)}</td>
+                  <td className="px-4 py-3 text-slate-600">{formatearPorcentaje(fila.monto, resumen.totalMonto)}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Por referidor */}
+      <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Por referidor</h2>
+      <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto mb-8">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-slate-50 text-left text-slate-500 border-b border-slate-200">
+              <th className="px-4 py-3 font-medium">Referidor</th>
+              <th className="px-4 py-3 font-medium">Cantidad</th>
+              <th className="px-4 py-3 font-medium">% cantidad</th>
+              <th className="px-4 py-3 font-medium">Monto estimado</th>
+              <th className="px-4 py-3 font-medium">% monto</th>
+            </tr>
+          </thead>
+          <tbody>
+            {resumen.porReferidor.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-3 text-slate-400">Sin datos para este período.</td>
+              </tr>
+            ) : (
+              resumen.porReferidor.map((fila) => (
                 <tr key={fila.nombre} className="border-b border-slate-100 last:border-0">
                   <td className="px-4 py-3 text-slate-800">{fila.nombre}</td>
                   <td className="px-4 py-3 text-slate-600">{fila.cantidad}</td>

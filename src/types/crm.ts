@@ -91,6 +91,7 @@ export type OportunidadResumen = {
   crm_prospectos: {
     tipo_cliente_id: string | null
     crm_tipos_cliente: { nombre: string } | null
+    crm_referidores: { nombre: string } | null
   } | null
   perfiles: { nombre_completo: string } | null
 }
