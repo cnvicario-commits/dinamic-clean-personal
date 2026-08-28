@@ -28,13 +28,12 @@ export default async function VentasPage() {
         : Promise.resolve({ data: [] as { oportunidad_id: string; last_viewed_at: string }[] }),
     ])
 
-  // Ver src/utils/novedades.ts: solo cuenta seguimientos cargados a mano por
-  // otro usuario, después de la última vez que este usuario vio esa ficha.
+  // Ver src/utils/novedades.ts: cuenta cualquier seguimiento cargado a mano
+  // (sea quien sea) después de la última vez que este usuario vio esa ficha.
   const novedades = user
     ? calcularNovedades({
         seguimientos: (seguimientos ?? []) as unknown as SeguimientoParaNovedad[],
         vistas: vistas ?? [],
-        usuarioActualId: user.id,
       })
     : new Map()
 

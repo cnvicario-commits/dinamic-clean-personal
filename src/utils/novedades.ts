@@ -1,7 +1,10 @@
-// Cálculo de "novedades" del CRM de Ventas: seguimientos cargados a mano por
-// OTRO usuario que el usuario actual todavía no vio en la ficha de esa
-// oportunidad. Ver migración 0024_crm_vistas_oportunidad.sql (tabla
-// crm_vistas) y el componente MarcarOportunidadVista (quien la actualiza).
+// Cálculo de "novedades" del CRM de Ventas: seguimientos cargados a mano que
+// el usuario actual todavía no vio en la ficha de esa oportunidad — sin
+// importar quién los cargó (incluye los propios: si edito una oportunidad y
+// vuelvo al tablero sin volver a entrar a la ficha, también me aparece como
+// novedad, a propósito). Ver migración 0024_crm_vistas_oportunidad.sql
+// (tabla crm_vistas) y el componente MarcarOportunidadVista (quien la
+// actualiza).
 //
 // Deliberadamente NO cuenta acá: altas de oportunidad, cambios de etapa, ni
 // ediciones de campos de la ficha — solo seguimientos/notas, que es lo único
@@ -28,11 +31,9 @@ export type Novedad = {
 export function calcularNovedades({
   seguimientos,
   vistas,
-  usuarioActualId,
 }: {
   seguimientos: SeguimientoParaNovedad[]
   vistas: VistaOportunidad[]
-  usuarioActualId: string
 }): Map<string, Novedad> {
   const vistoPor = new Map(vistas.map((v) => [v.oportunidad_id, v.last_viewed_at]))
   const novedades = new Map<string, Novedad>()
@@ -42,8 +43,6 @@ export function calcularNovedades({
     // se insertan sin tipo_contacto — eso las distingue de un seguimiento
     // cargado a mano vía RegistrarSeguimientoForm, que siempre trae uno.
     if (!s.tipo_contacto) continue
-    // Lo que cargué yo mismo no es una novedad para mí.
-    if (s.usuario_id === usuarioActualId) continue
 
     const ultimaVista = vistoPor.get(s.oportunidad_id)
     if (ultimaVista && new Date(s.created_at) <= new Date(ultimaVista)) continue
