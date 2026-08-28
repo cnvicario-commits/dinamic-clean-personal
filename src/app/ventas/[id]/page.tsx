@@ -3,6 +3,7 @@ import { createClient } from '@/utils/supabase/server'
 import EstadoOportunidadBadge from '@/components/EstadoOportunidadBadge'
 import RegistrarSeguimientoForm from '@/components/RegistrarSeguimientoForm'
 import DatosOportunidad from '@/components/DatosOportunidad'
+import MarcarOportunidadVista from '@/components/MarcarOportunidadVista'
 import { nombreUsuarioSeguimiento } from '@/types/crm'
 
 function formatearFecha(fecha: string | null) {
@@ -55,6 +56,10 @@ export default async function FichaOportunidadPage({
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-10">
+      {/* No renderiza nada: solo deja constancia de que este usuario vio la
+          ficha ahora, para que deje de aparecer como novedad. */}
+      <MarcarOportunidadVista oportunidadId={oportunidad.id} />
+
       <Link href="/ventas" className="text-teal-600 hover:underline text-sm mb-4 inline-block">
         ← Volver al tablero
       </Link>

@@ -16,7 +16,7 @@ function formatearFecha(fecha: string | null): string {
   return new Date(`${fecha}T00:00:00`).toLocaleDateString('es-AR')
 }
 
-function Tarjeta({ oportunidad }: { oportunidad: OportunidadVista }) {
+function Tarjeta({ oportunidad, esNovedad }: { oportunidad: OportunidadVista; esNovedad: boolean }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: oportunidad.id })
   const style = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
@@ -32,7 +32,15 @@ function Tarjeta({ oportunidad }: { oportunidad: OportunidadVista }) {
           que el link "Ver detalle" de abajo se pueda clickear sin que
           dnd-kit lo interprete como el inicio de un drag. */}
       <div {...listeners} {...attributes} className="cursor-grab active:cursor-grabbing touch-none">
-        <p className="text-sm font-medium text-slate-800">{oportunidad.crm_prospectos?.nombre ?? '-'}</p>
+        <div className="flex items-center gap-1.5">
+          {esNovedad && (
+            <span
+              className="w-2 h-2 rounded-full bg-rose-500 shrink-0"
+              title="Tiene un seguimiento nuevo que todavía no viste"
+            />
+          )}
+          <p className="text-sm font-medium text-slate-800">{oportunidad.crm_prospectos?.nombre ?? '-'}</p>
+        </div>
         <p className="text-xs text-slate-500 mt-0.5">{oportunidad.crm_tipos_servicio?.nombre ?? 'Sin tipo de servicio'}</p>
         <p className="text-sm font-semibold text-teal-700 mt-1.5">$ {formatearMonto(oportunidad.monto_estimado)}</p>
         <div className="flex items-center justify-between mt-2 text-xs text-slate-500">
@@ -61,10 +69,12 @@ function Columna({
   estado,
   etiqueta,
   oportunidades,
+  novedadesIds,
 }: {
   estado: EstadoOportunidad
   etiqueta: string
   oportunidades: OportunidadVista[]
+  novedadesIds: Set<string>
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: estado })
   return (
@@ -78,7 +88,7 @@ function Columna({
       {oportunidades.length === 0 ? (
         <p className="text-xs text-slate-400">Sin oportunidades</p>
       ) : (
-        oportunidades.map((o) => <Tarjeta key={o.id} oportunidad={o} />)
+        oportunidades.map((o) => <Tarjeta key={o.id} oportunidad={o} esNovedad={novedadesIds.has(o.id)} />)
       )}
     </div>
   )
@@ -88,12 +98,15 @@ export default function TableroVentas({
   oportunidades: oportunidadesIniciales,
   responsables,
   tiposCliente,
+  novedadesIds = [],
 }: {
   oportunidades: OportunidadVista[]
   responsables: PerfilResumen[]
   tiposCliente: CatalogoItem[]
+  novedadesIds?: string[]
 }) {
   const [oportunidades, setOportunidades] = useState(oportunidadesIniciales)
+  const novedadesSet = useMemo(() => new Set(novedadesIds), [novedadesIds])
   const [filtroResponsable, setFiltroResponsable] = useState('')
   const [filtroTipoCliente, setFiltroTipoCliente] = useState('')
   const supabase = createClient()
@@ -194,6 +207,7 @@ export default function TableroVentas({
               estado={valor}
               etiqueta={etiqueta}
               oportunidades={filtradas.filter((o) => o.estado === valor)}
+              novedadesIds={novedadesSet}
             />
           ))}
         </div>
