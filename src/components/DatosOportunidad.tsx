@@ -41,9 +41,11 @@ export default function DatosOportunidad({
     monto_estimado: number | null
     comision_monto: number | null
     comision_liquidada: boolean
+    estado: string
     fecha_envio: string | null
     fecha_ingreso: string
     fecha_cierre: string | null
+    fecha_facturacion: string | null
     proxima_fecha_seguimiento: string | null
     comentarios: string | null
     crm_tipos_servicio: { nombre: string } | null
@@ -74,6 +76,7 @@ export default function DatosOportunidad({
   const [cantidadPersonal, setCantidadPersonal] = useState(oportunidad.cantidad_personal?.toString() ?? '')
   const [montoEstimado, setMontoEstimado] = useState(oportunidad.monto_estimado?.toString() ?? '')
   const [fechaEnvio, setFechaEnvio] = useState(oportunidad.fecha_envio ?? '')
+  const [fechaFacturacion, setFechaFacturacion] = useState(oportunidad.fecha_facturacion ?? '')
   const [comisionMonto, setComisionMonto] = useState(oportunidad.comision_monto?.toString() ?? '')
   const [comisionLiquidada, setComisionLiquidada] = useState(oportunidad.comision_liquidada)
   const [comentarios, setComentarios] = useState(oportunidad.comentarios ?? '')
@@ -102,6 +105,7 @@ export default function DatosOportunidad({
     setCantidadPersonal(oportunidad.cantidad_personal?.toString() ?? '')
     setMontoEstimado(oportunidad.monto_estimado?.toString() ?? '')
     setFechaEnvio(oportunidad.fecha_envio ?? '')
+    setFechaFacturacion(oportunidad.fecha_facturacion ?? '')
     setComisionMonto(oportunidad.comision_monto?.toString() ?? '')
     setComisionLiquidada(oportunidad.comision_liquidada)
     setComentarios(oportunidad.comentarios ?? '')
@@ -126,6 +130,7 @@ export default function DatosOportunidad({
         cantidad_personal: cantidadPersonal ? Number(cantidadPersonal) : null,
         monto_estimado: montoEstimado ? Number(montoEstimado) : null,
         fecha_envio: fechaEnvio || null,
+        fecha_facturacion: oportunidad.estado === 'aceptado' ? fechaFacturacion || null : null,
         comision_monto: comisionMonto ? Number(comisionMonto) : null,
         comision_liquidada: comisionLiquidada,
         comentarios: comentarios.trim() || null,
@@ -369,6 +374,17 @@ export default function DatosOportunidad({
         )}
 
         <Campo etiqueta="Fecha de cierre" valor={formatearFecha(oportunidad.fecha_cierre)} />
+
+        {oportunidad.estado === 'aceptado' &&
+          (editando ? (
+            <div>
+              <p className="text-xs text-slate-500 mb-1">Fecha de facturación</p>
+              <input type="date" value={fechaFacturacion} onChange={(e) => setFechaFacturacion(e.target.value)} className={inputStyle} />
+            </div>
+          ) : (
+            <Campo etiqueta="Fecha de facturación" valor={formatearFecha(oportunidad.fecha_facturacion)} />
+          ))}
+
         <Campo etiqueta="Próximo seguimiento" valor={formatearFecha(oportunidad.proxima_fecha_seguimiento)} />
         <Campo etiqueta="Responsable" valor={nombreResponsable(oportunidad)} />
       </div>

@@ -26,6 +26,7 @@ const grupos: Grupo[] = [
       { href: '/ventas/nueva', label: 'Nueva oportunidad' },
       { href: '/ventas/listado', label: 'Listado' },
       { href: '/ventas/resumen', label: 'Resumen ejecutivo' },
+      { href: '/ventas/facturacion', label: 'Novedades de Facturación' },
     ],
   },
   {

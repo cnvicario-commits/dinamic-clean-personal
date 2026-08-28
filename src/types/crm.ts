@@ -45,6 +45,11 @@ export type CrmOportunidad = {
   comision_monto: number | null
   comision_liquidada: boolean
   comentarios: string | null
+  // Fecha a partir de la cual corresponde empezar a facturar a este cliente
+  // nuevo (no es control de facturación recurrente, eso queda fuera de este
+  // sistema — ver src/app/ventas/facturacion/page.tsx). Solo tiene sentido
+  // cuando estado = 'aceptado'; opcional incluso ahí.
+  fecha_facturacion: string | null
   // responsable_id es null cuando quien gestionó la oportunidad no tiene cuenta en la
   // app (ej. historial importado de gente que ya no trabaja acá o nunca tuvo login) —
   // en ese caso el nombre queda en responsable_nombre_libre. Nunca los dos en null.
