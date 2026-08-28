@@ -90,6 +90,7 @@ export default function DatosOportunidad({
 
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [eliminando, setEliminando] = useState(false)
 
   const router = useRouter()
   const supabase = createClient()
@@ -161,6 +162,29 @@ export default function DatosOportunidad({
     router.refresh()
   }
 
+  async function eliminar() {
+    // Borra en cascada el historial de seguimientos y las marcas de "visto"
+    // de esta oportunidad (ver migraciones 0018 y 0024) — es permanente, por
+    // eso la confirmación explícita. No borra el prospecto: si tiene otras
+    // oportunidades, esas quedan igual.
+    if (
+      !confirm(
+        'Se va a eliminar esta oportunidad junto con todo su historial de seguimientos. No se puede deshacer. ¿Confirmás?'
+      )
+    ) {
+      return
+    }
+    setError('')
+    setEliminando(true)
+    const { error: errDelete } = await supabase.from('crm_oportunidades').delete().eq('id', oportunidad.id)
+    if (errDelete) {
+      setEliminando(false)
+      setError('Error al eliminar: ' + errDelete.message)
+      return
+    }
+    router.push('/ventas')
+  }
+
   return (
     <div className="mb-6">
       <div className="flex items-center justify-between gap-3 mb-2">
@@ -178,13 +202,23 @@ export default function DatosOportunidad({
         <div className="flex items-center gap-3">
           <BotonWhatsApp telefono={prospecto?.telefono} />
           {!editando ? (
-            <button
-              type="button"
-              onClick={() => setEditando(true)}
-              className="text-sm text-teal-600 hover:underline"
-            >
-              Editar
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => setEditando(true)}
+                className="text-sm text-teal-600 hover:underline"
+              >
+                Editar
+              </button>
+              <button
+                type="button"
+                onClick={eliminar}
+                disabled={eliminando}
+                className="text-sm text-rose-600 hover:underline disabled:opacity-50"
+              >
+                {eliminando ? 'Eliminando...' : 'Eliminar oportunidad'}
+              </button>
+            </>
           ) : (
             <div className="flex gap-3">
               <button type="button" onClick={cancelar} className="text-sm text-slate-500 hover:underline" disabled={loading}>
