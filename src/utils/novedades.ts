@@ -1,14 +1,15 @@
-// Cálculo de "novedades" del CRM de Ventas: seguimientos cargados a mano que
-// el usuario actual todavía no vio en la ficha de esa oportunidad — sin
-// importar quién los cargó (incluye los propios: si edito una oportunidad y
-// vuelvo al tablero sin volver a entrar a la ficha, también me aparece como
-// novedad, a propósito). Ver migración 0024_crm_vistas_oportunidad.sql
-// (tabla crm_vistas) y el componente MarcarOportunidadVista (quien la
-// actualiza).
+// Cálculo de "novedades" del CRM de Ventas: cualquier fila de
+// crm_seguimientos (nota manual o nota automática de cambio de estado del
+// Kanban — ambas cuentan como "una novedad") que el usuario actual todavía
+// no vio en la ficha de esa oportunidad, sin importar quién la cargó (incluye
+// las propias: si edito una oportunidad y vuelvo al tablero sin volver a
+// entrar a la ficha, también me aparece como novedad, a propósito). Ver
+// migración 0024_crm_vistas_oportunidad.sql (tabla crm_vistas) y el
+// componente MarcarOportunidadVista (quien la actualiza).
 //
-// Deliberadamente NO cuenta acá: altas de oportunidad, cambios de etapa, ni
-// ediciones de campos de la ficha — solo seguimientos/notas, que es lo único
-// que hoy queda registrado con quién y cuándo (ver crm_seguimientos).
+// Deliberadamente NO cuenta acá: altas de oportunidad ni ediciones de campos
+// de la ficha (monto, fecha de envío, comisión, datos de contacto) — esas no
+// dejan ningún rastro en crm_seguimientos hoy.
 
 export type SeguimientoParaNovedad = {
   oportunidad_id: string
@@ -39,11 +40,6 @@ export function calcularNovedades({
   const novedades = new Map<string, Novedad>()
 
   for (const s of seguimientos) {
-    // Las notas automáticas de cambio de estado que arma TableroVentas.tsx
-    // se insertan sin tipo_contacto — eso las distingue de un seguimiento
-    // cargado a mano vía RegistrarSeguimientoForm, que siempre trae uno.
-    if (!s.tipo_contacto) continue
-
     const ultimaVista = vistoPor.get(s.oportunidad_id)
     if (ultimaVista && new Date(s.created_at) <= new Date(ultimaVista)) continue
 

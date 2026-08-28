@@ -28,8 +28,9 @@ export default async function VentasPage() {
         : Promise.resolve({ data: [] as { oportunidad_id: string; last_viewed_at: string }[] }),
     ])
 
-  // Ver src/utils/novedades.ts: cuenta cualquier seguimiento cargado a mano
-  // (sea quien sea) después de la última vez que este usuario vio esa ficha.
+  // Ver src/utils/novedades.ts: cuenta cualquier seguimiento (manual o
+  // cambio de estado, sea quien sea) después de la última vez que este
+  // usuario vio esa ficha.
   const novedades = user
     ? calcularNovedades({
         seguimientos: (seguimientos ?? []) as unknown as SeguimientoParaNovedad[],
@@ -47,6 +48,7 @@ export default async function VentasPage() {
         prospectoNombre: oportunidad.crm_prospectos?.nombre ?? '-',
         cantidad: n.cantidad,
         usuario: nombreUsuarioSeguimiento(n.ultimo),
+        nota: n.ultimo.nota,
         creadoEn: n.ultimo.created_at,
       }
     })

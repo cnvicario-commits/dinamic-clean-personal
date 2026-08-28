@@ -5,6 +5,7 @@ export type ItemNovedad = {
   prospectoNombre: string
   cantidad: number
   usuario: string
+  nota: string | null
   creadoEn: string
 }
 
@@ -32,8 +33,8 @@ export default function PanelNovedades({ items }: { items: ItemNovedad[] }) {
             className="flex items-center justify-between gap-3 text-sm bg-white/60 hover:bg-white rounded-md px-3 py-2 transition-colors"
           >
             <span className="text-slate-700">
-              <span className="font-medium">{item.prospectoNombre}</span> — {item.usuario}{' '}
-              {item.cantidad > 1 ? `agregó ${item.cantidad} seguimientos` : 'agregó un seguimiento'}
+              <span className="font-medium">{item.prospectoNombre}</span> — {item.usuario}:{' '}
+              {item.cantidad > 1 ? `${item.cantidad} novedades nuevas` : item.nota ?? 'agregó un seguimiento'}
             </span>
             <span className="text-xs text-amber-700 whitespace-nowrap">{formatearRelativo(item.creadoEn)}</span>
           </Link>
