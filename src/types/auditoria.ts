@@ -41,3 +41,36 @@ export type PlanificacionListado = {
 export type ResultadoRespuesta = 'conforme' | 'no_conforme' | 'no_aplica'
 
 export type EstadoPlanAccion = 'pendiente' | 'en_curso' | 'resuelto'
+
+export type RespuestaFicha = {
+  id: string
+  resultado: ResultadoRespuesta
+  observaciones: string | null
+  auditoria_checklist_items: { orden: number; texto: string } | null
+}
+
+export type PlanAccionItem = {
+  id: string
+  descripcion: string
+  responsable_id: string | null
+  fecha_limite: string | null
+  estado: EstadoPlanAccion
+  fecha_resolucion: string | null
+  created_at: string
+  respuesta_id: string | null
+  perfiles: { nombre_completo: string } | null
+  auditoria_respuestas: { auditoria_checklist_items: { texto: string } | null } | null
+}
+
+export type AuditoriaFicha = {
+  id: string
+  alias_id: string
+  fecha_realizada: string
+  evaluacion_general: string | null
+  proxima_supervision_fecha: string | null
+  quejas_comentarios_cliente: string | null
+  otros: string | null
+  cliente_domicilios: { alias: string; direccion: string | null; clientes: { nombre: string } | null } | null
+  auditoria_checklist_plantillas: { codigo_formulario: string; version: string } | null
+  perfiles: { nombre_completo: string } | null
+}

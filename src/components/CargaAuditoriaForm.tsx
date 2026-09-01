@@ -62,7 +62,7 @@ export default function CargaAuditoriaForm({
   )
   const [error, setError] = useState('')
   const [guardando, setGuardando] = useState(false)
-  const [guardada, setGuardada] = useState<{ sitio: string; fecha: string } | null>(null)
+  const [guardada, setGuardada] = useState<{ id: string; sitio: string; fecha: string } | null>(null)
 
   const supabase = createClient()
 
@@ -148,6 +148,7 @@ export default function CargaAuditoriaForm({
 
     setGuardando(false)
     setGuardada({
+      id: nuevaAuditoria.id,
       sitio: planificacion ? `${planificacion.clienteNombre} — ${planificacion.sitioAlias}` : (cliente?.nombre ?? '-') + (aliasId ? ` — ${sitiosDelCliente.find((d) => d.id === aliasId)?.alias ?? ''}` : ''),
       fecha: fechaRealizada,
     })
@@ -161,6 +162,9 @@ export default function CargaAuditoriaForm({
           {guardada.sitio} — {new Date(`${guardada.fecha}T00:00:00`).toLocaleDateString('es-AR')}
         </p>
         <div className="flex gap-4">
+          <Link href={`/auditorias/${guardada.id}`} className="text-teal-600 hover:underline text-sm font-medium">
+            Ver ficha de la auditoría
+          </Link>
           <Link href="/auditorias/nueva" className="text-teal-600 hover:underline text-sm">
             Cargar otra auditoría
           </Link>

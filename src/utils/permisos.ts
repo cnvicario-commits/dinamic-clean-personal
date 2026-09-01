@@ -29,14 +29,12 @@ const RUTAS_PERMITIDAS: { prefijo: string; roles: Rol[] }[] = [
   { prefijo: '/empresas', roles: ['admin', 'gerente'] },
   { prefijo: '/dashboard', roles: ['admin', 'gerente'] },
   { prefijo: '/ventas', roles: ['admin', 'gerente'] },
-  // Cargar auditorías y ver/planificar (para poder elegir una planificación
-  // pendiente propia) son tareas de campo: el rol 'supervisor' entra ahí.
-  // La administración del checklist (crear/activar versiones) sigue
-  // restringida a admin/gerente vía la entrada genérica de /auditorias de
-  // abajo — por eso estas dos van antes (matchea la primera que aplique).
-  { prefijo: '/auditorias/nueva', roles: ['admin', 'gerente', 'supervisor'] },
-  { prefijo: '/auditorias/planificacion', roles: ['admin', 'gerente', 'supervisor'] },
-  { prefijo: '/auditorias', roles: ['admin', 'gerente'] },
+  // Administrar el checklist (crear/activar versiones) queda restringido a
+  // admin/gerente — va antes para matchear primero. El resto del módulo
+  // (planificar, cargar auditorías, ver la ficha propia con su plan de
+  // acción) son tareas de campo: el rol 'supervisor' entra ahí también.
+  { prefijo: '/auditorias/checklist', roles: ['admin', 'gerente'] },
+  { prefijo: '/auditorias', roles: ['admin', 'gerente', 'supervisor'] },
   { prefijo: '/empleados', roles: ['admin', 'gerente'] },
   { prefijo: '/ausencias', roles: ['admin', 'gerente'] },
   { prefijo: '/asignaciones', roles: ['admin', 'gerente'] },
