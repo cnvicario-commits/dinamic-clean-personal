@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import Link from 'next/link'
 import ClienteDomiciliosPanel from '@/components/ClienteDomiciliosPanel'
+import ClientePresupuestosPanel, { type ClientePresupuesto } from '@/components/ClientePresupuestosPanel'
 
 export default async function ClienteDetallePage({
   params,
@@ -34,6 +35,12 @@ export default async function ClienteDetallePage({
     .order('es_principal', { ascending: false })
     .order('alias')
 
+  const { data: presupuestos } = await supabase
+    .from('cliente_presupuestos')
+    .select('id, nombre_archivo, storage_path, created_at, perfiles(nombre_completo)')
+    .eq('cliente_id', id)
+    .order('created_at', { ascending: false })
+
   return (
     <div className="max-w-4xl mx-auto px-6 py-10">
       <Link href="/clientes" className="text-teal-600 hover:underline text-sm mb-4 inline-block">
@@ -50,6 +57,14 @@ export default async function ClienteDetallePage({
         Domicilios de entrega
       </h2>
       <ClienteDomiciliosPanel clienteId={cliente.id} domicilios={domicilios ?? []} />
+
+      <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3 mt-8">
+        Presupuestos enviados
+      </h2>
+      <ClientePresupuestosPanel
+        clienteId={cliente.id}
+        presupuestos={(presupuestos ?? []) as unknown as ClientePresupuesto[]}
+      />
     </div>
   )
 }
