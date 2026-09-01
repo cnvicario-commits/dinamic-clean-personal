@@ -34,7 +34,7 @@ export type PlanificacionListado = {
   // permite acá para que el mismo tipo sirva antes y después de calcularlo.
   estado: EstadoPlanificacion
   supervisor_id: string
-  cliente_domicilios: { alias: string; clientes: { nombre: string } | null } | null
+  cliente_domicilios: { alias: string; direccion: string | null; clientes: { nombre: string } | null } | null
   perfiles: { nombre_completo: string } | null
 }
 

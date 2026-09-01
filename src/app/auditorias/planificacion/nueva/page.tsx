@@ -6,7 +6,7 @@ export default async function NuevaPlanificacionPage() {
 
   const [{ data: clientes }, { data: domicilios }, { data: supervisores }] = await Promise.all([
     supabase.from('clientes').select('id, nombre').eq('activo', true).order('nombre'),
-    supabase.from('cliente_domicilios').select('id, cliente_id, alias, activo'),
+    supabase.from('cliente_domicilios').select('id, cliente_id, alias, direccion, activo'),
     supabase.from('perfiles').select('id, nombre_completo').order('nombre_completo'),
   ])
 

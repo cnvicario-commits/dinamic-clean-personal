@@ -93,6 +93,7 @@ export default function PlanificacionesTabla({
             <tr className="bg-slate-50 text-left text-slate-500 border-b border-slate-200">
               <th className="px-4 py-3 font-medium">Cliente</th>
               <th className="px-4 py-3 font-medium">Sitio</th>
+              <th className="px-4 py-3 font-medium">Domicilio</th>
               <th className="px-4 py-3 font-medium">Fecha propuesta</th>
               <th className="px-4 py-3 font-medium">Supervisor</th>
               <th className="px-4 py-3 font-medium">Estado</th>
@@ -106,6 +107,7 @@ export default function PlanificacionesTabla({
                 <tr key={p.id} className="border-b border-slate-100 last:border-0">
                   <td className="px-4 py-3 text-slate-800">{p.cliente_domicilios?.clientes?.nombre ?? '-'}</td>
                   <td className="px-4 py-3 text-slate-600">{p.cliente_domicilios?.alias ?? '-'}</td>
+                  <td className="px-4 py-3 text-slate-600">{p.cliente_domicilios?.direccion ?? '-'}</td>
                   <td className="px-4 py-3 text-slate-600">{formatearFecha(p.fecha_propuesta)}</td>
                   <td className="px-4 py-3 text-slate-600">{p.perfiles?.nombre_completo ?? '-'}</td>
                   <td className="px-4 py-3">

@@ -9,7 +9,7 @@ export default async function PlanificacionAuditoriasPage() {
   const [{ data: planificaciones }, { data: supervisores }] = await Promise.all([
     supabase
       .from('auditoria_planificaciones')
-      .select('*, cliente_domicilios(alias, clientes(nombre)), perfiles(nombre_completo)')
+      .select('*, cliente_domicilios(alias, direccion, clientes(nombre)), perfiles(nombre_completo)')
       .order('fecha_propuesta', { ascending: true }),
     supabase.from('perfiles').select('id, nombre_completo').order('nombre_completo'),
   ])

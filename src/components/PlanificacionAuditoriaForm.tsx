@@ -5,7 +5,7 @@ import { createClient } from '@/utils/supabase/client'
 import BuscadorCliente from './BuscadorCliente'
 
 type Cliente = { id: string; nombre: string }
-type Domicilio = { id: string; cliente_id: string; alias: string; activo: boolean }
+type Domicilio = { id: string; cliente_id: string; alias: string; direccion: string | null; activo: boolean }
 type Perfil = { id: string; nombre_completo: string }
 
 const inputStyle = 'px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 w-full'
@@ -82,7 +82,7 @@ export default function PlanificacionAuditoriaForm({
             <select value={aliasId} onChange={(e) => setAliasId(e.target.value)} className={inputStyle}>
               <option value="">Elegir sitio...</option>
               {sitiosDelCliente.map((d) => (
-                <option key={d.id} value={d.id}>{d.alias}</option>
+                <option key={d.id} value={d.id}>{d.direccion ? `${d.alias} — ${d.direccion}` : d.alias}</option>
               ))}
             </select>
           )}
