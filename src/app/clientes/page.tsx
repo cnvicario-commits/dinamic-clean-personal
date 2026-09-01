@@ -1,12 +1,12 @@
 import { createClient } from '@/utils/supabase/server'
-import Link from 'next/link'
 import ClienteForm from '@/components/ClienteForm'
+import ClientesTabla from '@/components/ClientesTabla'
 
 export default async function ClientesPage() {
   const supabase = await createClient()
   const { data: clientes } = await supabase
     .from('clientes')
-    .select('*')
+    .select('id, nombre, domicilio, presupuesto_4hs, presupuesto_8hs, lleva_insumos, codigo_costos, cuit')
     .order('nombre')
 
   return (
@@ -16,48 +16,7 @@ export default async function ClientesPage() {
       <ClienteForm />
 
       <div className="mt-8">
-        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
-          Listado ({clientes?.length ?? 0})
-        </h2>
-        <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto">
-          <table className="w-full text-sm min-w-[700px]">
-            <thead>
-              <tr className="bg-slate-50 text-left text-slate-500 border-b border-slate-200">
-                <th className="px-4 py-3 font-medium">Nombre</th>
-                <th className="px-4 py-3 font-medium">Domicilio</th>
-                <th className="px-4 py-3 font-medium">Presup. 4hs</th>
-                <th className="px-4 py-3 font-medium">Presup. 8hs</th>
-                <th className="px-4 py-3 font-medium">Insumos</th>
-              </tr>
-            </thead>
-            <tbody>
-              {clientes?.map((cliente) => (
-                <tr key={cliente.id} className="border-b border-slate-100 last:border-0">
-                  <td className="px-4 py-3 text-slate-800">
-                    <Link href={`/clientes/${cliente.id}`} className="text-teal-600 hover:underline">
-                      {cliente.nombre}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 text-slate-600">{cliente.domicilio ?? '-'}</td>
-                  <td className="px-4 py-3 text-slate-600">{cliente.presupuesto_4hs}</td>
-                  <td className="px-4 py-3 text-slate-600">{cliente.presupuesto_8hs}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
-                      cliente.lleva_insumos
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : 'bg-slate-100 text-slate-500'
-                    }`}>
-                      {cliente.lleva_insumos ? 'Sí' : 'No'}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {clientes?.length === 0 && (
-          <p className="text-slate-500 text-sm mt-3">No hay clientes cargados todavía.</p>
-        )}
+        <ClientesTabla clientes={clientes ?? []} />
       </div>
     </div>
   )
