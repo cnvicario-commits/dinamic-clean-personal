@@ -79,6 +79,22 @@ const MODULOS: Modulo[] = [
     ),
   },
   {
+    href: '/auditorias/checklist',
+    nombre: 'Auditoría y Calidad',
+    descripcion: 'Checklist de auditorías, planificación y planes de acción por sitio.',
+    fondo: 'bg-[#f1e9fb]',
+    colorIcono: 'bg-[#7c3aed]',
+    colorTexto: 'text-[#7c3aed]',
+    nuevo: true,
+    icono: (
+      <>
+        <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+        <rect x="9" y="3" width="6" height="4" rx="1" />
+        <path d="M9 12l2 2 4-4" />
+      </>
+    ),
+  },
+  {
     href: '/resultados',
     nombre: 'Resultados',
     descripcion: 'Indicadores y reportes del negocio.',

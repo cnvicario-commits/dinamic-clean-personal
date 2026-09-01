@@ -26,6 +26,18 @@ export type ChecklistItem = {
 
 export type EstadoPlanificacion = 'planificada' | 'realizada' | 'vencida' | 'cancelada'
 
+export type PlanificacionListado = {
+  id: string
+  fecha_propuesta: string
+  // 'vencida' nunca viene de la base (el enum de la columna no la incluye)
+  // — se calcula en el front a partir de 'planificada' + fecha vencida. Se
+  // permite acá para que el mismo tipo sirva antes y después de calcularlo.
+  estado: EstadoPlanificacion
+  supervisor_id: string
+  cliente_domicilios: { alias: string; clientes: { nombre: string } | null } | null
+  perfiles: { nombre_completo: string } | null
+}
+
 export type ResultadoRespuesta = 'conforme' | 'no_conforme' | 'no_aplica'
 
 export type EstadoPlanAccion = 'pendiente' | 'en_curso' | 'resuelto'
