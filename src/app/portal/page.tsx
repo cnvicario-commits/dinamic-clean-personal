@@ -79,7 +79,7 @@ const MODULOS: Modulo[] = [
     ),
   },
   {
-    href: '/auditorias/checklist',
+    href: '/auditorias',
     nombre: 'Auditoría y Calidad',
     descripcion: 'Checklist de auditorías, planificación y planes de acción por sitio.',
     fondo: 'bg-[#f1e9fb]',

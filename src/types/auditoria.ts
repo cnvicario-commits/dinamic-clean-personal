@@ -62,6 +62,21 @@ export type PlanAccionItem = {
   auditoria_respuestas: { auditoria_checklist_items: { texto: string } | null } | null
 }
 
+export type RespuestaDashboard = {
+  resultado: ResultadoRespuesta
+  auditoria_checklist_items: { texto: string } | null
+  auditorias: {
+    fecha_realizada: string
+    cliente_domicilios: { alias: string; clientes: { nombre: string } | null } | null
+  } | null
+}
+
+export type AuditoriaResumen = { fecha_realizada: string }
+
+export type PlanificacionResumen = { estado: EstadoPlanificacion; fecha_propuesta: string }
+
+export type PlanAccionResumen = { estado: EstadoPlanAccion; fecha_limite: string | null }
+
 export type AuditoriaFicha = {
   id: string
   alias_id: string

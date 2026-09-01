@@ -33,6 +33,7 @@ const grupos: Grupo[] = [
     id: 'auditorias',
     label: 'Auditoría y Calidad',
     enlaces: [
+      { href: '/auditorias', label: 'Dashboard' },
       { href: '/auditorias/checklist', label: 'Checklist' },
       { href: '/auditorias/planificacion', label: 'Planificación' },
       { href: '/auditorias/nueva', label: 'Cargar auditoría' },
