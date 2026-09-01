@@ -29,6 +29,10 @@ const RUTAS_PERMITIDAS: { prefijo: string; roles: Rol[] }[] = [
   { prefijo: '/empresas', roles: ['admin', 'gerente'] },
   { prefijo: '/dashboard', roles: ['admin', 'gerente'] },
   { prefijo: '/ventas', roles: ['admin', 'gerente'] },
+  // De momento solo administración del checklist (admin/gerente). Cuando se
+  // construya la pantalla de carga de auditorías, revisar si el rol
+  // 'supervisor' necesita entrar ahí también.
+  { prefijo: '/auditorias', roles: ['admin', 'gerente'] },
   { prefijo: '/empleados', roles: ['admin', 'gerente'] },
   { prefijo: '/ausencias', roles: ['admin', 'gerente'] },
   { prefijo: '/asignaciones', roles: ['admin', 'gerente'] },
