@@ -1,10 +1,22 @@
 'use client'
 import { useState, useMemo } from 'react'
-import type { RespuestaDashboard, AuditoriaResumen, PlanificacionResumen, PlanAccionResumen, EstadoPlanificacion, EstadoPlanAccion } from '@/types/auditoria'
+import Link from 'next/link'
+import type {
+  RespuestaDashboard,
+  AuditoriaResumen,
+  PlanificacionResumen,
+  PlanAccionResumen,
+  EstadoPlanificacion,
+  EstadoPlanAccion,
+} from '@/types/auditoria'
 
 function formatearPorcentaje(parte: number, total: number): string {
   if (total === 0) return '-'
   return `${((parte / total) * 100).toFixed(0)}%`
+}
+
+function formatearFecha(fecha: string) {
+  return new Date(`${fecha}T00:00:00`).toLocaleDateString('es-AR')
 }
 
 function hoyISO() {
@@ -46,14 +58,7 @@ export default function AuditoriaDashboard({
   const [fechaDesde, setFechaDesde] = useState('')
   const [fechaHasta, setFechaHasta] = useState('')
 
-  const respuestasFiltradas = useMemo(() => {
-    return respuestas.filter((r) => {
-      const fecha = r.auditorias?.fecha_realizada ?? ''
-      if (fechaDesde && fecha < fechaDesde) return false
-      if (fechaHasta && fecha > fechaHasta) return false
-      return true
-    })
-  }, [respuestas, fechaDesde, fechaHasta])
+  const auditoriaPorId = useMemo(() => new Map(auditorias.map((a) => [a.id, a])), [auditorias])
 
   const auditoriasFiltradas = useMemo(() => {
     return auditorias.filter((a) => {
@@ -63,11 +68,42 @@ export default function AuditoriaDashboard({
     })
   }, [auditorias, fechaDesde, fechaHasta])
 
+  const respuestasFiltradas = useMemo(() => {
+    const idsFiltrados = new Set(auditoriasFiltradas.map((a) => a.id))
+    return respuestas.filter((r) => idsFiltrados.has(r.auditoria_id))
+  }, [respuestas, auditoriasFiltradas])
+
   const resumen = useMemo(() => {
     const conformes = respuestasFiltradas.filter((r) => r.resultado === 'conforme').length
     const noConformes = respuestasFiltradas.filter((r) => r.resultado === 'no_conforme').length
     const noAplica = respuestasFiltradas.filter((r) => r.resultado === 'no_aplica').length
     const evaluables = conformes + noConformes
+
+    // Estadísticas por auditoría (conformes/no conformes), base de varios
+    // cálculos de abajo: % de cumplimiento por auditoría, ranking de
+    // sitios por cumplimiento, y el promedio general.
+    const porAuditoria = new Map<string, { conformes: number; noConformes: number }>()
+    for (const r of respuestasFiltradas) {
+      if (r.resultado === 'no_aplica') continue
+      const actual = porAuditoria.get(r.auditoria_id) ?? { conformes: 0, noConformes: 0 }
+      if (r.resultado === 'conforme') actual.conformes += 1
+      else actual.noConformes += 1
+      porAuditoria.set(r.auditoria_id, actual)
+    }
+    const auditoriasEvaluadas = [...porAuditoria.entries()].map(([id, v]) => ({
+      id,
+      ...v,
+      total: v.conformes + v.noConformes,
+      pct: v.conformes / (v.conformes + v.noConformes),
+    }))
+
+    // % de cumplimiento general: promedio simple del % de cada auditoría
+    // (no ponderado por cantidad de ítems) — mismo criterio que ya usás en
+    // el Excel de seguimiento, para que el número te resulte familiar.
+    const conformidadGeneral =
+      auditoriasEvaluadas.length > 0
+        ? auditoriasEvaluadas.reduce((acc, a) => acc + a.pct, 0) / auditoriasEvaluadas.length
+        : null
 
     // % de conformidad por ítem (excluye "no aplica" del denominador),
     // ordenado del peor al mejor para que salten a la vista los problemas.
@@ -88,7 +124,7 @@ export default function AuditoriaDashboard({
     const porMes = new Map<string, { conformes: number; noConformes: number }>()
     for (const r of respuestasFiltradas) {
       if (r.resultado === 'no_aplica') continue
-      const mes = (r.auditorias?.fecha_realizada ?? '').slice(0, 7)
+      const mes = (auditoriaPorId.get(r.auditoria_id)?.fecha_realizada ?? '').slice(0, 7)
       if (!mes) continue
       const actual = porMes.get(mes) ?? { conformes: 0, noConformes: 0 }
       if (r.resultado === 'conforme') actual.conformes += 1
@@ -107,16 +143,56 @@ export default function AuditoriaDashboard({
         return { mes, cantidadAuditorias: cantidadPorMes.get(mes) ?? 0, ...v, total: v.conformes + v.noConformes }
       })
 
-    // Ranking de sitios con más ítems no conformes.
-    const porSitio = new Map<string, number>()
+    function nombreSitio(auditoriaId: string) {
+      const a = auditoriaPorId.get(auditoriaId)
+      return `${a?.cliente_domicilios?.clientes?.nombre ?? '-'} — ${a?.cliente_domicilios?.alias ?? '-'}`
+    }
+
+    // Ranking de sitios con más ítems no conformes (cuenta bruta).
+    const porSitioCantidad = new Map<string, number>()
     for (const r of respuestasFiltradas) {
       if (r.resultado !== 'no_conforme') continue
-      const nombre = `${r.auditorias?.cliente_domicilios?.clientes?.nombre ?? '-'} — ${r.auditorias?.cliente_domicilios?.alias ?? '-'}`
-      porSitio.set(nombre, (porSitio.get(nombre) ?? 0) + 1)
+      const nombre = nombreSitio(r.auditoria_id)
+      porSitioCantidad.set(nombre, (porSitioCantidad.get(nombre) ?? 0) + 1)
     }
-    const rankingSitios = Array.from(porSitio.entries())
+    const rankingSitiosCantidad = Array.from(porSitioCantidad.entries())
       .map(([nombre, cantidad]) => ({ nombre, cantidad }))
       .sort((a, b) => b.cantidad - a.cantidad)
+      .slice(0, 10)
+
+    // Ranking de sitios con peor % de cumplimiento (suma de conformes/total
+    // por sitio, no promedio de promedios — un sitio con más auditorías
+    // pesa más, evita que una sola visita chica distorsione el orden).
+    const porSitioCumplimiento = new Map<string, { conformes: number; total: number }>()
+    for (const a of auditoriasEvaluadas) {
+      const nombre = nombreSitio(a.id)
+      const actual = porSitioCumplimiento.get(nombre) ?? { conformes: 0, total: 0 }
+      actual.conformes += a.conformes
+      actual.total += a.total
+      porSitioCumplimiento.set(nombre, actual)
+    }
+    const rankingSitiosCumplimiento = Array.from(porSitioCumplimiento.entries())
+      .map(([nombre, v]) => ({ nombre, ...v, pct: v.conformes / v.total }))
+      .sort((a, b) => a.pct - b.pct)
+      .slice(0, 10)
+
+    // Auditorías puntuales con peor % de cumplimiento (a diferencia del
+    // ranking de arriba, que es por sitio acumulado, esto es visita por
+    // visita — sirve para encontrar rápido la peor auditoría concreta).
+    const auditoriasPeorCumplimiento = auditoriasEvaluadas
+      .map((a) => {
+        const info = auditoriaPorId.get(a.id)
+        return {
+          id: a.id,
+          pct: a.pct,
+          total: a.total,
+          fecha: info?.fecha_realizada ?? '',
+          cliente: info?.cliente_domicilios?.clientes?.nombre ?? '-',
+          sitio: info?.cliente_domicilios?.alias ?? '-',
+          supervisor: info?.perfiles?.nombre_completo ?? '-',
+        }
+      })
+      .sort((a, b) => a.pct - b.pct)
       .slice(0, 10)
 
     // Planificaciones (estado actual, no se filtra por fecha del panel de
@@ -136,19 +212,27 @@ export default function AuditoriaDashboard({
       (p) => p.estado !== 'resuelto' && p.fecha_limite && p.fecha_limite < hoy
     ).length
 
+    const quejasRegistradas = auditoriasFiltradas.filter(
+      (a) => a.quejas_comentarios_cliente && a.quejas_comentarios_cliente.trim()
+    ).length
+
     return {
       conformes,
       noConformes,
       noAplica,
       evaluables,
+      conformidadGeneral,
       conformidadPorItem,
       evolucion,
-      rankingSitios,
+      rankingSitiosCantidad,
+      rankingSitiosCumplimiento,
+      auditoriasPeorCumplimiento,
       porEstadoPlanificacion,
       porEstadoPlanAccion,
       planesVencidos,
+      quejasRegistradas,
     }
-  }, [respuestasFiltradas, auditoriasFiltradas, planificaciones, planesAccion])
+  }, [respuestasFiltradas, auditoriasFiltradas, auditoriaPorId, planificaciones, planesAccion])
 
   const selectStyle = 'border border-slate-300 rounded-md px-3 py-2 text-sm'
 
@@ -168,13 +252,23 @@ export default function AuditoriaDashboard({
       {/* Totales generales */}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3 mb-8">
         <div className="bg-white border border-slate-200 rounded-lg p-4">
-          <p className="text-xs text-slate-500 uppercase tracking-wide">Auditorías realizadas</p>
+          <p className="text-xs text-slate-500 uppercase tracking-wide">Sitios auditados</p>
           <p className="text-2xl font-bold text-slate-800 mt-1">{auditoriasFiltradas.length}</p>
         </div>
         <div className="bg-white border border-slate-200 rounded-lg p-4">
-          <p className="text-xs text-slate-500 uppercase tracking-wide">Conformidad general</p>
-          <p className="text-2xl font-bold text-slate-800 mt-1">{formatearPorcentaje(resumen.conformes, resumen.evaluables)}</p>
+          <p className="text-xs text-slate-500 uppercase tracking-wide">% Cumplimiento promedio</p>
+          <p className="text-2xl font-bold text-slate-800 mt-1">
+            {resumen.conformidadGeneral === null ? '-' : `${(resumen.conformidadGeneral * 100).toFixed(0)}%`}
+          </p>
           <p className="text-xs text-slate-400 mt-0.5">{resumen.conformes} conformes / {resumen.noConformes} no conformes</p>
+        </div>
+        <div className="bg-white border border-slate-200 rounded-lg p-4">
+          <p className="text-xs text-slate-500 uppercase tracking-wide">Total no conformidades</p>
+          <p className="text-2xl font-bold text-rose-600 mt-1">{resumen.noConformes}</p>
+        </div>
+        <div className="bg-white border border-slate-200 rounded-lg p-4">
+          <p className="text-xs text-slate-500 uppercase tracking-wide">Quejas/reclamos registrados</p>
+          <p className="text-2xl font-bold text-amber-600 mt-1">{resumen.quejasRegistradas}</p>
         </div>
         <div className="bg-white border border-slate-200 rounded-lg p-4">
           <p className="text-xs text-slate-500 uppercase tracking-wide">Planes de acción vencidos</p>
@@ -192,6 +286,47 @@ export default function AuditoriaDashboard({
             <p className="text-xl font-bold text-slate-800 mt-1">{f.cantidad}</p>
           </div>
         ))}
+      </div>
+
+      {/* Auditorías con peor cumplimiento */}
+      <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Auditorías con menor % de cumplimiento</h2>
+      <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto mb-8">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-slate-50 text-left text-slate-500 border-b border-slate-200">
+              <th className="px-4 py-3 font-medium">Fecha</th>
+              <th className="px-4 py-3 font-medium">Cliente</th>
+              <th className="px-4 py-3 font-medium">Sitio</th>
+              <th className="px-4 py-3 font-medium">Supervisor</th>
+              <th className="px-4 py-3 font-medium">% Cumplimiento</th>
+              <th className="px-4 py-3 font-medium"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {resumen.auditoriasPeorCumplimiento.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-4 py-3 text-slate-400">Sin datos para este período.</td>
+              </tr>
+            ) : (
+              resumen.auditoriasPeorCumplimiento.map((a) => (
+                <tr key={a.id} className="border-b border-slate-100 last:border-0">
+                  <td className="px-4 py-3 text-slate-600">{formatearFecha(a.fecha)}</td>
+                  <td className="px-4 py-3 text-slate-800">{a.cliente}</td>
+                  <td className="px-4 py-3 text-slate-600">{a.sitio}</td>
+                  <td className="px-4 py-3 text-slate-600">{a.supervisor}</td>
+                  <td className="px-4 py-3">
+                    <span className={`text-xs font-medium px-2 py-1 rounded-full ${a.pct < 0.8 ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
+                      {(a.pct * 100).toFixed(0)}%
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <Link href={`/auditorias/${a.id}`} className="text-teal-600 hover:underline">Ver ficha</Link>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
 
       {/* Conformidad por ítem */}
@@ -262,6 +397,35 @@ export default function AuditoriaDashboard({
         </table>
       </div>
 
+      {/* Ranking de sitios por cumplimiento */}
+      <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Sitios con peor % de cumplimiento</h2>
+      <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto mb-8">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-slate-50 text-left text-slate-500 border-b border-slate-200">
+              <th className="px-4 py-3 font-medium">Sitio</th>
+              <th className="px-4 py-3 font-medium">Cumplimiento</th>
+              <th className="px-4 py-3 font-medium">Evaluado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {resumen.rankingSitiosCumplimiento.length === 0 ? (
+              <tr>
+                <td colSpan={3} className="px-4 py-3 text-slate-400">Sin datos para este período.</td>
+              </tr>
+            ) : (
+              resumen.rankingSitiosCumplimiento.map((fila) => (
+                <tr key={fila.nombre} className="border-b border-slate-100 last:border-0">
+                  <td className="px-4 py-3 text-slate-800">{fila.nombre}</td>
+                  <td className="px-4 py-3 text-slate-600">{formatearPorcentaje(fila.conformes, fila.total)}</td>
+                  <td className="px-4 py-3 text-slate-600">{fila.total}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
       {/* Ranking de sitios con más no conformidades */}
       <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Sitios con más no conformidades</h2>
       <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto mb-8">
@@ -273,12 +437,12 @@ export default function AuditoriaDashboard({
             </tr>
           </thead>
           <tbody>
-            {resumen.rankingSitios.length === 0 ? (
+            {resumen.rankingSitiosCantidad.length === 0 ? (
               <tr>
                 <td colSpan={2} className="px-4 py-3 text-slate-400">Sin no conformidades en este período.</td>
               </tr>
             ) : (
-              resumen.rankingSitios.map((fila) => (
+              resumen.rankingSitiosCantidad.map((fila) => (
                 <tr key={fila.nombre} className="border-b border-slate-100 last:border-0">
                   <td className="px-4 py-3 text-slate-800">{fila.nombre}</td>
                   <td className="px-4 py-3 text-rose-600 font-medium">{fila.cantidad}</td>

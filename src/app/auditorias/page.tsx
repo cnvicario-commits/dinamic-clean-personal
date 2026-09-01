@@ -7,10 +7,10 @@ export default async function AuditoriasDashboardPage() {
 
   const [{ data: respuestas }, { data: auditorias }, { data: planificaciones }, { data: planesAccion }] =
     await Promise.all([
+      supabase.from('auditoria_respuestas').select('auditoria_id, resultado, auditoria_checklist_items(texto)'),
       supabase
-        .from('auditoria_respuestas')
-        .select('resultado, auditoria_checklist_items(texto), auditorias(fecha_realizada, cliente_domicilios(alias, clientes(nombre)))'),
-      supabase.from('auditorias').select('fecha_realizada'),
+        .from('auditorias')
+        .select('id, fecha_realizada, quejas_comentarios_cliente, cliente_domicilios(alias, clientes(nombre)), perfiles(nombre_completo)'),
       supabase.from('auditoria_planificaciones').select('estado, fecha_propuesta'),
       supabase.from('auditoria_plan_accion').select('estado, fecha_limite'),
     ])
@@ -20,7 +20,7 @@ export default async function AuditoriasDashboardPage() {
       <h1 className="text-2xl font-bold text-slate-900 mb-6">Auditoría y Calidad — Dashboard</h1>
       <AuditoriaDashboard
         respuestas={(respuestas ?? []) as unknown as RespuestaDashboard[]}
-        auditorias={(auditorias ?? []) as AuditoriaResumen[]}
+        auditorias={(auditorias ?? []) as unknown as AuditoriaResumen[]}
         planificaciones={(planificaciones ?? []) as PlanificacionResumen[]}
         planesAccion={(planesAccion ?? []) as PlanAccionResumen[]}
       />

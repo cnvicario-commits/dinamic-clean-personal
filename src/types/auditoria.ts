@@ -62,16 +62,22 @@ export type PlanAccionItem = {
   auditoria_respuestas: { auditoria_checklist_items: { texto: string } | null } | null
 }
 
+// Plana a propósito (solo auditoria_id, no el detalle del cliente/sitio
+// repetido en cada fila): el detalle se busca en AuditoriaResumen por id,
+// una sola vez por auditoría en vez de una vez por respuesta.
 export type RespuestaDashboard = {
+  auditoria_id: string
   resultado: ResultadoRespuesta
   auditoria_checklist_items: { texto: string } | null
-  auditorias: {
-    fecha_realizada: string
-    cliente_domicilios: { alias: string; clientes: { nombre: string } | null } | null
-  } | null
 }
 
-export type AuditoriaResumen = { fecha_realizada: string }
+export type AuditoriaResumen = {
+  id: string
+  fecha_realizada: string
+  quejas_comentarios_cliente: string | null
+  cliente_domicilios: { alias: string; clientes: { nombre: string } | null } | null
+  perfiles: { nombre_completo: string } | null
+}
 
 export type PlanificacionResumen = { estado: EstadoPlanificacion; fecha_propuesta: string }
 
