@@ -170,8 +170,8 @@ export default async function PortalPage() {
               href={m.href}
               className={`rounded-[18px] p-6 flex flex-col gap-4 shadow-[0_18px_34px_-18px_rgba(0,0,0,0.45)] transition-transform hover:-translate-y-1 ${m.fondo}`}
             >
-              <div className={`w-[52px] h-[52px] rounded-2xl flex items-center justify-center ${m.colorIcono}`}>
-                <svg className="h-[26px] w-[26px] text-white" {...svgProps}>
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${m.colorIcono}`}>
+                <svg className="h-[18px] w-[18px] text-white" {...svgProps}>
                   {m.icono}
                 </svg>
               </div>
