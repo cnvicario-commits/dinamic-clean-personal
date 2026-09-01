@@ -35,6 +35,7 @@ const grupos: Grupo[] = [
     enlaces: [
       { href: '/auditorias/checklist', label: 'Checklist' },
       { href: '/auditorias/planificacion', label: 'Planificación' },
+      { href: '/auditorias/nueva', label: 'Cargar auditoría' },
     ],
   },
   {

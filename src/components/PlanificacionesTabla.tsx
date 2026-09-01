@@ -1,5 +1,6 @@
 'use client'
 import { useState, useMemo } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
 import type { EstadoPlanificacion, PlanificacionListado } from '@/types/auditoria'
@@ -115,16 +116,21 @@ export default function PlanificacionesTabla({
                       {ETIQUETAS[efectivo]}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    {(p.estado === 'planificada') && (
-                      <button
-                        type="button"
-                        onClick={() => cancelar(p.id)}
-                        disabled={cancelandoId === p.id}
-                        className="text-rose-600 hover:underline disabled:opacity-50"
-                      >
-                        Cancelar
-                      </button>
+                  <td className="px-4 py-3 text-right whitespace-nowrap">
+                    {p.estado === 'planificada' && (
+                      <div className="flex items-center justify-end gap-3">
+                        <Link href={`/auditorias/nueva?planificacion=${p.id}`} className="text-teal-600 hover:underline">
+                          Cargar auditoría
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => cancelar(p.id)}
+                          disabled={cancelandoId === p.id}
+                          className="text-rose-600 hover:underline disabled:opacity-50"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
                     )}
                   </td>
                 </tr>
