@@ -77,6 +77,34 @@ export type PlanificacionResumen = { estado: EstadoPlanificacion; fecha_propuest
 
 export type PlanAccionResumen = { estado: EstadoPlanAccion; fecha_limite: string | null }
 
+export type AuditoriaListado = {
+  id: string
+  fecha_realizada: string
+  evaluacion_general: string | null
+  cliente_domicilios: { alias: string; direccion: string | null; clientes: { nombre: string } | null } | null
+  perfiles: { nombre_completo: string } | null
+}
+
+// Solo lo necesario para contar no conformidades por auditoría en el
+// listado — no trae observaciones ni el texto del ítem, eso es cosa de la
+// ficha (ver AuditoriaFicha / RespuestaFicha).
+export type RespuestaConteo = { auditoria_id: string; resultado: ResultadoRespuesta }
+
+export type PlanAccionSeguimiento = {
+  id: string
+  descripcion: string
+  estado: EstadoPlanAccion
+  fecha_limite: string | null
+  fecha_resolucion: string | null
+  auditoria_id: string
+  perfiles: { nombre_completo: string } | null
+  auditorias: {
+    fecha_realizada: string
+    cliente_domicilios: { alias: string; clientes: { nombre: string } | null } | null
+  } | null
+  auditoria_respuestas: { auditoria_checklist_items: { texto: string } | null } | null
+}
+
 export type AuditoriaFicha = {
   id: string
   alias_id: string
