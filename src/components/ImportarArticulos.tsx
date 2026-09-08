@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import * as XLSX from 'xlsx'
 import { createClient } from '@/utils/supabase/client'
 import DescargarPlantillaArticulos from './DescargarPlantillaArticulos'
-import { calcularMaximoCodigo, formatearCodigoArticulo } from '@/utils/codigoArticulo'
+import { formatearCodigoArticulo, obtenerSiguienteCodigo } from '@/utils/codigoArticulo'
 
 type FilaArticulo = {
   fila: number
@@ -152,7 +152,11 @@ export default function ImportarArticulos() {
       // partir del máximo existente, incrementando localmente fila por fila
       // para no repetir dentro del mismo archivo. Ante una colisión rarísima
       // (otra carga corriendo en simultáneo) se reintenta con el siguiente número.
-      let siguienteCodigo = calcularMaximoCodigo(listaExistentes) + 1
+      // No se calcula sobre `listaExistentes` (puede venir recortada por el
+      // límite de filas por defecto de PostgREST en catálogos grandes): se
+      // resuelve con una consulta aparte acotada al prefijo ART-, ver
+      // obtenerSiguienteCodigo.
+      let siguienteCodigo = await obtenerSiguienteCodigo(supabase)
       await enLotes(sinCodigo, TAMANO_LOTE, async (f) => {
         for (let intento = 0; intento < 5; intento++) {
           const codigoAsignado = formatearCodigoArticulo(siguienteCodigo)

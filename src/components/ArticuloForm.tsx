@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
-import { calcularMaximoCodigo, formatearCodigoArticulo } from '@/utils/codigoArticulo'
+import { formatearCodigoArticulo, obtenerSiguienteCodigo } from '@/utils/codigoArticulo'
 
 type Articulo = {
   id: string
@@ -63,8 +63,7 @@ export default function ArticuloForm({
     // Alta: generamos el código interno correlativo en el cliente (ART-0001,
     // ART-0002, ...) a partir del máximo existente, con reintento por si dos
     // altas casi simultáneas calculan el mismo número.
-    const { data: existentes } = await supabase.from('articulos').select('codigo_interno')
-    let siguiente = calcularMaximoCodigo(existentes ?? []) + 1
+    let siguiente = await obtenerSiguienteCodigo(supabase)
     let data: { id: string } | null = null
     let error: { message: string; code?: string } | null = null
     for (let intento = 0; intento < 5; intento++) {
