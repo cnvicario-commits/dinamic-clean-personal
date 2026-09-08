@@ -78,6 +78,20 @@ export default function OportunidadForm({
       setError('Error al guardar: ' + (errInsert?.message ?? 'desconocido'))
       return
     }
+
+    // Deja registro en el historial de seguimientos sin que haya que
+    // cargarlo a mano — mismo criterio que el cambio de estado automático de
+    // TableroVentas.tsx. Si esto falla no se avisa ni se revierte nada: la
+    // oportunidad ya se guardó bien, que es lo importante.
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      await supabase.from('crm_seguimientos').insert({
+        oportunidad_id: data.id,
+        nota: 'Oportunidad creada.',
+        usuario_id: user.id,
+      })
+    }
+
     router.push(`/ventas/${data.id}`)
   }
 
