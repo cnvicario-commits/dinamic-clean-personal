@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import * as XLSX from 'xlsx'
 import { createClient } from '@/utils/supabase/client'
 import { normalizarCodigoProveedor } from '@/utils/normalizarCodigoProveedor'
+import { normalizarPrecio } from '@/utils/normalizarPrecio'
 import DescargarPlantillaListaPrecios from './DescargarPlantillaListaPrecios'
 
 type Proveedor = { id: string; razon_social: string }
@@ -31,12 +32,6 @@ type Resumen = {
 
 const COLUMNAS_ESPERADAS = ['codigo_proveedor', 'nombre_proveedor', 'precio']
 const TAMANO_LOTE = 15
-
-function normalizarPrecio(valor: unknown): number {
-  if (typeof valor === 'number') return valor
-  const texto = String(valor ?? '').trim().replace(',', '.')
-  return Number(texto)
-}
 
 async function enLotes<T>(items: T[], tamano: number, fn: (item: T) => Promise<void>) {
   for (let i = 0; i < items.length; i += tamano) {
@@ -360,9 +355,13 @@ export default function CargaListaPrecios({ proveedores }: { proveedores: Provee
           vacío pero completá <code className="bg-slate-100 px-1 rounded">codigo_interno</code>: se usa ese código
           como reemplazo. Si tampoco tenés <code className="bg-slate-100 px-1 rounded">codigo_interno</code>, la fila
           igual se guarda en Pendientes para resolverla a mano — si el nombre se parece a un artículo ya cargado de
-          ese proveedor, va a aparecer sugerido ahí para resolverla en un clic.
+          ese proveedor, va a aparecer sugerido ahí para resolverla en un clic. El{' '}
+          <code className="bg-slate-100 px-1 rounded">precio</code> puede venir como número de Excel (lo más seguro)
+          o como texto en formato argentino (<code className="bg-slate-100 px-1 rounded">1.234,56</code>) o
+          americano (<code className="bg-slate-100 px-1 rounded">1,234.56</code>); una celda vacía se marca como
+          error en vez de guardarse como $0.
         </p>
-        <DescargarPlantillaListaPrecios />
+        <DescargarPlantillaListaPrecios proveedorId={proveedorId} />
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-wrap gap-2 items-start">
