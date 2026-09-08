@@ -157,7 +157,15 @@ export type LineaPendiente = PedidoCompraItemConArticulo & {
   cantidad_pendiente: number
 }
 
-export type OrdenCompraItemConArticulo = OrdenCompraItem & { articulos: ArticuloResumen | null }
+export type OrdenCompraItemConArticulo = OrdenCompraItem & {
+  articulos: ArticuloResumen | null
+  // Código que el proveedor de esta OC usa para el artículo
+  // (articulos_proveedor.codigo_proveedor para el proveedor_id de la OC). No
+  // es una columna real de ordenes_compra_items: se resuelve en el server
+  // con una consulta aparte y se mezcla acá, igual que creado_por_nombre en
+  // PedidoCompraListado.
+  codigo_proveedor?: string | null
+}
 export type OrdenCompraListado = OrdenCompra & {
   empresas: { nombre: string } | null
   proveedores: { razon_social: string } | null
@@ -173,7 +181,16 @@ export type OrdenCompraDetalleView = OrdenCompra & {
   pedidos_compra: { numero_pedido: string } | null
 }
 
-export type PedidoDepositoItemConArticulo = PedidoDepositoItem & { articulos: ArticuloResumen | null }
+export type PedidoDepositoItemConArticulo = PedidoDepositoItem & {
+  articulos: ArticuloResumen | null
+  // Precio de referencia del artículo (articulos_proveedor.precio del
+  // proveedor habitual del artículo), solo para mostrar en pantalla:
+  // pedidos_deposito_items no tiene precio_unitario porque no es una compra
+  // a un proveedor. No es una columna real, se resuelve en el server con
+  // una consulta aparte y se mezcla acá. No se imprime (ver
+  // PedidoDepositoDetalle).
+  precio_referencia?: number | null
+}
 export type PedidoDepositoListado = PedidoDeposito & {
   empresas: { nombre: string } | null
   clientes: { nombre: string } | null
@@ -183,6 +200,10 @@ export type PedidoDepositoDetalleView = PedidoDeposito & {
   empresas: Empresa | null
   clientes: ClienteResumen | null
   pedidos_deposito_items: PedidoDepositoItemConArticulo[]
+  // Pedido de compra de origen, si este pedido a depósito se generó desde
+  // uno (vía Panel de compras). Solo se usa como referencia visual, igual
+  // que en OrdenCompraDetalleView.
+  pedidos_compra: { numero_pedido: string } | null
 }
 
 // Estado local (en memoria, NO persistido hasta "Confirmar") del Panel de compras.

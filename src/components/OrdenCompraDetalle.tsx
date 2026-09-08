@@ -76,19 +76,28 @@ export default function OrdenCompraDetalle({
         </div>
       )}
 
-      {/* 1. Encabezado: nombre de la empresa, sin logo. */}
-      <h1 className="text-2xl font-bold text-slate-900 mb-1">{orden.empresas?.nombre}</h1>
+      {/* 1. Encabezado: nombre de la empresa (sin logo) + N° del pedido de
+          compra de origen arriba a la derecha, si vino de uno (el pedido que
+          carga el supervisor y que el Panel de compras convierte en esta
+          OC). Se ve tanto en pantalla como impreso: es lo que da
+          trazabilidad hacia el pedido original una vez hecha la asignación. */}
+      <div className="flex items-start justify-between gap-4 mb-1">
+        <h1 className="text-2xl font-bold text-slate-900">{orden.empresas?.nombre}</h1>
+        {orden.pedidos_compra && (
+          <div className="text-right shrink-0">
+            <p className="text-xs text-slate-500">Pedido de origen</p>
+            <p className="text-sm font-semibold text-slate-700 whitespace-nowrap">
+              N° {orden.pedidos_compra.numero_pedido}
+            </p>
+          </div>
+        )}
+      </div>
 
-      {/* 2. N° de OC (+ referencia al pedido de compra de origen, si vino de uno) */}
+      {/* 2. N° de OC */}
       <div className="mb-4">
         <p className="text-sm font-semibold text-slate-600 uppercase tracking-wide">
           Orden de Compra N° {orden.numero_oc}
         </p>
-        {orden.pedidos_compra && (
-          <p className="text-xs text-slate-400 mt-0.5">
-            Ref. Pedido de compra N° {orden.pedidos_compra.numero_pedido}
-          </p>
-        )}
       </div>
 
       {/* 3. Banner destacado: lugar de entrega. El más grande del documento,
@@ -126,11 +135,13 @@ export default function OrdenCompraDetalle({
         Líneas ({orden.ordenes_compra_items.length})
       </h2>
       <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto print:shadow-none print:border-black">
-        <table className="w-full text-xs min-w-[560px]">
+        <table className="w-full text-xs min-w-[760px]">
           <thead>
             <tr className="bg-slate-50 text-left text-slate-500 border-b border-slate-200">
               <th className="px-4 py-2 font-medium">Código</th>
+              <th className="px-4 py-2 font-medium">Cód. Proveedor</th>
               <th className="px-4 py-2 font-medium">Descripción</th>
+              <th className="px-4 py-2 font-medium">Categoría</th>
               <th className="px-4 py-2 font-medium text-right">Precio</th>
               <th className="px-4 py-2 font-medium text-right">Cantidad</th>
               <th className="px-4 py-2 font-medium text-right">Subtotal</th>
@@ -140,7 +151,9 @@ export default function OrdenCompraDetalle({
             {orden.ordenes_compra_items.map((i) => (
               <tr key={i.id} className="border-b border-slate-100 last:border-0">
                 <td className="px-4 py-2 text-slate-600 whitespace-nowrap">{i.articulos?.codigo_interno ?? '-'}</td>
+                <td className="px-4 py-2 text-slate-600 whitespace-nowrap">{i.codigo_proveedor ?? '-'}</td>
                 <td className="px-4 py-2 text-slate-800">{i.articulos?.nombre ?? '-'}</td>
+                <td className="px-4 py-2 text-slate-600">{i.articulos?.categoria ?? '-'}</td>
                 <td className="px-4 py-2 text-slate-600 text-right whitespace-nowrap">$ {formatearMoneda(i.precio_unitario)}</td>
                 <td className="px-4 py-2 text-slate-600 text-right whitespace-nowrap">{i.cantidad}</td>
                 <td className="px-4 py-2 text-slate-600 text-right whitespace-nowrap">$ {formatearMoneda(i.cantidad * i.precio_unitario)}</td>
@@ -149,17 +162,17 @@ export default function OrdenCompraDetalle({
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan={3}></td>
+              <td colSpan={5}></td>
               <td className="px-4 py-1 text-right text-slate-600">Subtotal</td>
               <td className="px-4 py-1 text-slate-700 text-right whitespace-nowrap">$ {formatearMoneda(subtotal)}</td>
             </tr>
             <tr>
-              <td colSpan={3}></td>
+              <td colSpan={5}></td>
               <td className="px-4 py-1 text-right text-slate-600">IVA 21%</td>
               <td className="px-4 py-1 text-slate-700 text-right whitespace-nowrap">$ {formatearMoneda(iva)}</td>
             </tr>
             <tr className="border-t border-slate-200">
-              <td colSpan={3}></td>
+              <td colSpan={5}></td>
               <td className="px-4 py-2 text-right font-semibold text-slate-700">Total</td>
               <td className="px-4 py-2 font-semibold text-slate-900 text-right whitespace-nowrap">$ {formatearMoneda(total)}</td>
             </tr>
