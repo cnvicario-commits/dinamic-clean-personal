@@ -29,6 +29,8 @@ export type EstadoPlanificacion = 'planificada' | 'realizada' | 'vencida' | 'can
 export type PlanificacionListado = {
   id: string
   fecha_propuesta: string
+  horario: string | null
+  observaciones: string | null
   // 'vencida' nunca viene de la base (el enum de la columna no la incluye)
   // — se calcula en el front a partir de 'planificada' + fecha vencida. Se
   // permite acá para que el mismo tipo sirva antes y después de calcularlo.
@@ -36,6 +38,20 @@ export type PlanificacionListado = {
   supervisor_id: string
   cliente_domicilios: { alias: string; direccion: string | null; clientes: { nombre: string } | null } | null
   perfiles: { nombre_completo: string } | null
+}
+
+// Para la pantalla de edición: además de los campos editables, trae el
+// cliente del sitio ya planificado (BuscadorCliente necesita nombre + id
+// para mostrar la selección inicial, no solo el alias_id).
+export type PlanificacionEdicion = {
+  id: string
+  alias_id: string
+  fecha_propuesta: string
+  horario: string | null
+  observaciones: string | null
+  supervisor_id: string
+  estado: EstadoPlanificacion
+  cliente_domicilios: { cliente_id: string; clientes: { id: string; nombre: string } | null } | null
 }
 
 export type ResultadoRespuesta = 'conforme' | 'no_conforme' | 'no_aplica'

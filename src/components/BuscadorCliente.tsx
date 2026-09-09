@@ -10,13 +10,19 @@ export default function BuscadorCliente({
   clientes,
   onSeleccionar,
   placeholder = 'Buscar cliente por nombre...',
+  clienteInicial,
 }: {
   clientes: Cliente[]
   onSeleccionar: (cliente: Cliente) => void
   placeholder?: string
+  // Para pantallas de edición (ej. editar una planificación ya cargada):
+  // precarga el cliente ya elegido sin que el usuario tenga que volver a
+  // buscarlo. Solo se usa como valor inicial (no se sincroniza si cambia
+  // después del primer render).
+  clienteInicial?: Cliente
 }) {
-  const [busqueda, setBusqueda] = useState('')
-  const [clienteId, setClienteId] = useState('')
+  const [busqueda, setBusqueda] = useState(clienteInicial?.nombre ?? '')
+  const [clienteId, setClienteId] = useState(clienteInicial?.id ?? '')
   const [mostrarLista, setMostrarLista] = useState(false)
   const contenedorRef = useRef<HTMLDivElement>(null)
 

@@ -10,6 +10,8 @@ export default async function PlanificacionAuditoriasPage() {
     supabase
       .from('auditoria_planificaciones')
       .select('*, cliente_domicilios(alias, direccion, clientes(nombre)), perfiles(nombre_completo)')
+      // '*' ya trae horario y observaciones (columnas agregadas en
+      // 0032_auditoria_planificacion_horario_observaciones.sql).
       .order('fecha_propuesta', { ascending: true }),
     supabase.from('perfiles').select('id, nombre_completo').order('nombre_completo'),
   ])

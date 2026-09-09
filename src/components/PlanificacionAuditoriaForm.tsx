@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import BuscadorCliente from './BuscadorCliente'
+import type { PlanificacionEdicion } from '@/types/auditoria'
 
 type Cliente = { id: string; nombre: string }
 type Domicilio = { id: string; cliente_id: string; alias: string; direccion: string | null; activo: boolean }
@@ -14,15 +15,22 @@ export default function PlanificacionAuditoriaForm({
   clientes,
   domicilios,
   supervisores,
+  planificacion,
 }: {
   clientes: Cliente[]
   domicilios: Domicilio[]
   supervisores: Perfil[]
+  // Si viene cargada, el formulario edita esa planificación en vez de crear
+  // una nueva (mismo componente para las dos pantallas, como ProveedorForm).
+  planificacion?: PlanificacionEdicion
 }) {
-  const [cliente, setCliente] = useState<Cliente | null>(null)
-  const [aliasId, setAliasId] = useState('')
-  const [fechaPropuesta, setFechaPropuesta] = useState('')
-  const [supervisorId, setSupervisorId] = useState('')
+  const clienteInicial = planificacion?.cliente_domicilios?.clientes ?? null
+  const [cliente, setCliente] = useState<Cliente | null>(clienteInicial)
+  const [aliasId, setAliasId] = useState(planificacion?.alias_id ?? '')
+  const [fechaPropuesta, setFechaPropuesta] = useState(planificacion?.fecha_propuesta ?? '')
+  const [horario, setHorario] = useState(planificacion?.horario ?? '')
+  const [supervisorId, setSupervisorId] = useState(planificacion?.supervisor_id ?? '')
+  const [observaciones, setObservaciones] = useState(planificacion?.observaciones ?? '')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -46,14 +54,19 @@ export default function PlanificacionAuditoriaForm({
       return
     }
     setLoading(true)
-    const { error: errInsert } = await supabase.from('auditoria_planificaciones').insert({
+    const datos = {
       alias_id: aliasId,
       fecha_propuesta: fechaPropuesta,
+      horario: horario || null,
       supervisor_id: supervisorId,
-    })
-    if (errInsert) {
+      observaciones: observaciones.trim() || null,
+    }
+    const { error: errGuardar } = planificacion
+      ? await supabase.from('auditoria_planificaciones').update(datos).eq('id', planificacion.id)
+      : await supabase.from('auditoria_planificaciones').insert(datos)
+    if (errGuardar) {
       setLoading(false)
-      setError('Error al guardar: ' + errInsert.message)
+      setError('Error al guardar: ' + errGuardar.message)
       return
     }
     router.push('/auditorias/planificacion')
@@ -66,6 +79,7 @@ export default function PlanificacionAuditoriaForm({
         <p className="text-xs text-slate-500 mb-1">Cliente</p>
         <BuscadorCliente
           clientes={clientes}
+          clienteInicial={clienteInicial ?? undefined}
           onSeleccionar={(c) => {
             setCliente(c.id ? c : null)
             setAliasId('')
@@ -89,9 +103,15 @@ export default function PlanificacionAuditoriaForm({
         </div>
       )}
 
-      <div>
-        <p className="text-xs text-slate-500 mb-1">Fecha propuesta</p>
-        <input type="date" value={fechaPropuesta} onChange={(e) => setFechaPropuesta(e.target.value)} className={inputStyle} />
+      <div className="flex gap-4">
+        <div className="flex-1">
+          <p className="text-xs text-slate-500 mb-1">Fecha propuesta</p>
+          <input type="date" value={fechaPropuesta} onChange={(e) => setFechaPropuesta(e.target.value)} className={inputStyle} />
+        </div>
+        <div className="w-36">
+          <p className="text-xs text-slate-500 mb-1">Horario (opcional)</p>
+          <input type="time" value={horario} onChange={(e) => setHorario(e.target.value)} className={inputStyle} />
+        </div>
       </div>
 
       <div>
@@ -104,6 +124,11 @@ export default function PlanificacionAuditoriaForm({
         </select>
       </div>
 
+      <div>
+        <p className="text-xs text-slate-500 mb-1">Observaciones (opcional)</p>
+        <textarea value={observaciones} onChange={(e) => setObservaciones(e.target.value)} rows={3} className={inputStyle} />
+      </div>
+
       {error && <p className="text-rose-600 text-sm">{error}</p>}
 
       <button
@@ -112,7 +137,7 @@ export default function PlanificacionAuditoriaForm({
         disabled={loading}
         className="self-start px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
       >
-        {loading ? 'Guardando...' : 'Planificar auditoría'}
+        {loading ? 'Guardando...' : planificacion ? 'Guardar cambios' : 'Planificar auditoría'}
       </button>
     </div>
   )

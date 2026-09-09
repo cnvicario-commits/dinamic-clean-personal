@@ -36,6 +36,12 @@ function formatearFecha(fecha: string) {
   return new Date(`${fecha}T00:00:00`).toLocaleDateString('es-AR')
 }
 
+// horario viene 'HH:MM:SS' desde una columna `time` de Postgres — se recorta
+// a 'HH:MM' para mostrar.
+function formatearHorario(horario: string | null) {
+  return horario ? horario.slice(0, 5) : '-'
+}
+
 export default function PlanificacionesTabla({
   planificaciones,
   supervisores,
@@ -96,6 +102,7 @@ export default function PlanificacionesTabla({
               <th className="px-4 py-3 font-medium">Sitio</th>
               <th className="px-4 py-3 font-medium">Domicilio</th>
               <th className="px-4 py-3 font-medium">Fecha propuesta</th>
+              <th className="px-4 py-3 font-medium">Horario</th>
               <th className="px-4 py-3 font-medium">Supervisor</th>
               <th className="px-4 py-3 font-medium">Estado</th>
               <th className="px-4 py-3 font-medium"></th>
@@ -110,6 +117,7 @@ export default function PlanificacionesTabla({
                   <td className="px-4 py-3 text-slate-600">{p.cliente_domicilios?.alias ?? '-'}</td>
                   <td className="px-4 py-3 text-slate-600">{p.cliente_domicilios?.direccion ?? '-'}</td>
                   <td className="px-4 py-3 text-slate-600">{formatearFecha(p.fecha_propuesta)}</td>
+                  <td className="px-4 py-3 text-slate-600">{formatearHorario(p.horario)}</td>
                   <td className="px-4 py-3 text-slate-600">{p.perfiles?.nombre_completo ?? '-'}</td>
                   <td className="px-4 py-3">
                     <span className={`text-xs font-medium px-2 py-1 rounded-full ${COLORES[efectivo]}`}>
@@ -121,6 +129,9 @@ export default function PlanificacionesTabla({
                       <div className="flex items-center justify-end gap-3">
                         <Link href={`/auditorias/nueva?planificacion=${p.id}`} className="text-teal-600 hover:underline">
                           Cargar auditoría
+                        </Link>
+                        <Link href={`/auditorias/planificacion/${p.id}/editar`} className="text-slate-600 hover:underline">
+                          Editar
                         </Link>
                         <button
                           type="button"
