@@ -29,7 +29,8 @@ export type EstadoPlanificacion = 'planificada' | 'realizada' | 'vencida' | 'can
 export type PlanificacionListado = {
   id: string
   fecha_propuesta: string
-  horario: string | null
+  horario_desde: string | null
+  horario_hasta: string | null
   observaciones: string | null
   // 'vencida' nunca viene de la base (el enum de la columna no la incluye)
   // — se calcula en el front a partir de 'planificada' + fecha vencida. Se
@@ -47,7 +48,8 @@ export type PlanificacionEdicion = {
   id: string
   alias_id: string
   fecha_propuesta: string
-  horario: string | null
+  horario_desde: string | null
+  horario_hasta: string | null
   observaciones: string | null
   supervisor_id: string
   estado: EstadoPlanificacion

@@ -28,7 +28,8 @@ export default function PlanificacionAuditoriaForm({
   const [cliente, setCliente] = useState<Cliente | null>(clienteInicial)
   const [aliasId, setAliasId] = useState(planificacion?.alias_id ?? '')
   const [fechaPropuesta, setFechaPropuesta] = useState(planificacion?.fecha_propuesta ?? '')
-  const [horario, setHorario] = useState(planificacion?.horario ?? '')
+  const [horarioDesde, setHorarioDesde] = useState(planificacion?.horario_desde ?? '')
+  const [horarioHasta, setHorarioHasta] = useState(planificacion?.horario_hasta ?? '')
   const [supervisorId, setSupervisorId] = useState(planificacion?.supervisor_id ?? '')
   const [observaciones, setObservaciones] = useState(planificacion?.observaciones ?? '')
   const [error, setError] = useState('')
@@ -53,11 +54,16 @@ export default function PlanificacionAuditoriaForm({
       setError('Falta el supervisor responsable.')
       return
     }
+    if (horarioDesde && horarioHasta && horarioHasta <= horarioDesde) {
+      setError('El horario "hasta" tiene que ser posterior al horario "desde".')
+      return
+    }
     setLoading(true)
     const datos = {
       alias_id: aliasId,
       fecha_propuesta: fechaPropuesta,
-      horario: horario || null,
+      horario_desde: horarioDesde || null,
+      horario_hasta: horarioHasta || null,
       supervisor_id: supervisorId,
       observaciones: observaciones.trim() || null,
     }
@@ -103,14 +109,19 @@ export default function PlanificacionAuditoriaForm({
         </div>
       )}
 
+      <div>
+        <p className="text-xs text-slate-500 mb-1">Fecha propuesta</p>
+        <input type="date" value={fechaPropuesta} onChange={(e) => setFechaPropuesta(e.target.value)} className={`sm:w-56 ${inputStyle}`} />
+      </div>
+
       <div className="flex gap-4">
-        <div className="flex-1">
-          <p className="text-xs text-slate-500 mb-1">Fecha propuesta</p>
-          <input type="date" value={fechaPropuesta} onChange={(e) => setFechaPropuesta(e.target.value)} className={inputStyle} />
+        <div className="w-36">
+          <p className="text-xs text-slate-500 mb-1">Horario desde (opcional)</p>
+          <input type="time" value={horarioDesde} onChange={(e) => setHorarioDesde(e.target.value)} className={inputStyle} />
         </div>
         <div className="w-36">
-          <p className="text-xs text-slate-500 mb-1">Horario (opcional)</p>
-          <input type="time" value={horario} onChange={(e) => setHorario(e.target.value)} className={inputStyle} />
+          <p className="text-xs text-slate-500 mb-1">Horario hasta (opcional)</p>
+          <input type="time" value={horarioHasta} onChange={(e) => setHorarioHasta(e.target.value)} className={inputStyle} />
         </div>
       </div>
 

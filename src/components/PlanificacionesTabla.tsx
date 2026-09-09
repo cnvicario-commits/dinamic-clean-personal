@@ -36,10 +36,13 @@ function formatearFecha(fecha: string) {
   return new Date(`${fecha}T00:00:00`).toLocaleDateString('es-AR')
 }
 
-// horario viene 'HH:MM:SS' desde una columna `time` de Postgres — se recorta
-// a 'HH:MM' para mostrar.
-function formatearHorario(horario: string | null) {
-  return horario ? horario.slice(0, 5) : '-'
+// horario_desde/hasta vienen 'HH:MM:SS' desde columnas `time` de Postgres —
+// se recorta a 'HH:MM' para mostrar. Cualquiera de las dos puede faltar
+// (rango abierto de un solo lado) o las dos (sin horario cargado).
+function formatearHorario(desde: string | null, hasta: string | null) {
+  if (!desde && !hasta) return '-'
+  if (desde && hasta) return `${desde.slice(0, 5)} a ${hasta.slice(0, 5)}`
+  return (desde ?? hasta)!.slice(0, 5)
 }
 
 export default function PlanificacionesTabla({
@@ -117,7 +120,7 @@ export default function PlanificacionesTabla({
                   <td className="px-4 py-3 text-slate-600">{p.cliente_domicilios?.alias ?? '-'}</td>
                   <td className="px-4 py-3 text-slate-600">{p.cliente_domicilios?.direccion ?? '-'}</td>
                   <td className="px-4 py-3 text-slate-600">{formatearFecha(p.fecha_propuesta)}</td>
-                  <td className="px-4 py-3 text-slate-600">{formatearHorario(p.horario)}</td>
+                  <td className="px-4 py-3 text-slate-600">{formatearHorario(p.horario_desde, p.horario_hasta)}</td>
                   <td className="px-4 py-3 text-slate-600">{p.perfiles?.nombre_completo ?? '-'}</td>
                   <td className="px-4 py-3">
                     <span className={`text-xs font-medium px-2 py-1 rounded-full ${COLORES[efectivo]}`}>
