@@ -1,0 +1,64 @@
+module,operation,current_execution,data_access,business_rule,risk,target_layer,target_endpoint,transaction_required,idempotency_required,migration_priority,dependencies
+platform,auth_login,browser_supabase_auth,supabase_auth_client,email_password,HIGH,backend+supabase_auth,POST /auth/login (or keep supabase-js login only),false,false,P1,E-001
+platform,auth_logout,browser_supabase_auth,supabase_auth_client,session_clear,MEDIUM,backend+supabase_auth,POST /auth/logout,false,false,P2,E-001
+platform,session_gate,next_proxy_getSession,perfiles_select,route_RBAC_UX_only,CRITICAL,backend,middleware_validate_JWT+RBAC,false,false,P0,E-002
+usuarios,create_user,api_usuarios_service_role,auth.admin+perfiles,admin_only_min_password_6,HIGH,backend,POST /api/v1/users,true,true,P0,E-001
+usuarios,change_role,api_usuarios_service_role,perfiles_update,admin_only,HIGH,backend,PATCH /api/v1/users/{id}/role,false,true,P0,E-001
+usuarios,change_password,api_usuarios_service_role,auth.admin,admin_only,HIGH,backend,POST /api/v1/users/{id}/password,false,true,P0,E-016
+usuarios,list_users,server_component_admin,auth.listUsers+perfiles,admin_page,MEDIUM,backend,GET /api/v1/users,false,false,P1,E-001
+perfiles,read_all,browser_or_ssr,perfiles_select_open,any_authenticated,HIGH,backend+RLS,GET /api/v1/profiles,false,false,P0,E-003
+perfiles,self_update_role_possible,NO_VERIFICADO_client,perfiles_update_policy_unknown,escalation,CRITICAL,backend+RLS_deny,n/a_forbid,false,false,P0,E-018
+empleados,create,browser_client,empleados_insert,UI_validation_only,CRITICAL,backend,POST /api/v1/employees,false,true,P0,E-001
+empleados,activate_deactivate,browser_client,empleados_update_activo,toggle,HIGH,backend,PATCH /api/v1/employees/{id}/status,false,true,P0,E-001
+empleados,list_filter,ssr_then_client_filter,empleados_select_star,client_side_filter,MEDIUM,backend,GET /api/v1/employees?cursor=,false,false,P1,E-021
+asignaciones,create,browser_client,asignaciones_insert,UI_only,HIGH,backend,POST /api/v1/assignments,false,true,P0,E-001
+asignaciones,close,browser_client,asignaciones_update_fecha_hasta,UI_only,HIGH,backend,POST /api/v1/assignments/{id}/close,false,true,P0,E-001
+asistencias,upsert_daily,browser_client,asistencias_upsert,onConflict_empleado_fecha,CRITICAL,backend,PUT /api/v1/attendance/{employeeId}/{date},true,true,P0,E-001
+asistencias,upload_justificacion,browser_storage,storage_justificaciones+archivo_url_1y,no_MIME_validation,CRITICAL,backend,POST /api/v1/attendance/{id}/attachments,true,true,P0,E-007
+asistencias,export,browser_xlsx,asistencias_select,no_audit_trail,HIGH,backend,GET /api/v1/attendance/export,false,false,P1,E-029
+clientes,create_with_domicilio,browser_client,clientes_insert+domicilio_insert,multi_step_no_tx,HIGH,backend,POST /api/v1/clients,true,true,P0,E-008
+clientes,update,browser_client,clientes_update,UI,HIGH,backend,PATCH /api/v1/clients/{id},false,true,P1,E-001
+clientes,list,ssr,clientes_select,open_read,MEDIUM,backend,GET /api/v1/clients,false,false,P2,E-001
+domicilios,create_update,browser_client,cliente_domicilios,UI,HIGH,backend,POST/PATCH /api/v1/clients/{id}/addresses,false,true,P1,E-001
+domicilios,mark_principal,browser_client,two_updates,race,HIGH,backend+SQL,POST /api/v1/addresses/{id}/primary,true,true,P0,E-017
+domicilios,toggle_activo,browser_client,update_activo,UI,MEDIUM,backend,PATCH /api/v1/addresses/{id}/status,false,true,P2,E-001
+presupuestos,upload_pdf,browser_storage+insert,bucket_presupuestos+cliente_presupuestos,client_MIME_15MB,HIGH,backend,POST /api/v1/clients/{id}/quotes,true,true,P0,E-006
+presupuestos,delete,browser_storage+delete,remove+row_delete,any_auth_storage,HIGH,backend,DELETE /api/v1/clients/quotes/{id},true,true,P0,E-006
+empresas,create_update_toggle,browser_client,empresas,UI_admin_route_only,HIGH,backend,CRUD /api/v1/companies,false,true,P1,E-001
+proveedores,CRUD_toggle,browser_client,proveedores,RLS_open,HIGH,backend,CRUD /api/v1/suppliers,false,true,P1,E-003
+articulos,CRUD_toggle_import,browser_client,articulos+import_xlsx,browser_processing,HIGH,backend,CRUD+POST /api/v1/articles/import,true,true,P1,E-011
+articulos_proveedor,price_list_upload,browser_client,articulos_proveedor+pendientes,complex_match_rules,HIGH,backend,POST /api/v1/suppliers/{id}/price-lists,true,true,P1,E-008
+pendientes,resolve_link,browser_client,insert_articulos_proveedor,UI,MEDIUM,backend,POST /api/v1/price-list-pending/{id}/resolve,true,true,P2,E-001
+pedidos_compra,create_update,browser_client,cabecera+replace_items,delete_all_items_reinsert,CRITICAL,backend,POST/PUT /api/v1/purchase-requests,true,true,P0,E-008
+pedidos_compra,duplicate,browser_client,select_star+insert,multi_step,HIGH,backend,POST /api/v1/purchase-requests/{id}/duplicate,true,true,P1,E-008
+pedidos_compra,import_matrix,browser_xlsx,multi_insert,browser_CPU,HIGH,backend_worker,POST /api/v1/purchase-requests/import,true,true,P1,E-021
+panel_compras,assign_to_OC_deposito,browser_client,multi_insert_OC_deposito,rules_in_React,CRITICAL,backend,POST /api/v1/purchase-requests/{id}/allocate,true,true,P0,E-008
+panel_compras,discard_line,browser_client,pedidos_compra_items_update,RLS_update_authenticated,HIGH,backend,POST /api/v1/purchase-request-items/{id}/discard,false,true,P0,E-003
+ordenes_compra,create_manual,browser_client,cabecera+items,multi_step,CRITICAL,backend,POST /api/v1/purchase-orders,true,true,P0,E-008
+ordenes_compra,transition_estado,browser_client,update_estado,state_machine_UI,CRITICAL,backend+constraint,POST /api/v1/purchase-orders/{id}/transition,false,true,P0,E-009
+ordenes_compra,duplicate,browser_client,copy_rows,multi_step,HIGH,backend,POST /api/v1/purchase-orders/{id}/duplicate,true,true,P1,E-008
+ordenes_compra,print_batch,browser_UI,read_only,frontend_ok,LOW,frontend_visual,n/a,false,false,P3,none
+pedidos_deposito,create_from_panel,browser_client,cabecera+items,multi_step,CRITICAL,backend,POST /api/v1/warehouse-orders,true,true,P0,E-008
+pedidos_deposito,transition_estado,browser_client,update_estado,state_machine_UI,CRITICAL,backend+constraint,POST /api/v1/warehouse-orders/{id}/transition,false,true,P0,E-009
+crm_prospectos,create_update,browser_client,crm_prospectos,RLS_open,HIGH,backend,CRUD /api/v1/crm/prospects,false,true,P1,E-003
+crm_oportunidades,create_update_delete,browser_client,crm_oportunidades,hard_delete,HIGH,backend,CRUD /api/v1/crm/opportunities,true,true,P1,E-001
+crm_oportunidades,change_estado_board,browser_client,update_estado,dnd_UI,HIGH,backend+CHECK,POST /api/v1/crm/opportunities/{id}/transition,false,true,P1,E-009
+crm_seguimientos,create,browser_client,insert+trigger_proxima_fecha,trigger_SQL_ok,MEDIUM,backend,POST /api/v1/crm/follow-ups,true,true,P2,E-001
+crm_vistas,mark_viewed,browser_client,upsert_crm_vistas,UI,LOW,backend,PUT /api/v1/crm/opportunities/{id}/viewed,false,true,P3,E-001
+auditoria_checklist,admin_versions,browser_client,plantillas+items_multi,multi_step,HIGH,backend,POST /api/v1/audits/checklists,true,true,P1,E-008
+auditoria_planificaciones,CRUD_cancel,browser_client,auditoria_planificaciones,RLS_open,HIGH,backend,CRUD /api/v1/audits/plans,false,true,P1,E-003
+auditorias,submit_with_answers,browser_client,auditorias+respuestas+plan_estado,multi_step_no_tx,CRITICAL,backend,POST /api/v1/audits/{planId}/submit,true,true,P0,E-008
+auditoria_plan_accion,create_update,browser_client,auditoria_plan_accion,UI,HIGH,backend,CRUD /api/v1/audits/actions,false,true,P1,E-001
+resultados,import_excel,browser_client,upsert_mensuales+delete_insert_detalle,admin_route_RLS_write,CRITICAL,backend_worker,POST /api/v1/financials/import,true,true,P0,E-005
+resultados,read_dashboard,ssr_select_star,resultados_select_open,any_auth_read,HIGH,backend+RLS,GET /api/v1/financials,false,false,P0,E-005
+dashboard_rrhh,aggregate_reads,ssr_multi_query,ordenes+asignaciones+asistencias,client_aggregation,MEDIUM,backend,GET /api/v1/dashboard/summary,false,false,P2,E-021
+reportes,bejerman_export,browser_client,empleados+asistencias,xlsx_vuln,HIGH,backend,GET /api/v1/reports/bejerman,false,true,P1,E-010
+reportes,horas_extra,browser_client,asistencias,processing_browser,MEDIUM,backend,GET /api/v1/reports/overtime,false,false,P2,E-021
+sql_triggers,numero_documento,postgres_trigger,sequences,OK_keep,LOW,constraint_trigger,n/a_keep,false,false,P3,none
+sql_triggers,crm_fecha_cierre,postgres_trigger,crm_oportunidades,OK_keep,LOW,trigger,n/a_keep,false,false,P3,none
+sql_function,buscar_articulos_similares,RPC_granted_authenticated,sql_stable,OK_via_backend_wrap,MEDIUM,backend_wrap_RPC,GET /api/v1/articles/similar,false,false,P2,E-001
+integration_attendance,sync_employees,missing,n/a,n/a,CRITICAL,backend_worker,POST /api/v1/integrations/attendance/employees,true,true,P0,E-015
+integration_attendance,sync_attendance,missing,n/a,n/a,CRITICAL,backend_worker,POST /api/v1/integrations/attendance/punches,true,true,P0,E-015
+integration_attendance,webhooks_in,missing,n/a,n/a,CRITICAL,backend,POST /api/v1/integrations/attendance/webhooks,true,true,P0,E-015
+ops,health,missing,n/a,n/a,HIGH,backend,GET /healthz /readyz,false,false,P0,E-014
+ops,audit_log_write,missing,n/a,n/a,HIGH,backend,internal,true,true,P0,E-014
