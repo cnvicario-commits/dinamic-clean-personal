@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -32,6 +33,9 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+!apps/api/.env.example
+!**/.env.example
 
 # vercel
 .vercel
@@ -46,3 +50,16 @@ next-env.d.ts
 
 # backups de datos (CSV exportados antes de borrados masivos, no versionar)
 /backups/
+/supabase-backup/
+
+# Cursor local agents/commands/rules (exist locally; not part of product commits)
+/.cursor/
+
+# Formal + local evidence / review dumps (generate locally; never commit)
+/evidence/
+/review/
+.review/
+review-working-tree.txt
+
+# API build output (regenerate with npm run build)
+/apps/api/dist/
