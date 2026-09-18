@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Backend lives under apps/api with its own typecheck; exclude from Next ESLint.
+    "apps/**",
+    "evidence/**",
+    "review/**",
+    ".review/**",
   ]),
 ]);
 

@@ -1,3 +1,4 @@
+import type { ComponentProps } from 'react'
 import { createClient } from '@/utils/supabase/server'
 import Link from 'next/link'
 import OrdenesCompraTabla from '@/components/OrdenesCompraTabla'
@@ -26,7 +27,7 @@ export default async function OrdenesCompraPage() {
         </Link>
       </div>
       <OrdenesCompraTabla
-        ordenes={(ordenes ?? []) as any}
+        ordenes={(ordenes ?? []) as ComponentProps<typeof OrdenesCompraTabla>['ordenes']}
         clientes={clientes ?? []}
         empresas={empresas ?? []}
         proveedores={proveedores ?? []}

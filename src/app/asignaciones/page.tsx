@@ -2,6 +2,14 @@ import { createClient } from '@/utils/supabase/server'
 import AsignacionForm from '@/components/AsignacionForm'
 import CerrarAsignacionBoton from '@/components/CerrarAsignacionBoton'
 
+type AsignacionListado = {
+  id: string
+  fecha_desde: string
+  fecha_hasta: string | null
+  empleados: { nombre_apellido: string } | null
+  clientes: { nombre: string } | null
+}
+
 export default async function AsignacionesPage() {
   const supabase = await createClient()
   const { data: empleados } = await supabase.from('empleados').select('id, nombre_apellido').order('nombre_apellido')
@@ -27,7 +35,7 @@ export default async function AsignacionesPage() {
             </tr>
           </thead>
           <tbody>
-            {asignaciones?.map((a: any) => (
+            {(asignaciones as AsignacionListado[] | null)?.map((a) => (
               <tr key={a.id} className="border-b border-slate-100 last:border-0">
                 <td className="px-4 py-3 text-slate-800">{a.empleados?.nombre_apellido}</td>
                 <td className="px-4 py-3 text-slate-800">{a.clientes?.nombre}</td>

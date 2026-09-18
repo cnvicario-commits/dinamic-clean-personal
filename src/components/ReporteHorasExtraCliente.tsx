@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import * as XLSX from 'xlsx'
 import { createClient } from '@/utils/supabase/client'
+import { type RelOne, relOne } from '@/lib/supabase-rel'
 
 function formatoFecha(d: Date) {
   const anio = d.getFullYear()
@@ -70,11 +71,19 @@ export default function ReporteHorasExtraCliente() {
       const clientesConHoras = new Map<string, string>()
       let hayHorasSinDefinir = false
 
-      asistencias.forEach((a: any) => {
+      type AsistenciaHorasExtra = {
+        empleado_id: string
+        horas_extras: number
+        cliente_destino_id: string | null
+        cliente_horas_extra_id: string | null
+        empleados: RelOne<{ nombre_apellido: string }>
+      }
+
+      asistencias.forEach((a: AsistenciaHorasExtra) => {
         const clienteId = resolverClienteId(a)
         const claveCliente = clienteId || SIN_DEFINIR
         const clienteNombre = clienteId ? clientesPorId.get(clienteId)?.nombre || 'Sin definir' : 'Sin definir'
-        const empleadoNombre = a.empleados?.nombre_apellido || 'Sin nombre'
+        const empleadoNombre = relOne(a.empleados)?.nombre_apellido || 'Sin nombre'
 
         if (claveCliente === SIN_DEFINIR) {
           hayHorasSinDefinir = true
@@ -132,8 +141,8 @@ export default function ReporteHorasExtraCliente() {
       const libro = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(libro, hoja, 'Horas extra por cliente')
       XLSX.writeFile(libro, `horas_extra_por_cliente_${desdeStr}_a_${hastaStr}.xlsx`)
-    } catch (e: any) {
-      setError('Error al generar el reporte: ' + e.message)
+    } catch (e: unknown) {
+      setError('Error al generar el reporte: ' + (e instanceof Error ? e.message : String(e)))
     }
     setLoading(false)
   }

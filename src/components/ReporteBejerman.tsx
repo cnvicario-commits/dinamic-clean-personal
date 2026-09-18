@@ -129,8 +129,8 @@ export default function ReporteBejerman() {
       const libro = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(libro, hoja, 'Reporte Bejerman')
       XLSX.writeFile(libro, `reporte_bejerman_${desdeStr}_a_${hastaStr}.xlsx`)
-    } catch (e: any) {
-      setError('Error al generar el reporte: ' + e.message)
+    } catch (e: unknown) {
+      setError('Error al generar el reporte: ' + (e instanceof Error ? e.message : String(e)))
     }
     setLoading(false)
   }

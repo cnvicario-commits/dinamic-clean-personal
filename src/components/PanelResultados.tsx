@@ -239,7 +239,7 @@ export default function PanelResultados({
           <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-4">
             <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
               Comparativo mensual
-              {acumulado && <span className="normal-case font-normal text-slate-400"> — "Acumulado" es la suma del rango elegido</span>}
+              {acumulado && <span className="normal-case font-normal text-slate-400"> — &quot;Acumulado&quot; es la suma del rango elegido</span>}
             </h2>
             <ResponsiveContainer width="100%" height={360}>
               <BarChart data={datosGrafico} margin={{ top: 24 }}>
