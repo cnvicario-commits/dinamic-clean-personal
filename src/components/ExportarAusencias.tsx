@@ -1,16 +1,17 @@
 'use client'
 import * as XLSX from 'xlsx'
+import { type RelOne, relOne } from '@/lib/supabase-rel'
 type Asistencia = {
   fecha: string
   codigo: string
   horas_extras: number | null
   observaciones: string | null
-  empleados: { nombre_apellido: string } | null
+  empleados: RelOne<{ nombre_apellido: string }>
 }
 export default function ExportarAusencias({ asistencias }: { asistencias: Asistencia[] }) {
   const handleExport = () => {
     const filas = asistencias.map((a) => ({
-      Empleado: a.empleados?.nombre_apellido || '',
+      Empleado: relOne(a.empleados)?.nombre_apellido || '',
       Fecha: a.fecha,
       Código: a.codigo,
       'Horas extra': a.horas_extras || 0,

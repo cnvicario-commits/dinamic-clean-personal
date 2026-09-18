@@ -1,3 +1,4 @@
+import type { ComponentProps } from 'react'
 import { createClient } from '@/utils/supabase/server'
 import Link from 'next/link'
 import ArticuloProveedoresTabla from '@/components/ArticuloProveedoresTabla'
@@ -48,7 +49,9 @@ export default async function ArticuloDetallePage({
       <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
         Proveedores ({vinculos?.length ?? 0})
       </h2>
-      <ArticuloProveedoresTabla vinculos={(vinculos ?? []) as any} />
+      <ArticuloProveedoresTabla
+        vinculos={(vinculos ?? []) as ComponentProps<typeof ArticuloProveedoresTabla>['vinculos']}
+      />
     </div>
   )
 }

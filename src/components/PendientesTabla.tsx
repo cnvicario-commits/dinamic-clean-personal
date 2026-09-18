@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
+import { type RelOne, relOne } from '@/lib/supabase-rel'
 import BuscadorArticulo from './BuscadorArticulo'
 import ArticuloForm from './ArticuloForm'
 
@@ -18,7 +19,7 @@ type Pendiente = {
   motivo: string | null
   sugerencias: Sugerencia[] | null
   created_at: string
-  proveedores: { id: string; razon_social: string } | null
+  proveedores: RelOne<{ id: string; razon_social: string }>
 }
 
 export default function PendientesTabla({
@@ -52,9 +53,10 @@ function FilaPendiente({ pendiente, articulos }: { pendiente: Pendiente; articul
   async function vincular(articuloId: string) {
     setLoading(true)
     setError('')
+    const proveedor = relOne(pendiente.proveedores)
     const { error: insertError } = await supabase.from('articulos_proveedor').insert({
       articulo_id: articuloId,
-      proveedor_id: pendiente.proveedores?.id,
+      proveedor_id: proveedor?.id,
       codigo_proveedor: pendiente.codigo_proveedor,
       nombre_proveedor: pendiente.nombre_proveedor,
       precio: pendiente.precio,
@@ -85,7 +87,7 @@ function FilaPendiente({ pendiente, articulos }: { pendiente: Pendiente; articul
         <div>
           <p className="text-slate-800 font-medium">{pendiente.nombre_proveedor || 'Sin descripción'}</p>
           <p className="text-sm text-slate-500">
-            {pendiente.proveedores?.razon_social ?? 'Proveedor desconocido'} · Código: {pendiente.codigo_proveedor || 'sin código'} · Precio: {pendiente.precio ?? '-'}
+            {relOne(pendiente.proveedores)?.razon_social ?? 'Proveedor desconocido'} · Código: {pendiente.codigo_proveedor || 'sin código'} · Precio: {pendiente.precio ?? '-'}
             {pendiente.archivo_origen && <> · Archivo: {pendiente.archivo_origen}</>}
           </p>
           {pendiente.motivo && (

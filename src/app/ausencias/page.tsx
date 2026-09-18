@@ -1,8 +1,21 @@
+import type { ComponentProps } from 'react'
 import { createClient } from '@/utils/supabase/server'
 import AusenciaForm from '@/components/AusenciaForm'
 import ExportarAusencias from '@/components/ExportarAusencias'
 import ReporteBejerman from '@/components/ReporteBejerman'
 import ReporteHorasExtraCliente from '@/components/ReporteHorasExtraCliente'
+import { type RelOne, relOne } from '@/lib/supabase-rel'
+
+type AsistenciaListado = {
+  id: string
+  fecha: string
+  codigo: string
+  horas_extras: number | null
+  observaciones: string | null
+  archivo_url: string | null
+  empleados: RelOne<{ nombre_apellido: string }>
+}
+
 export default async function AusenciasPage() {
   const supabase = await createClient()
   const { data: empleados } = await supabase
@@ -48,7 +61,9 @@ export default async function AusenciasPage() {
         <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
           Listado ({asistencias?.length ?? 0})
         </h2>
-        <ExportarAusencias asistencias={(asistencias || []) as any} />
+        <ExportarAusencias
+          asistencias={(asistencias || []) as ComponentProps<typeof ExportarAusencias>['asistencias']}
+        />
       </div>
       <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto">
         <table className="w-full text-sm min-w-[640px]">
@@ -63,9 +78,9 @@ export default async function AusenciasPage() {
             </tr>
           </thead>
           <tbody>
-            {asistencias?.map((a: any) => (
+            {(asistencias as AsistenciaListado[] | null)?.map((a) => (
               <tr key={a.id} className="border-b border-slate-100 last:border-0">
-                <td className="px-4 py-3 text-slate-800">{a.empleados?.nombre_apellido}</td>
+                <td className="px-4 py-3 text-slate-800">{relOne(a.empleados)?.nombre_apellido}</td>
                 <td className="px-4 py-3 text-slate-600">{a.fecha}</td>
                 <td className="px-4 py-3">
                   <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${a.codigo === 'P' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
