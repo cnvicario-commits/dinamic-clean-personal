@@ -2,29 +2,14 @@
 
 import { useState, useMemo } from 'react'
 import EmpleadoEstadoBoton from './EmpleadoEstadoBoton'
-
-type Asignacion = {
-  fecha_desde: string
-  fecha_hasta: string | null
-  clientes: { id: string; nombre: string } | null
-}
-
-type Empleado = {
-  id: string
-  nombre_apellido: string
-  cuil: string
-  fecha_ingreso: string | null
-  horas_contrato: number
-  activo: boolean
-  asignaciones: Asignacion[]
-}
+import type { EmployeeAssignment, EmployeeListItem } from '@/lib/api/generated'
 
 type Cliente = {
   id: string
   nombre: string
 }
 
-function asignacionesActivas(asignaciones: Asignacion[]) {
+function asignacionesActivas(asignaciones: EmployeeAssignment[]) {
   const activas = asignaciones?.filter((a) => !a.fecha_hasta) ?? []
   return activas.sort(
     (a, b) => new Date(b.fecha_desde).getTime() - new Date(a.fecha_desde).getTime()
@@ -35,7 +20,7 @@ export default function EmpleadosTabla({
   empleados,
   clientes,
 }: {
-  empleados: Empleado[]
+  empleados: EmployeeListItem[]
   clientes: Cliente[]
 }) {
   const [busqueda, setBusqueda] = useState('')

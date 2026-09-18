@@ -1,0 +1,56 @@
+name: ci
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: typecheck
+        run: npx tsc --noEmit
+      - name: lint
+        run: npm run lint
+      - name: build
+        run: npm run build
+      - name: audit
+        run: npm audit --audit-level=critical
+      - name: Secret scan (basic)
+        run: |
+          if rg -n "SUPABASE_SERVICE_ROLE_KEY\s*=\s*['\"]?eyJ|sb_secret_|service_role" --glob '!**/.env*' --glob '!**/node_modules/**' --glob '!**/*.lock' . ; then
+            echo "Possible secret material in tracked files"
+            exit 1
+          fi
+          echo "basic secret scan ok"
+
+  api:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/api/package-lock.json
+      - run: npm ci
+      - name: lint
+        run: npm run lint
+      - name: typecheck
+        run: npm run typecheck
+      - name: test
+        run: npm test
+      - name: build
+        run: npm run build
+      - name: audit
+        run: npm audit --audit-level=critical
