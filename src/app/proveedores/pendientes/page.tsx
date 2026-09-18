@@ -1,3 +1,4 @@
+import type { ComponentProps } from 'react'
 import { createClient } from '@/utils/supabase/server'
 import PendientesTabla from '@/components/PendientesTabla'
 import Link from 'next/link'
@@ -27,7 +28,10 @@ export default async function PendientesPage() {
           Error al cargar los pendientes: {errorPendientes.message}
         </p>
       )}
-      <PendientesTabla pendientes={(pendientes ?? []) as any} articulos={articulos ?? []} />
+      <PendientesTabla
+        pendientes={(pendientes ?? []) as ComponentProps<typeof PendientesTabla>['pendientes']}
+        articulos={articulos ?? []}
+      />
     </div>
   )
 }

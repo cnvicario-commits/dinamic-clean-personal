@@ -285,11 +285,11 @@ export default function ImportarResultadosMensuales() {
       {abierto && (
         <div className="mt-4 flex flex-col gap-4">
           <p className="text-sm text-slate-600">
-            Subí el mismo Excel que ya se usa para calcular el resultado económico (hoja llamada "Resultado"). Se
-            buscan los meses en la fila de encabezado (columna CONCEPTO en adelante, formato "Enero 2026") y se
+            Subí el mismo Excel que ya se usa para calcular el resultado económico (hoja llamada &quot;Resultado&quot;). Se
+            buscan los meses en la fila de encabezado (columna CONCEPTO en adelante, formato &quot;Enero 2026&quot;) y se
             guardan los totales por rubro, además del detalle interno de los rubros con desglose (Costos Directos,
             RRHH, Estructura y Servicios, Honorarios y Abonos, Gastos Financieros, Gastos Comerciales, Otros Gastos
-            e Impuestos) para poder desplegarlos en el panel. La columna "Total" se ignora. Si ya existe un registro
+            e Impuestos) para poder desplegarlos en el panel. La columna &quot;Total&quot; se ignora. Si ya existe un registro
             para un año/mes, se actualiza.
           </p>
 

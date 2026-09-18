@@ -1,14 +1,14 @@
 # Phase 0 / Phase 1 foundation — closure report
 
-**Date:** 2026-09-17  
+**Date:** 2026-09-18  
 
 ## FASE 0
 
 **Decision: `PHASE_0_PASS`**
 
-See `docs/phase-0-closeout.md` and `docs/phase-0-restore-runbook.md`.
+Unchanged from prior closeout. See `docs/phase-0-closeout.md`.
 
-Evidence anchors: `evidence/phase0-parity-matrix.txt`, `evidence/phase0-local-restore.txt`, `evidence/phase0-fe-auth-client-login.txt`, `evidence/phase0-api-smoke.txt`.
+No Phase 0 artifacts were redesigned in this correction cycle.
 
 ---
 
@@ -16,58 +16,60 @@ Evidence anchors: `evidence/phase0-parity-matrix.txt`, `evidence/phase0-local-re
 
 **Decision: `PHASE_1_BLOCKED`**
 
-### Criteria
+### Local gates (this cycle)
 
-| Criterion | Status | Evidence / note |
-|-----------|--------|-----------------|
-| Modular backend | PASS | `apps/api` layered |
-| JWT Supabase verified (real) | PASS | Local ES256 JWKS login → `/v1/me` 200; invalid → 401 |
-| Profile loading | PASS | `loadProfile` + residual Auth risk when no `auth.users` |
-| RBAC deny-by-default | PASS | Unit + smoke: compras → employees **403** (`evidence/phase1-rbac-deny-smoke.txt`) |
-| DTO/Zod validation | PASS | Strict query schema |
-| Problem Details | PASS | |
-| Request ID | PASS | `X-Request-Id` observed |
-| Structured logs | PASS | Pino |
-| healthz / readyz | PASS | |
-| CORS / timeout / graceful shutdown | PASS | Docker restart showed SIGTERM shutdown |
-| OpenAPI + drift test | PASS | `tests/openapi.contract.test.ts` |
-| **TypeScript client generated** | PASS | `src/lib/api/generated/*` via `npm run export:contracts` (deterministic) |
-| `/v1/me` + `/v1/employees` | PASS | |
-| Frontend piloto | PASS | Uses generated client; build PASS |
-| API lint (real ESLint) | PASS | `apps/api` eslint exit 0 |
-| API typecheck / test / build / audit | PASS | All exit 0 |
-| FE typecheck | PASS | |
-| FE build | PASS | After extensionless generated imports |
-| FE lint | **FAIL** | 24 pre-existing errors outside piloto (`evidence/fe-lint.txt`) |
-| FE audit critical | **FAIL** | Next advisories (`evidence/fe-audit.txt`) |
-| Secret scan | PASS | Local scan exit 0 |
-| DB least-privilege role | PASS | `dinamic_api` SELECT-only on slice; `current_user=dinamic_api` (`evidence/phase1-api-role-*`) |
-| Backend staging deploy | PASS | Docker Compose local staging; healthz+readyz 200 before/after restart (`evidence/phase1-docker-health.txt`) |
-| Deploy runbook | PASS | `docs/phase-1-deploy-runbook.md` |
-| **CI real GREEN** | **FAIL** | `gh auth status` exit 1 — no GitHub Actions run evidence (`evidence/phase1-gh-auth.txt`) |
-| PostgREST empleados bypass closed | N/A | **PENDING_PHASE_2** (documented) |
+| Criterion | Status | Evidence |
+|-----------|--------|----------|
+| Frontend lint | PASS | `evidence/fe-lint.txt` exit 0 |
+| Frontend typecheck | PASS | `evidence/fe-tsc.txt` exit 0 |
+| Frontend build | PASS | `evidence/fe-build.txt` exit 0 |
+| Frontend critical audit | PASS | `evidence/fe-audit-critical.txt` exit 0 (`next@16.3.5`) |
+| Backend lint | PASS | `evidence/api-lint.txt` exit 0 |
+| Backend typecheck | PASS | `evidence/api-typecheck.txt` exit 0 |
+| Backend tests | PASS | `evidence/api-test.txt` exit 0 |
+| Backend build | PASS | `evidence/api-build.txt` exit 0 |
+| Backend critical audit | PASS | `evidence/api-audit-critical.txt` exit 0 |
+| Generated client deterministic | PASS | consecutive `export:contracts` identical cksum |
+| Smoke healthz/readyz | PASS | 200/200 |
+| Smoke invalid token | PASS | 401 |
+| Smoke `/v1/me` valid | PASS | 200 admin |
+| Smoke employees allow/deny | PASS | 200 / 403 |
+| FE Auth SDK login | PASS | `evidence/phase1-fe-auth-login.txt` |
+| Request ID | PASS | `x_request_id_present=yes` |
+| **CI frontend GREEN** | **FAIL** | `gh auth status` exit 1 — no Actions run evidence |
+| **CI api GREEN** | **FAIL** | same |
 
-### Why BLOCKED
+### Missing gate (exact)
 
-Mandatory gates **FE lint**, **FE audit --audit-level=critical**, and **CI GREEN** did not pass. Per instructions: do not declare Phase 1 PASS when an obligatory criterion fails.
+1. **GitHub Actions real GREEN** for jobs `frontend` and `api` on a pushed branch/PR (workflow `.github/workflows/ci.yml`).
+
+### How to clear the CI gate
+
+```bash
+# from repo root, after reviewing the working tree
+git checkout -b phase1-final-close   # or use DIN-363
+git add -A   # only product files; evidence/ review/ stay ignored
+git commit -m "fix(phase1): lint, next critical audit, RelOne types"
+git push -u origin HEAD
+# Open https://github.com/cnvicario-commits/dinamic-clean-personal/actions
+# Confirm workflow CI → frontend GREEN + api GREEN
+# Record run URL / run id into evidence (local only)
+```
+
+Until that evidence exists: **do not** declare `PHASE_1_PASS`.
 
 ---
 
 ## PENDING_PHASE_2
 
-- Global RLS redesign / close PostgREST `empleados` SELECT bypass  
-- Global grants redesign  
-- MFA / password policy / recovery  
-- Rate limiting transversal / security headers complete  
-- Audit log append-only  
-- Full users/profiles lifecycle & revocation productization  
-- Final client RBAC matrix  
-- FE legacy lint/`any` cleanup across non-piloto modules  
-- Dependency upgrades for Next critical advisories  
-- Authenticated GitHub Actions GREEN on remote  
+- PostgREST `empleados` SELECT bypass vs API RBAC  
+- Global RLS / grants redesign  
+- MFA, rate limiting, security headers, audit log, user lifecycle  
+- FE high-severity audits remaining (`xlsx` no fix, transitive brace-expansion/js-yaml/nanoid)  
+- Full browser E2E beyond Auth SDK + API smoke  
 
 ---
 
 ## READY_FOR_PHASE_2_REVIEW
 
-**NO** — blocked by Phase 1 failures above. Do **not** start Phase 2 until external review and explicit user authorization after `PHASE_1_PASS`.
+**NO** — blocked solely by missing real CI GREEN evidence (all other listed Phase 1 gates pass locally).

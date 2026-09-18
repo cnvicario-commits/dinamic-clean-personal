@@ -1,3 +1,4 @@
+import type { ComponentProps } from 'react'
 import { createClient } from '@/utils/supabase/server'
 import PedidosDepositoTabla from '@/components/PedidosDepositoTabla'
 
@@ -25,7 +26,7 @@ export default async function PedidosDepositoPage() {
     <div className="max-w-5xl mx-auto px-6 py-10">
       <h1 className="text-2xl font-bold text-slate-900 mb-6">Pedidos a depósito</h1>
       <PedidosDepositoTabla
-        pedidos={pedidosConNombre as any}
+        pedidos={pedidosConNombre as ComponentProps<typeof PedidosDepositoTabla>['pedidos']}
         clientes={clientes ?? []}
         empresas={empresas ?? []}
       />

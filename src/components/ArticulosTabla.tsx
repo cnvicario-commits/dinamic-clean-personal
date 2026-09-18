@@ -50,10 +50,6 @@ export default function ArticulosTabla({
     return a.proveedor_habitual_id ? nombreProveedorPorId.get(a.proveedor_habitual_id) ?? '' : ''
   }
 
-  function valorColumna(a: Articulo, col: Columna) {
-    return col === 'proveedor_habitual' ? nombreProveedorHabitual(a) : a[col]
-  }
-
   function ordenarPor(col: Columna) {
     if (columna === col) {
       setDireccion(direccion === 'asc' ? 'desc' : 'asc')
@@ -81,7 +77,13 @@ export default function ArticulosTabla({
       base = base.filter((a) => a.proveedor_habitual_id === proveedorFiltro)
     }
     const signo = direccion === 'asc' ? 1 : -1
-    return [...base].sort((a, b) => signo * comparar(valorColumna(a, columna), valorColumna(b, columna)))
+    const valor = (a: Articulo, col: Columna) =>
+      col === 'proveedor_habitual'
+        ? a.proveedor_habitual_id
+          ? nombreProveedorPorId.get(a.proveedor_habitual_id) ?? ''
+          : ''
+        : a[col]
+    return [...base].sort((a, b) => signo * comparar(valor(a, columna), valor(b, columna)))
   }, [articulos, busqueda, proveedorFiltro, columna, direccion, nombreProveedorPorId])
 
   return (

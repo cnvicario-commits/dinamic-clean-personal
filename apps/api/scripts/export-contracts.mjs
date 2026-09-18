@@ -146,12 +146,12 @@ export function createDinamicApiClient(options: DinamicApiClientOptions): Dinami
 
   async function requestJson<T>(path: string, init?: RequestInit & { query?: Record<string, string> }): Promise<T> {
     const url = joinUrl(options.baseUrl, path)
-    if (init?.query) {
-      for (const [k, v] of Object.entries(init.query)) {
+    const { query, ...rest } = init ?? {}
+    if (query) {
+      for (const [k, v] of Object.entries(query)) {
         url.searchParams.set(k, v)
       }
     }
-    const { query: _q, ...rest } = init ?? {}
     const res = await fetchImpl(url, {
       ...rest,
       headers: {
