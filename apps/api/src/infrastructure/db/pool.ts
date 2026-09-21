@@ -1,5 +1,9 @@
 import pg from 'pg'
 import type { Env } from '../../config/env.js'
+import {
+  probePhase2dProfilesCapabilities,
+  type Phase2dCapabilityResult,
+} from './phase2d-capabilities.js'
 
 const { Pool } = pg
 
@@ -11,6 +15,8 @@ export type Db = {
   ) => Promise<pg.QueryResult<T>>
   close: () => Promise<void>
   isReady: () => Promise<boolean>
+  /** Read-only Phase 2D perfiles capability probe (no writes). */
+  checkPhase2dProfilesCapabilities: () => Promise<Phase2dCapabilityResult>
 }
 
 export function createDb(env: Env): Db {
@@ -21,17 +27,21 @@ export function createDb(env: Env): Db {
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 10_000,
     statement_timeout: 15_000,
-    // Supabase pooler requires TLS; rejectUnauthorized relaxed in non-prod only.
     ssl: needsSsl
       ? { rejectUnauthorized: env.NODE_ENV === 'production' }
       : undefined,
   })
 
+  async function query<T extends pg.QueryResultRow = pg.QueryResultRow>(
+    text: string,
+    params?: unknown[],
+  ) {
+    return pool.query<T>(text, params)
+  }
+
   return {
     pool,
-    async query<T extends pg.QueryResultRow = pg.QueryResultRow>(text: string, params?: unknown[]) {
-      return pool.query<T>(text, params)
-    },
+    query,
     async close() {
       await pool.end()
     },
@@ -43,6 +53,9 @@ export function createDb(env: Env): Db {
       } finally {
         client.release()
       }
+    },
+    async checkPhase2dProfilesCapabilities() {
+      return probePhase2dProfilesCapabilities(query)
     },
   }
 }

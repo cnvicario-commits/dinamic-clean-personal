@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { PASSWORD_MIN_LENGTH } from '@/lib/password-policy'
 
 export default function CambiarPasswordBoton({ perfilId }: { perfilId: string }) {
   const [abierto, setAbierto] = useState(false)
@@ -11,8 +12,8 @@ export default function CambiarPasswordBoton({ perfilId }: { perfilId: string })
   async function guardar() {
     setError('')
     setOk(false)
-    if (password.length < 6) {
-      setError('Al menos 6 caracteres.')
+    if (password.length < PASSWORD_MIN_LENGTH) {
+      setError(`Al menos ${PASSWORD_MIN_LENGTH} caracteres.`)
       return
     }
     setLoading(true)
@@ -22,7 +23,9 @@ export default function CambiarPasswordBoton({ perfilId }: { perfilId: string })
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: perfilId, password }),
       })
-      const data = await res.json().catch(() => ({ error: 'El servidor no respondió correctamente. Probá de nuevo en un momento.' }))
+      const data = await res.json().catch(() => ({
+        error: 'El servidor no respondió correctamente. Probá de nuevo en un momento.',
+      }))
       if (!res.ok) {
         setError(data.error ?? 'Error al cambiar la contraseña.')
         return
@@ -56,7 +59,7 @@ export default function CambiarPasswordBoton({ perfilId }: { perfilId: string })
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-1.5">
         <input
-          type="text"
+          type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Contraseña nueva"

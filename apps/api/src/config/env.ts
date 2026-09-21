@@ -9,8 +9,9 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   SUPABASE_URL: z.string().url(),
   /**
-   * Service role key — server only. Used for Auth Admin + privileged perfiles writes
-   * in Phase 2B user management. Never expose via NEXT_PUBLIC_*.
+   * Service role key — server only. Used for Supabase Auth Admin
+   * (create/delete user, set password, list auth users). Never for perfiles table writes
+   * (Phase 2D: ProfilesRepository uses DATABASE_URL / dinamic_api). Never expose via NEXT_PUBLIC_*.
    */
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
   /**

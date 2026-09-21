@@ -5,7 +5,8 @@
 
 - **Do not** re-apply `supabase/migrations/0001_*.sql` … `0033_*.sql` on restore.
 - Put **new** schema changes here as numbered SQL files, e.g. `0001_description.sql`.
-- `scripts/restore-development.sh` applies `*.sql` in this folder in lexical order after baseline + grants.
+- `scripts/restore-development.sh` applies `*.sql` in this folder in lexical order after baseline + grants
+  (excludes `*.rollback.sql`). Rollbacks live under `supabase/migrations/rollback/` (not auto-applied).
 
 Historical files under `supabase/migrations/` are kept for audit history only.
 

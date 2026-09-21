@@ -86,6 +86,8 @@ const ROLE_PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = Object.f
     'users:create',
     'users:change_role',
     'users:set_password',
+    'users:disable',
+    'users:enable',
     'employees:read',
   ] as const satisfies readonly Permission[]),
   gerente: Object.freeze([

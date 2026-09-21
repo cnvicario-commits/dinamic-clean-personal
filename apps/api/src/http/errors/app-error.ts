@@ -19,8 +19,18 @@ export function unauthorized(message = 'Unauthorized'): AppError {
   return new AppError(401, 'unauthorized', message)
 }
 
+/** Disabled / banned Auth user — distinct stable code for clients (logout + redirect). */
+export function userDisabled(message = 'User is disabled'): AppError {
+  return new AppError(401, 'user_disabled', message)
+}
+
 export function forbidden(message = 'Forbidden'): AppError {
   return new AppError(403, 'forbidden', message)
+}
+
+/** MFA / AAL insufficient for privileged operation. */
+export function mfaRequired(message = 'Multi-factor authentication required'): AppError {
+  return new AppError(403, 'mfa_required', message)
 }
 
 export function badRequest(message: string, details?: unknown): AppError {

@@ -99,7 +99,7 @@ if [[ -d "$FORWARD_DIR" ]]; then
     [[ -n "$f" ]] || continue
     apply_sql "$f"
     FORWARD_COUNT=$((FORWARD_COUNT + 1))
-  done < <(find "$FORWARD_DIR" -maxdepth 1 -type f -name '*.sql' | LC_ALL=C sort)
+  done < <(find "$FORWARD_DIR" -maxdepth 1 -type f -name '*.sql' ! -name '*.rollback.sql' | LC_ALL=C sort)
   if [[ "$FORWARD_COUNT" -eq 0 ]]; then
     echo "NOTE: no forward migrations under supabase/migrations/forward/ (baseline is current)"
   fi

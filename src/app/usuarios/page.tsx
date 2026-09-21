@@ -3,6 +3,7 @@ import { createClient } from '@/utils/supabase/server'
 import UsuarioForm from '@/components/UsuarioForm'
 import CambiarRolSelect from '@/components/CambiarRolSelect'
 import CambiarPasswordBoton from '@/components/CambiarPasswordBoton'
+import UsuarioEstadoBoton from '@/components/UsuarioEstadoBoton'
 import { ROLES, type Rol } from '@/utils/permisos'
 import {
   ApiClientError,
@@ -21,6 +22,11 @@ async function fetchUsersFromApi(accessToken: string): Promise<AdminUserResponse
     return data.items
   } catch (e) {
     if (e instanceof ApiClientError) {
+      if (e.status === 401 && e.problem?.code === 'user_disabled') {
+        const supabase = await createClient()
+        await supabase.auth.signOut()
+        redirect('/login')
+      }
       console.error('users_api_failed', {
         status: e.status,
         requestId: e.requestId,
@@ -90,6 +96,7 @@ export default async function UsuariosPage() {
                 <th className="px-4 py-3 font-medium">Nombre</th>
                 <th className="px-4 py-3 font-medium">Email</th>
                 <th className="px-4 py-3 font-medium">Rol</th>
+                <th className="px-4 py-3 font-medium">Estado</th>
                 <th className="px-4 py-3 font-medium">Contraseña</th>
               </tr>
             </thead>
@@ -100,6 +107,14 @@ export default async function UsuariosPage() {
                   <td className="px-4 py-3 text-slate-600">{p.email ?? '-'}</td>
                   <td className="px-4 py-3">
                     <CambiarRolSelect perfilId={p.id} rolActual={(p.rol as Rol) ?? null} />
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-col gap-1">
+                      <span className={`text-xs ${p.disabled ? 'text-rose-600' : 'text-emerald-700'}`}>
+                        {p.disabled ? 'Deshabilitado' : 'Activo'}
+                      </span>
+                      <UsuarioEstadoBoton perfilId={p.id} disabled={Boolean(p.disabled)} />
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     <CambiarPasswordBoton perfilId={p.id} />

@@ -2,8 +2,9 @@
 
 ## Goal
 
-API connects as a dedicated role with **SELECT only** on tables needed for the
-Phase 1 vertical slice: `perfiles`, `empleados`, `asignaciones`, `clientes`.
+API connects as a dedicated role with **SELECT** on Phase 1 slice tables
+(`perfiles`, `empleados`, `asignaciones`, `clientes`) and **INSERT/UPDATE on
+`public.perfiles` only** (Phase 2D — Fastify ProfilesRepository). No BYPASSRLS.
 
 ## Apply on TEST (not production)
 
@@ -26,7 +27,7 @@ DATABASE_URL=postgresql://dinamic_api:PASSWORD@HOST:5432/postgres
 
 ```sql
 select current_user;  -- expect dinamic_api
-select has_table_privilege('dinamic_api', 'public.empleados', 'select'); -- t
+select has_table_privilege('dinamic_api', 'public.perfiles', 'insert'); -- t after Phase 2D
 select has_table_privilege('dinamic_api', 'public.empleados', 'insert'); -- f
 ```
 

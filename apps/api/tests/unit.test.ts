@@ -154,6 +154,7 @@ describe('loadProfile / revocation', () => {
     })
     await expect(loadProfile(db, userId)).rejects.toMatchObject({
       status: 401,
+      code: 'user_disabled',
       message: expect.stringMatching(/banned/i),
     })
   })

@@ -27,8 +27,8 @@ declare module 'fastify' {
     identityAdmin: IdentityAdmin
     profilesRepo: ProfilesRepository
     /**
-     * True only when both IdentityAdmin and ProfilesRepository are wired
-     * (config key or test injects). Never true for stubs.
+     * True when IdentityAdmin is wired (Auth Admin key or test inject).
+     * ProfilesRepository always uses the DB pool (Phase 2D).
      */
     usersModuleReady: boolean
     config: Env
@@ -67,6 +67,11 @@ function stubIdentityAdmin(): IdentityAdmin {
     deleteAuthUser: unavailable,
     setAuthPassword: unavailable,
     listAuthEmails: unavailable,
+    banAuthUser: unavailable,
+    unbanAuthUser: unavailable,
+    getAuthUserSecurityState: unavailable,
+    revokeUserSessions: unavailable,
+    listAuthUserSecurityStates: unavailable,
   }
 }
 
@@ -80,6 +85,7 @@ function stubProfilesRepo(): ProfilesRepository {
     updateNombreCompleto: unavailable,
     upsert: unavailable,
     updateRole: unavailable,
+    withAdminProfilesLocked: unavailable,
   }
 }
 
@@ -96,7 +102,10 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
           'SUPABASE_JWT_SECRET',
           'SUPABASE_SERVICE_ROLE_KEY',
           'password',
+          'newPassword',
           'token',
+          'access_token',
+          'refresh_token',
         ],
         remove: true,
       },
@@ -112,11 +121,11 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
   const hasKey = Boolean(env.SUPABASE_SERVICE_ROLE_KEY)
   const identityAdmin =
     options.identityAdmin ?? (hasKey ? createIdentityAdmin(env) : null)
-  const profilesRepo =
-    options.profilesRepo ?? (hasKey ? createProfilesRepository(env, db) : null)
+  // Profiles use the DB pool only (Phase 2D) — no service-role table client.
+  const profilesRepo = options.profilesRepo ?? createProfilesRepository(db)
 
-  // Ready iff both deps are real (injected or constructed) — never when using stubs.
-  const usersModuleReady = identityAdmin != null && profilesRepo != null
+  // Ready iff Auth Admin is wired (key or inject) and profiles repo is present.
+  const usersModuleReady = identityAdmin != null
 
   app.decorate('identityAdmin', identityAdmin ?? stubIdentityAdmin())
   app.decorate('profilesRepo', profilesRepo ?? stubProfilesRepo())
@@ -138,7 +147,11 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
 
   app.addHook('preHandler', async (request, reply) => {
     try {
-      await authenticateRequest(request, app.db, app.jwtVerifier)
+      await authenticateRequest(request, {
+        db: app.db,
+        jwtVerifier: app.jwtVerifier,
+        identityAdmin: app.usersModuleReady ? app.identityAdmin : null,
+      })
     } catch (err) {
       if (err instanceof AppError) {
         return sendProblem(reply, request, err)
