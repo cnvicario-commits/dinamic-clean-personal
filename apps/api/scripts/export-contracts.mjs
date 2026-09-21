@@ -122,6 +122,8 @@ export type AdminUserResponse = {
   nombreCompleto: string | null
   rol: Role
   email: string | null
+  /** Auth ban SoT (banned_until). */
+  disabled: boolean
 }
 
 export type UsersListResponse = {
@@ -254,6 +256,8 @@ export type DinamicApiClient = {
   createUser: (body: CreateUserBody) => Promise<AdminUserResponse>
   changeUserRole: (id: string, body: ChangeUserRoleBody) => Promise<ProfileResponse>
   setUserPassword: (id: string, body: SetUserPasswordBody) => Promise<void>
+  disableUser: (id: string) => Promise<void>
+  enableUser: (id: string) => Promise<void>
 }
 
 /**
@@ -345,6 +349,18 @@ export function createDinamicApiClient(options: DinamicApiClientOptions): Dinami
       return requestJson<void>(\`/v1/users/\${id}/password\`, {
         method: 'POST',
         body: JSON.stringify(body),
+        emptyResponse: true,
+      })
+    },
+    disableUser(id) {
+      return requestJson<void>(\`/v1/users/\${id}/disable\`, {
+        method: 'POST',
+        emptyResponse: true,
+      })
+    },
+    enableUser(id) {
+      return requestJson<void>(\`/v1/users/\${id}/enable\`, {
+        method: 'POST',
         emptyResponse: true,
       })
     },

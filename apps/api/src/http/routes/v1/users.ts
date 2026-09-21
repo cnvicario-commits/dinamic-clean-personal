@@ -1,9 +1,11 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify'
-import { requirePermission } from '../../plugins/auth.js'
+import { requirePermission, requireMfaForPrivilegedActor } from '../../plugins/auth.js'
 import { badRequest } from '../../errors/app-error.js'
 import {
   changeUserRole,
   createUser,
+  disableUser,
+  enableUser,
   getUser,
   listUsers,
   parseChangeUserRoleBody,
@@ -27,8 +29,19 @@ function usersDeps(app: FastifyInstance) {
     logOrphan: (payload: { requestId?: string; authUserId: string }) => {
       app.log.error(payload, 'user_create_orphan')
     },
+    logAdminAction: (payload: {
+      requestId?: string
+      actorUserId?: string
+      targetUserId: string
+      action: string
+      result: 'ok' | 'error'
+    }) => {
+      app.log.info(payload, 'user_admin_action')
+    },
   }
 }
+
+const privileged = [requireMfaForPrivilegedActor()]
 
 export const usersRoutes: FastifyPluginAsync = async (app) => {
   app.get(
@@ -48,7 +61,7 @@ export const usersRoutes: FastifyPluginAsync = async (app) => {
 
   app.post(
     '/v1/users',
-    { preHandler: [requirePermission('users:create')] },
+    { preHandler: [requirePermission('users:create'), ...privileged] },
     async (request, reply) => {
       const input = parseCreateUserBody(requireObjectBody(request.body))
       const created = await createUser(usersDeps(app), input, { requestId: request.id })
@@ -58,21 +71,53 @@ export const usersRoutes: FastifyPluginAsync = async (app) => {
 
   app.patch<{ Params: { id: string } }>(
     '/v1/users/:id/role',
-    { preHandler: [requirePermission('users:change_role')] },
+    { preHandler: [requirePermission('users:change_role'), ...privileged] },
     async (request) => {
       const id = parseUserIdParam(request.params.id)
       const input = parseChangeUserRoleBody(requireObjectBody(request.body))
-      return changeUserRole(app.profilesRepo, id, input.rol)
+      return changeUserRole(usersDeps(app), id, input.rol, {
+        actorUserId: request.auth!.userId,
+        requestId: request.id,
+      })
     },
   )
 
   app.post<{ Params: { id: string } }>(
     '/v1/users/:id/password',
-    { preHandler: [requirePermission('users:set_password')] },
+    { preHandler: [requirePermission('users:set_password'), ...privileged] },
     async (request, reply) => {
       const id = parseUserIdParam(request.params.id)
       const input = parseSetUserPasswordBody(requireObjectBody(request.body))
-      await setUserPassword(usersDeps(app), id, input.password)
+      await setUserPassword(usersDeps(app), id, input.password, {
+        actorUserId: request.auth!.userId,
+        requestId: request.id,
+      })
+      return reply.code(204).send()
+    },
+  )
+
+  app.post<{ Params: { id: string } }>(
+    '/v1/users/:id/disable',
+    { preHandler: [requirePermission('users:disable'), ...privileged] },
+    async (request, reply) => {
+      const id = parseUserIdParam(request.params.id)
+      await disableUser(usersDeps(app), id, {
+        userId: request.auth!.userId,
+        requestId: request.id,
+      })
+      return reply.code(204).send()
+    },
+  )
+
+  app.post<{ Params: { id: string } }>(
+    '/v1/users/:id/enable',
+    { preHandler: [requirePermission('users:enable'), ...privileged] },
+    async (request, reply) => {
+      const id = parseUserIdParam(request.params.id)
+      await enableUser(usersDeps(app), id, {
+        userId: request.auth!.userId,
+        requestId: request.id,
+      })
       return reply.code(204).send()
     },
   )

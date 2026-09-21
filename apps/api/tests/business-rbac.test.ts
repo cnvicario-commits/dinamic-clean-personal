@@ -23,6 +23,8 @@ const CONFIRMED_PRODUCTIVE_GRANTS: Readonly<Record<Role, readonly Permission[]>>
     'users:create',
     'users:change_role',
     'users:set_password',
+    'users:disable',
+    'users:enable',
     'employees:read',
   ],
   gerente: ['profile:read_self', 'profile:update_self', 'employees:read'],
@@ -104,7 +106,9 @@ describe('business RBAC catalog (Phase 2C corrections)', () => {
   })
 
   it('admin has no wildcard / no implicit all-catalog access', () => {
-    expect(authorize({ role: 'admin' }, 'users:disable')).toBe(false)
+    expect(authorize({ role: 'admin' }, 'users:disable')).toBe(true)
+    expect(authorize({ role: 'admin' }, 'users:enable')).toBe(true)
+    expect(authorize({ role: 'admin' }, 'users:reset_mfa')).toBe(false)
     expect(permissionsFor('admin').some((p) => p.includes('*'))).toBe(false)
     expect(permissionsFor('admin').length).toBeLessThan(PERMISSIONS.length)
     for (const p of CATALOG_DENY_UNTIL_CONFIRMED) {

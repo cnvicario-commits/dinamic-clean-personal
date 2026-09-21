@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { PERMISSIONS, ROLES } from '../../domain/rbac.js'
+import { passwordSchema } from '../../domain/password-policy.js'
 
 export const roleSchema = z.enum(ROLES)
 export const permissionSchema = z.enum(PERMISSIONS)
@@ -17,7 +18,7 @@ export type UpdateOwnProfileBody = z.infer<typeof updateOwnProfileBodySchema>
 export const createUserBodySchema = z
   .object({
     email: z.string().trim().email().max(320),
-    password: z.string().min(6).max(200),
+    password: passwordSchema,
     nombreCompleto: z.string().trim().min(1).max(200),
     rol: roleSchema,
   })
@@ -37,7 +38,7 @@ export type ChangeUserRoleBody = z.infer<typeof changeUserRoleBodySchema>
 /** POST /v1/users/:id/password */
 export const setUserPasswordBodySchema = z
   .object({
-    password: z.string().min(6).max(200),
+    password: passwordSchema,
   })
   .strict()
 
@@ -55,12 +56,14 @@ export const profileResponseSchema = z.object({
 /**
  * Admin user list/detail DTO.
  * `email` is required (nullable when Auth has no email) — never omit to hide lookup failure.
+ * `disabled` reflects Auth ban SoT (banned_until).
  */
 export const adminUserResponseSchema = z.object({
   id: z.string().uuid(),
   nombreCompleto: z.string().nullable(),
   rol: roleSchema,
   email: z.string().nullable(),
+  disabled: z.boolean(),
 })
 
 export const usersListResponseSchema = z.object({

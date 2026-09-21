@@ -46,8 +46,10 @@ describe('permission engine (Phase 2A)', () => {
   })
 
   it('8. admin without explicit grant → DENY', () => {
-    expect(authorize({ role: 'admin' }, 'users:disable')).toBe(false)
+    expect(authorize({ role: 'admin' }, 'users:disable')).toBe(true)
+    expect(authorize({ role: 'admin' }, 'users:enable')).toBe(true)
     expect(authorize({ role: 'admin' }, 'roles:manage')).toBe(false)
+    expect(authorize({ role: 'admin' }, 'users:reset_mfa')).toBe(false)
     expect(permissionsFor('admin')).not.toContain('*' as Permission)
   })
 

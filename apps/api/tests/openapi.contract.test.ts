@@ -12,6 +12,8 @@ describe('openapi contract (Phase 1)', () => {
         '/v1/me',
         '/v1/users',
         '/v1/users/{id}',
+        '/v1/users/{id}/disable',
+        '/v1/users/{id}/enable',
         '/v1/users/{id}/password',
         '/v1/users/{id}/role',
       ].sort(),

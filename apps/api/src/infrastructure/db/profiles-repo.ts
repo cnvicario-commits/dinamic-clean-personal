@@ -1,6 +1,7 @@
 import type { Db } from '../db/pool.js'
 import { isRole, type Role } from '../../domain/rbac.js'
-import { AppError, forbidden, unauthorized } from '../../http/errors/app-error.js'
+import { AppError, forbidden, unauthorized, userDisabled } from '../../http/errors/app-error.js'
+import type { IdentityAdmin } from '../auth/identity-admin.js'
 
 export type ProfileRow = {
   id: string
@@ -14,21 +15,30 @@ export type LoadedProfile = {
   nombreCompleto: string | null
 }
 
+export type LoadProfileOptions = {
+  /**
+   * Preferred Phase 2E path: Auth Admin security state (works when dinamic_api
+   * cannot SELECT auth.users). When provided, DB ban probe is skipped.
+   */
+  identity?: IdentityAdmin | null
+}
+
 /**
  * Load profile by auth user id.
  *
- * `public.perfiles` has no `activo` column — do not claim an "active" guarantee.
- * Revocation prefers `auth.users` (banned_until / deleted_at) when the DB role can SELECT it.
+ * `public.perfiles` has no `activo` column — ACTIVE/DISABLED SoT is Auth `banned_until`.
+ * Role SoT is always `perfiles.rol` (never JWT role claims).
  *
- * Phase 1 least-privilege role `dinamic_api` intentionally has NO grant on auth.users
- * (see supabase/ops/create_api_role.sql). In that configuration assertAuthUserNotRevoked
- * cannot query bans/deletes and continues — residual risk: a revoked Auth user may still
- * authenticate until JWT expiry if a perfiles row remains. Prefer short JWT TTL + JWKS.
- *
- * If `auth.users` is not readable, this function continues (residual risk — see
- * assertAuthUserNotRevoked). Missing profile still fails closed with 401.
+ * Revocation:
+ * 1. If `identity` is provided → Auth Admin getUserSecurityState (fail-closed).
+ * 2. Else try SELECT auth.users (may work for elevated DB roles).
+ * 3. If neither works → residual risk documented (prefer always wiring IdentityAdmin).
  */
-export async function loadProfile(db: Db, userId: string): Promise<LoadedProfile> {
+export async function loadProfile(
+  db: Db,
+  userId: string,
+  options: LoadProfileOptions = {},
+): Promise<LoadedProfile> {
   const result = await db.query<ProfileRow>(
     `select id, nombre_completo, rol
      from public.perfiles
@@ -41,7 +51,11 @@ export async function loadProfile(db: Db, userId: string): Promise<LoadedProfile
     throw unauthorized('Profile not found')
   }
 
-  await assertAuthUserNotRevoked(db, userId)
+  if (options.identity) {
+    await assertAuthUserNotRevokedViaIdentity(options.identity, userId)
+  } else {
+    await assertAuthUserNotRevoked(db, userId)
+  }
 
   if (!isRole(row.rol)) {
     throw forbidden('Unknown role')
@@ -58,14 +72,26 @@ type AuthUserRevocationRow = {
   deleted_at: Date | string | null
 }
 
+export async function assertAuthUserNotRevokedViaIdentity(
+  identity: IdentityAdmin,
+  userId: string,
+): Promise<void> {
+  const state = await identity.getAuthUserSecurityState(userId)
+  if (state.status === 'DELETED') {
+    throw unauthorized('Auth user deleted')
+  }
+  if (state.status === 'DISABLED') {
+    throw userDisabled('Auth user banned')
+  }
+}
+
 /**
  * Fail closed when auth.users is queryable and the user is missing, banned, or deleted.
  * If the query fails for access/schema reasons (not an AppError), swallow and proceed —
- * residual risk: JWT + perfiles row may still authenticate without server-side ban check.
+ * residual risk when IdentityAdmin is not wired.
  */
 export async function assertAuthUserNotRevoked(db: Db, userId: string): Promise<void> {
   try {
-    // to_jsonb avoids hard dependency on deleted_at column existence across Supabase versions.
     const result = await db.query<AuthUserRevocationRow>(
       `select
          u.banned_until,
@@ -84,10 +110,9 @@ export async function assertAuthUserNotRevoked(db: Db, userId: string): Promise<
       throw unauthorized('Auth user deleted')
     }
     if (authRow.banned_until != null && new Date(authRow.banned_until).getTime() > Date.now()) {
-      throw unauthorized('Auth user banned')
+      throw userDisabled('Auth user banned')
     }
   } catch (err) {
     if (err instanceof AppError) throw err
-    // Not detectable / not accessible — residual risk documented in loadProfile JSDoc.
   }
 }

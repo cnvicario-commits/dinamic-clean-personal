@@ -1,6 +1,7 @@
 import { SignJWT } from 'jose'
 import { createSecretKey } from 'node:crypto'
 import type { Db } from '../src/infrastructure/db/pool.js'
+import type { Phase2dCapabilityResult } from '../src/infrastructure/db/phase2d-capabilities.js'
 import type { Env } from '../src/config/env.js'
 import type pg from 'pg'
 
@@ -26,6 +27,8 @@ export function testEnv(overrides: Partial<Env> = {}): Env {
 export async function signAccessToken(opts: {
   sub: string
   email?: string
+  /** Supabase assurance level claim. Defaults to aal2 so privileged admin tests pass MFA gate. */
+  aal?: 'aal1' | 'aal2'
   secret?: string
   issuer?: string
   audience?: string
@@ -36,6 +39,7 @@ export async function signAccessToken(opts: {
   let builder = new SignJWT({
     email: opts.email ?? 'user@example.com',
     role: 'authenticated',
+    aal: opts.aal ?? 'aal2',
   })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(opts.sub)
@@ -61,12 +65,15 @@ export function createMockDb(options: {
   isReady?: () => Promise<boolean>
   query?: QueryHandler
   close?: () => Promise<void>
+  checkPhase2dProfilesCapabilities?: () => Promise<Phase2dCapabilityResult>
 }): Db {
   return {
     pool: {} as pg.Pool,
     query: options.query ?? (async () => ({ rows: [], rowCount: 0, command: '', oid: 0, fields: [] })),
     close: options.close ?? (async () => undefined),
     isReady: options.isReady ?? (async () => true),
+    checkPhase2dProfilesCapabilities:
+      options.checkPhase2dProfilesCapabilities ?? (async () => ({ ok: true })),
   }
 }
 
@@ -75,9 +82,11 @@ export function createProfileStubDb(opts: {
   profile?: { id: string; nombre_completo: string | null; rol: string } | null
   authUser?: { banned_until: string | null; deleted_at: string | null } | null | 'unavailable'
   isReady?: () => Promise<boolean>
+  checkPhase2dProfilesCapabilities?: () => Promise<Phase2dCapabilityResult>
 }): Db {
   return createMockDb({
     isReady: opts.isReady,
+    checkPhase2dProfilesCapabilities: opts.checkPhase2dProfilesCapabilities,
     async query(text, params) {
       const sql = text.replace(/\s+/g, ' ').toLowerCase()
       if (sql.includes('from public.perfiles')) {
@@ -97,7 +106,6 @@ export function createProfileStubDb(opts: {
           throw new Error('permission denied for table users')
         }
         if (opts.authUser === null || opts.authUser === undefined) {
-          // default: present, not revoked
           return {
             rows: [{ banned_until: null, deleted_at: null }],
             rowCount: 1,

@@ -19,6 +19,8 @@ export type Permission =
   | 'users:create'
   | 'users:change_role'
   | 'users:set_password'
+  | 'users:disable'
+  | 'users:enable'
   | 'employees:read'
   | 'employees:create'
   | 'employees:update'
@@ -79,6 +81,8 @@ export const GENERATED_PERMISSIONS = [
   'users:create',
   'users:change_role',
   'users:set_password',
+  'users:disable',
+  'users:enable',
   'employees:read',
   'employees:create',
   'employees:update',
@@ -146,6 +150,8 @@ export type AdminUserResponse = {
   nombreCompleto: string | null
   rol: Role
   email: string | null
+  /** Auth ban SoT (banned_until). */
+  disabled: boolean
 }
 
 export type UsersListResponse = {

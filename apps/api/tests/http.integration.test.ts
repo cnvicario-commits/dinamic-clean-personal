@@ -17,6 +17,27 @@ const noopIdentity: IdentityAdmin = {
   deleteAuthUser: async () => undefined,
   setAuthPassword: async () => undefined,
   listAuthEmails: async () => new Map([[userId, 'a@example.com']]),
+  banAuthUser: async () => undefined,
+  unbanAuthUser: async () => undefined,
+  getAuthUserSecurityState: async () => ({
+    id: userId,
+    email: 'a@example.com',
+    status: 'ACTIVE',
+    bannedUntil: null,
+  }),
+  revokeUserSessions: async () => undefined,
+  listAuthUserSecurityStates: async () =>
+    new Map([
+      [
+        userId,
+        {
+          id: userId,
+          email: 'a@example.com',
+          status: 'ACTIVE',
+          bannedUntil: null,
+        },
+      ],
+    ]),
 }
 
 const noopProfiles: ProfilesRepository = {
@@ -31,6 +52,7 @@ const noopProfiles: ProfilesRepository = {
   updateRole: async () => {
     throw new Error('unused')
   },
+  withAdminProfilesLocked: async (fn) => fn([]),
 }
 
 describe('http offline (mock db + HS256)', () => {

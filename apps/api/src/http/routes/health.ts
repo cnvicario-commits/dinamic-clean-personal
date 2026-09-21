@@ -14,6 +14,14 @@ export const healthRoutes: FastifyPluginAsync = async (app) => {
           .code(503)
           .send({ status: 'not_ready', reason: 'users_module_dependency' })
       }
+      const phase2d = await app.db.checkPhase2dProfilesCapabilities()
+      if (!phase2d.ok) {
+        return reply.code(503).send({
+          status: 'not_ready',
+          reason: 'phase2d_schema_incompatible',
+          detail: phase2d.reason,
+        })
+      }
       return { status: 'ready' }
     } catch {
       return reply.code(503).send({ status: 'not_ready' })

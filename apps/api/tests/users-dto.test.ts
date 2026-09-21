@@ -99,6 +99,16 @@ describe('createUser compensation', () => {
       deleteAuthUser: async () => undefined,
       setAuthPassword: async () => undefined,
       listAuthEmails: async () => new Map(),
+      banAuthUser: async () => undefined,
+      unbanAuthUser: async () => undefined,
+      getAuthUserSecurityState: async (id) => ({
+        id,
+        email: null,
+        status: 'ACTIVE',
+        bannedUntil: null,
+      }),
+      revokeUserSessions: async () => undefined,
+      listAuthUserSecurityStates: async () => new Map(),
       ...overrides.identity,
     }
     const profiles: ProfilesRepository = {
@@ -113,6 +123,7 @@ describe('createUser compensation', () => {
       updateRole: async () => {
         throw new Error('n/a')
       },
+      withAdminProfilesLocked: async (fn) => fn([]),
       ...overrides.profiles,
     }
     return { identity, profiles }
@@ -187,6 +198,7 @@ describe('createUser compensation', () => {
       nombreCompleto: 'A',
       rol: 'supervisor',
       email: 'a@b.com',
+      disabled: false,
     })
   })
 })

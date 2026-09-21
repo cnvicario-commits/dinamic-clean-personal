@@ -30,6 +30,8 @@ export const PERMISSIONS = Object.freeze([
   'users:create',
   'users:change_role',
   'users:set_password',
+  'users:disable',
+  'users:enable',
   // HR — employees:read enforced on GET /v1/employees; others catalog-only until Phase 3
   'employees:read',
   'employees:create',
