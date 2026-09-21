@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { loadEnv } from '../src/config/env.js'
-import { hasPermission, isRole, permissionsFor, type Role } from '../src/domain/rbac.js'
+import { authorize, isRole, permissionsFor, type Role } from '../src/domain/rbac.js'
 import { parseListEmployeesQuery } from '../src/application/employees/list-employees.js'
 import { AppError } from '../src/http/errors/app-error.js'
 import { loadProfile, assertAuthUserNotRevoked } from '../src/infrastructure/db/profiles-repo.js'
@@ -37,11 +37,11 @@ describe('rbac', () => {
   })
 
   it('allows employees:read for admin and gerente only', () => {
-    expect(hasPermission('admin', 'employees:read')).toBe(true)
-    expect(hasPermission('gerente', 'employees:read')).toBe(true)
-    expect(hasPermission('compras', 'employees:read')).toBe(false)
-    expect(hasPermission('supervisor', 'employees:read')).toBe(false)
-    expect(hasPermission('auditoria', 'employees:read')).toBe(false)
+    expect(authorize({ role: 'admin' }, 'employees:read')).toBe(true)
+    expect(authorize({ role: 'gerente' }, 'employees:read')).toBe(true)
+    expect(authorize({ role: 'compras' }, 'employees:read')).toBe(false)
+    expect(authorize({ role: 'supervisor' }, 'employees:read')).toBe(false)
+    expect(authorize({ role: 'auditoria' }, 'employees:read')).toBe(false)
   })
 
   it('profile:read_self for all known roles', () => {
