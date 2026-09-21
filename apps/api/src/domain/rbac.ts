@@ -1,5 +1,5 @@
 /**
- * Central RBAC catalog — Phase 2A.
+ * Central RBAC catalog — Phase 2A/2B.
  *
  * Enforcement path (single policy):
  *   requirePermission(permission)
@@ -11,18 +11,14 @@
  * - No implicit admin / gerente bypass / wildcards.
  * - Authentication (JWT + profile) is separate; this module is Authorization only.
  * - Do not call roleHasPermission from HTTP/routes — use authorize().
+ * - permissionsFor() is presentation-only (e.g. GET /v1/me), never enforcement.
  *
- * Permission naming (Phase 2 convention — do not mix styles):
+ * Permission naming (Phase 2 convention):
  *   Format:  <resource>:<action>
  *   Scope:   encode on the action when needed (`read_self`, `read_any`, `update_self`)
- *   Examples (enforced today): `profile:read_self`, `employees:read`
- *   Future:  `users:change_role`, `profiles:read_any`
- *   Avoid:   `users.read.any`, `profile.read.self`, mixed `:` / `.` schemes
  */
 
-export type Role = 'admin' | 'gerente' | 'compras' | 'supervisor' | 'auditoria'
-
-export const ROLES: readonly Role[] = Object.freeze([
+export const ROLES = Object.freeze([
   'admin',
   'gerente',
   'compras',
@@ -30,23 +26,34 @@ export const ROLES: readonly Role[] = Object.freeze([
   'auditoria',
 ] as const)
 
+export type Role = (typeof ROLES)[number]
+
+const ROLES_SET: ReadonlySet<string> = new Set(ROLES)
+
 export function isRole(value: unknown): value is Role {
-  return typeof value === 'string' && (ROLES as readonly string[]).includes(value)
+  return typeof value === 'string' && ROLES_SET.has(value)
 }
 
 /**
- * Permissions currently enforced by the Fastify API.
+ * Permissions enforced by the Fastify API.
  * Convention: `<resource>:<action>` (see file header).
  */
-export type Permission = 'profile:read_self' | 'employees:read'
-
-export const PERMISSIONS: readonly Permission[] = Object.freeze([
+export const PERMISSIONS = Object.freeze([
   'profile:read_self',
+  'profile:update_self',
+  'profiles:read_any',
   'employees:read',
+  'users:create',
+  'users:change_role',
+  'users:set_password',
 ] as const)
 
+export type Permission = (typeof PERMISSIONS)[number]
+
+const PERMISSIONS_SET: ReadonlySet<string> = new Set(PERMISSIONS)
+
 export function isPermission(value: unknown): value is Permission {
-  return typeof value === 'string' && (PERMISSIONS as readonly string[]).includes(value)
+  return typeof value === 'string' && PERMISSIONS_SET.has(value)
 }
 
 /**
@@ -54,11 +61,32 @@ export function isPermission(value: unknown): value is Permission {
  * Frozen so tests can detect accidental mutation.
  */
 const ROLE_PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = Object.freeze({
-  admin: Object.freeze(['profile:read_self', 'employees:read'] as const),
-  gerente: Object.freeze(['profile:read_self', 'employees:read'] as const),
-  compras: Object.freeze(['profile:read_self'] as const),
-  supervisor: Object.freeze(['profile:read_self'] as const),
-  auditoria: Object.freeze(['profile:read_self'] as const),
+  admin: Object.freeze([
+    'profile:read_self',
+    'profile:update_self',
+    'profiles:read_any',
+    'employees:read',
+    'users:create',
+    'users:change_role',
+    'users:set_password',
+  ] as const satisfies readonly Permission[]),
+  gerente: Object.freeze([
+    'profile:read_self',
+    'profile:update_self',
+    'employees:read',
+  ] as const satisfies readonly Permission[]),
+  compras: Object.freeze([
+    'profile:read_self',
+    'profile:update_self',
+  ] as const satisfies readonly Permission[]),
+  supervisor: Object.freeze([
+    'profile:read_self',
+    'profile:update_self',
+  ] as const satisfies readonly Permission[]),
+  auditoria: Object.freeze([
+    'profile:read_self',
+    'profile:update_self',
+  ] as const satisfies readonly Permission[]),
 })
 
 /** Read-only grant list for responses (e.g. GET /v1/me). Not an enforcement API. */
@@ -68,8 +96,7 @@ export function permissionsFor(role: Role): readonly Permission[] {
 
 /**
  * Internal role×permission check. Unknown role / permission ⇒ DENY.
- * Not exported: callers must go through authorize() so future contextual rules
- * (resource ownership, request metadata) have a single place to land.
+ * Not exported: callers must go through authorize().
  */
 function roleHasPermission(role: unknown, permission: unknown): boolean {
   if (!isRole(role)) return false

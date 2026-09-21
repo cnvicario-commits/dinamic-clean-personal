@@ -9,6 +9,11 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   SUPABASE_URL: z.string().url(),
   /**
+   * Service role key — server only. Used for Auth Admin + privileged perfiles writes
+   * in Phase 2B user management. Never expose via NEXT_PUBLIC_*.
+   */
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
+  /**
    * Optional HS256 fallback when JWKS verification fails (e.g. local/tests, legacy projects).
    * Prefer JWKS in production; set only when needed. Never expose via NEXT_PUBLIC_*.
    */

@@ -7,7 +7,14 @@
 export type Role = 'admin' | 'gerente' | 'compras' | 'supervisor' | 'auditoria'
 
 /** Permissions mirrored from apps/api/src/domain/rbac.ts */
-export type Permission = 'profile:read_self' | 'employees:read'
+export type Permission =
+  | 'profile:read_self'
+  | 'profile:update_self'
+  | 'profiles:read_any'
+  | 'employees:read'
+  | 'users:create'
+  | 'users:change_role'
+  | 'users:set_password'
 
 /** GET /v1/me response */
 export type MeResponse = {
@@ -15,7 +22,45 @@ export type MeResponse = {
   profileId: string
   role: Role
   email: string | null
+  nombreCompleto: string | null
   permissions: Permission[]
+}
+
+export type ProfileResponse = {
+  id: string
+  nombreCompleto: string | null
+  rol: Role
+}
+
+/** Admin list/detail — email is required (nullable when Auth has none). */
+export type AdminUserResponse = {
+  id: string
+  nombreCompleto: string | null
+  rol: Role
+  email: string | null
+}
+
+export type UsersListResponse = {
+  items: AdminUserResponse[]
+}
+
+export type CreateUserBody = {
+  email: string
+  password: string
+  nombreCompleto: string
+  rol: Role
+}
+
+export type ChangeUserRoleBody = {
+  rol: Role
+}
+
+export type SetUserPasswordBody = {
+  password: string
+}
+
+export type UpdateOwnProfileBody = {
+  nombreCompleto: string
 }
 
 /** GET /v1/employees query (optional fields omitted when unset) */
