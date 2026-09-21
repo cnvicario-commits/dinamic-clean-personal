@@ -1,13 +1,26 @@
 import type { FastifyPluginAsync } from 'fastify'
 
 export const healthRoutes: FastifyPluginAsync = async (app) => {
-  app.get('/healthz', async () => ({ status: 'ok' }))
+  app.get('/healthz', { config: { rateLimit: false } }, async () => ({ status: 'ok' }))
 
-  app.get('/readyz', async (_request, reply) => {
+  app.get('/readyz', { config: { rateLimit: false } }, async (_request, reply) => {
     try {
-      const ok = await app.db.isReady()
-      if (!ok) {
-        return reply.code(503).send({ status: 'not_ready' })
+      const dbOk = await app.db.isReady()
+      if (!dbOk) {
+        return reply.code(503).send({ status: 'not_ready', reason: 'database' })
+      }
+      if (!app.usersModuleReady) {
+        return reply
+          .code(503)
+          .send({ status: 'not_ready', reason: 'users_module_dependency' })
+      }
+      const phase2d = await app.db.checkPhase2dProfilesCapabilities()
+      if (!phase2d.ok) {
+        return reply.code(503).send({
+          status: 'not_ready',
+          reason: 'phase2d_schema_incompatible',
+          detail: phase2d.reason,
+        })
       }
       return { status: 'ready' }
     } catch {

@@ -7,11 +7,22 @@ export type {
   Role,
   Permission,
   MeResponse,
+  ProfileResponse,
+  AdminUserResponse,
+  UsersListResponse,
+  CreateUserBody,
+  ChangeUserRoleBody,
+  SetUserPasswordBody,
+  UpdateOwnProfileBody,
   ListEmployeesQuery,
   EmployeeAssignment,
   EmployeeListItem,
   EmployeesResponse,
   ProblemDetails,
+} from './types'
+export {
+  GENERATED_ROLES,
+  GENERATED_PERMISSIONS,
 } from './types'
 export {
   ApiClientError,

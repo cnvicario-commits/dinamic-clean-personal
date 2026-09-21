@@ -3,11 +3,130 @@
  * Regenerate: cd apps/api && npm run export:contracts
  */
 
-/** Roles mirrored from apps/api/src/domain/rbac.ts */
-export type Role = 'admin' | 'gerente' | 'compras' | 'supervisor' | 'auditoria'
+/** Roles mirrored from apps/api/src/domain/rbac-catalog.ts */
+export type Role =
+  | 'admin'
+  | 'gerente'
+  | 'compras'
+  | 'supervisor'
+  | 'auditoria'
 
-/** Permissions mirrored from apps/api/src/domain/rbac.ts */
-export type Permission = 'profile:read_self' | 'employees:read'
+/** Permissions mirrored from apps/api/src/domain/rbac-catalog.ts */
+export type Permission =
+  | 'profile:read_self'
+  | 'profile:update_self'
+  | 'profiles:read_any'
+  | 'users:create'
+  | 'users:change_role'
+  | 'users:set_password'
+  | 'users:disable'
+  | 'users:enable'
+  | 'employees:read'
+  | 'employees:create'
+  | 'employees:update'
+  | 'assignments:read'
+  | 'assignments:create'
+  | 'assignments:update'
+  | 'attendance:read'
+  | 'attendance:update'
+  | 'attendance:export'
+  | 'clients:read'
+  | 'clients:create'
+  | 'client_addresses:read'
+  | 'client_addresses:update'
+  | 'client_quotes:read'
+  | 'client_quotes:create'
+  | 'client_quotes:delete'
+  | 'companies:read'
+  | 'companies:create'
+  | 'companies:update'
+  | 'suppliers:read'
+  | 'suppliers:update'
+  | 'articles:read'
+  | 'articles:update'
+  | 'articles:import'
+  | 'purchase_requests:read'
+  | 'purchase_requests:create'
+  | 'purchase_requests:update'
+  | 'purchase_orders:read'
+  | 'purchase_orders:create'
+  | 'purchase_orders:update'
+  | 'warehouse_requests:read'
+  | 'warehouse_requests:create'
+  | 'warehouse_requests:update'
+  | 'economic_results:read'
+  | 'economic_results:import'
+  | 'crm:read'
+  | 'crm:create'
+  | 'crm:update'
+  | 'crm:delete'
+  | 'audits:read'
+  | 'audits:create'
+  | 'audits:update'
+  | 'audit_checklists:manage'
+
+/** Runtime catalogs for exact parity tests (machine-readable). */
+export const GENERATED_ROLES = [
+  'admin',
+  'gerente',
+  'compras',
+  'supervisor',
+  'auditoria',
+] as const
+
+export const GENERATED_PERMISSIONS = [
+  'profile:read_self',
+  'profile:update_self',
+  'profiles:read_any',
+  'users:create',
+  'users:change_role',
+  'users:set_password',
+  'users:disable',
+  'users:enable',
+  'employees:read',
+  'employees:create',
+  'employees:update',
+  'assignments:read',
+  'assignments:create',
+  'assignments:update',
+  'attendance:read',
+  'attendance:update',
+  'attendance:export',
+  'clients:read',
+  'clients:create',
+  'client_addresses:read',
+  'client_addresses:update',
+  'client_quotes:read',
+  'client_quotes:create',
+  'client_quotes:delete',
+  'companies:read',
+  'companies:create',
+  'companies:update',
+  'suppliers:read',
+  'suppliers:update',
+  'articles:read',
+  'articles:update',
+  'articles:import',
+  'purchase_requests:read',
+  'purchase_requests:create',
+  'purchase_requests:update',
+  'purchase_orders:read',
+  'purchase_orders:create',
+  'purchase_orders:update',
+  'warehouse_requests:read',
+  'warehouse_requests:create',
+  'warehouse_requests:update',
+  'economic_results:read',
+  'economic_results:import',
+  'crm:read',
+  'crm:create',
+  'crm:update',
+  'crm:delete',
+  'audits:read',
+  'audits:create',
+  'audits:update',
+  'audit_checklists:manage',
+] as const
 
 /** GET /v1/me response */
 export type MeResponse = {
@@ -15,7 +134,50 @@ export type MeResponse = {
   profileId: string
   role: Role
   email: string | null
+  nombreCompleto: string | null
   permissions: Permission[]
+}
+
+export type ProfileResponse = {
+  id: string
+  nombreCompleto: string | null
+  rol: Role
+}
+
+/** Admin list/detail — email is required (nullable when Auth has none). */
+export type AdminUserLifecycleStatus = 'ACTIVE' | 'DISABLED' | 'MISSING_AUTH'
+
+export type AdminUserResponse = {
+  id: string
+  nombreCompleto: string | null
+  rol: Role
+  email: string | null
+  status: AdminUserLifecycleStatus
+  /** True only when status === DISABLED. */
+  disabled: boolean
+}
+
+export type UsersListResponse = {
+  items: AdminUserResponse[]
+}
+
+export type CreateUserBody = {
+  email: string
+  password: string
+  nombreCompleto: string
+  rol: Role
+}
+
+export type ChangeUserRoleBody = {
+  rol: Role
+}
+
+export type SetUserPasswordBody = {
+  password: string
+}
+
+export type UpdateOwnProfileBody = {
+  nombreCompleto: string
 }
 
 /** GET /v1/employees query (optional fields omitted when unset) */
