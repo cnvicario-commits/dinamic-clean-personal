@@ -58,6 +58,7 @@ export async function authenticateRequest(
       profileId: profile.profileId,
       role: profile.role,
       email: verified.email,
+      nombreCompleto: profile.nombreCompleto,
       aal: parseAal(verified.payload.aal),
       requestId: request.id,
     }

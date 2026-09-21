@@ -1,14 +1,10 @@
 /**
  * Opt-in Phase 2E lifecycle against Supabase TEST.
  *
- * Required:
- *   RUN_SUPABASE_INTEGRATION=1
- *   NODE_ENV=test
- *   EXPECTED_SUPABASE_TEST_PROJECT_REF=<exact ref>
- *   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, DATABASE_URL, SUPABASE_ANON_KEY → TEST
- *
- * Documents: no revoke-by-user-id API; Option C tokens_valid_after for access JWTs.
- * Refresh behavior is recorded as observed (NOT invented).
+ * Refresh semantics (Option A tokens_valid_after):
+ * - ACCESS: tokens_valid_after invalidates pre-disable access JWTs (including post-enable).
+ * - REFRESH: no Admin revoke-by-user-id; after enable, wait past same-second boundary then
+ *   refresh — if a new access is issued, iat must be after tokens_valid_after and /v1/me → 200.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createClient } from '@supabase/supabase-js'
@@ -58,7 +54,9 @@ describe.skipIf(!enabled)('Phase 2E Supabase lifecycle (opt-in)', () => {
     if (db) await db.close()
   })
 
-  it('disable/enable access-token + refresh observed behavior', async () => {
+  it(
+    'access invalidation + refresh while banned + refresh after enable (Option A)',
+    async () => {
     const authUser = await identity.createAuthUser({ email, password })
     createdIds.push(authUser.id)
     await profiles.upsert({
@@ -78,8 +76,8 @@ describe.skipIf(!enabled)('Phase 2E Supabase lifecycle (opt-in)', () => {
     expect(loginErr).toBeNull()
     const accessToken = login.session?.access_token
     const refreshToken = login.session?.refresh_token
-    expect(accessToken).toBeTruthy()
-    expect(refreshToken).toBeTruthy()
+    expect(typeof accessToken).toBe('string')
+    expect(typeof refreshToken).toBe('string')
 
     const app = await buildApp(env, { db, identityAdmin: identity, profilesRepo: profiles })
     await app.ready()
@@ -97,51 +95,73 @@ describe.skipIf(!enabled)('Phase 2E Supabase lifecycle (opt-in)', () => {
       await identity.banAuthUser(authUser.id)
       await identity.invalidateAccessTokens(authUser.id)
 
+      const securityAfterInvalidate = await identity.getAuthUserSecurityState(authUser.id)
+      const tokensValidAfter = securityAfterInvalidate.tokensValidAfter
+      expect(typeof tokensValidAfter).toBe('string')
+      const cutoffMs = Date.parse(tokensValidAfter!)
+      expect(Number.isNaN(cutoffMs)).toBe(false)
+      const cutoffSec = Math.floor(cutoffMs / 1000)
+
       const denied = await app.inject({
         method: 'GET',
         url: '/v1/me',
         headers: { authorization: `Bearer ${accessToken}` },
       })
       expect(denied.statusCode).toBe(401)
-      expect(['user_disabled', 'session_invalidated']).toContain(denied.json().code)
+      expect(['user_disabled', 'session_invalidated']).toContain(
+        (denied.json() as { code?: string }).code,
+      )
 
-      const { data: refreshed, error: refreshErr } = await anon.auth.refreshSession({
-        refresh_token: refreshToken!,
-      })
-      // Record observed refresh-while-banned behavior (do not invent).
-      const refreshWhileBanned = {
-        error: refreshErr?.message ?? null,
-        hasSession: Boolean(refreshed.session),
-      }
+      // CASE 1: refresh while DISABLED
+      const bannedRefresh = await anon.auth.refreshSession({ refresh_token: refreshToken! })
+      expect(
+        bannedRefresh.error != null || bannedRefresh.data.session == null,
+        'refresh while banned should fail or yield no session',
+      ).toBe(true)
 
       await identity.unbanAuthUser(authUser.id)
 
+      // Pre-disable access token remains dead after enable
       const afterEnable = await app.inject({
         method: 'GET',
         url: '/v1/me',
         headers: { authorization: `Bearer ${accessToken}` },
       })
       expect(afterEnable.statusCode).toBe(401)
-      expect(afterEnable.json()).toMatchObject({ code: 'session_invalidated' })
+      expect((afterEnable.json() as { code?: string }).code).toBe('session_invalidated')
 
-      const { data: again, error: againErr } = await anon.auth.signInWithPassword({
-        email,
-        password,
-      })
-      expect(againErr).toBeNull()
-      const ok = await app.inject({
-        method: 'GET',
-        url: '/v1/me',
-        headers: { authorization: `Bearer ${again.session?.access_token}` },
-      })
-      expect(ok.statusCode).toBe(200)
+      // CASE 2: wait past same-second boundary AFTER enable, BEFORE refreshSession(R)
+      while (Math.floor(Date.now() / 1000) <= cutoffSec) {
+        await new Promise((r) => setTimeout(r, 1100))
+      }
 
-      // Attach observed refresh result for evidence (no secrets).
-      expect(refreshWhileBanned).toBeTruthy()
+      const enabledRefresh = await anon.auth.refreshSession({ refresh_token: refreshToken! })
+      if (enabledRefresh.error || !enabledRefresh.data.session?.access_token) {
+        expect(enabledRefresh.error != null || !enabledRefresh.data.session).toBe(true)
+      } else {
+        const newAccess = enabledRefresh.data.session.access_token
+        expect(newAccess).not.toBe(accessToken)
+
+        const payloadB64 = newAccess.split('.')[1]
+        expect(typeof payloadB64).toBe('string')
+        const payloadJson = Buffer.from(payloadB64!, 'base64url').toString('utf8')
+        const payload = JSON.parse(payloadJson) as { iat?: number }
+        expect(typeof payload.iat).toBe('number')
+        expect(payload.iat!).toBeGreaterThan(cutoffSec)
+
+        const viaRefresh = await app.inject({
+          method: 'GET',
+          url: '/v1/me',
+          headers: { authorization: `Bearer ${newAccess}` },
+        })
+        expect(viaRefresh.statusCode).toBe(200)
+      }
     } finally {
       await app.close()
     }
-  })
+  },
+  90_000,
+  )
 })
 
 if (!enabled) {

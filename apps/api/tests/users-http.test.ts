@@ -115,7 +115,17 @@ function memoryStack(seed: ProfileRecord[]) {
     },
     async withAdminLifecycleLock(fn) {
       const admins = [...profiles.values()].filter((p) => p.rol === 'admin')
-      return fn(admins)
+      return fn({
+        admins,
+        tx: {
+          async updateRole(userId, rol) {
+            const row = profiles.get(userId)
+            if (!row) throw new AppError(404, 'not_found', 'Profile not found')
+            row.rol = rol
+            return { ...row }
+          },
+        },
+      })
     },
   }
   return { identity, profilesRepo, emails, profiles, banned, tokensValidAfter }

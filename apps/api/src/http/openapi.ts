@@ -43,7 +43,8 @@ export const openApiDocument = {
   info: {
     title: 'Dinamic Clean API',
     version: '0.2.0',
-    description: 'Enterprise backend — Phase 2B users/profiles',
+    description:
+      'Enterprise backend — Phase 2B users/profiles. General IP rate limiting may return 429 on any route (except health/OpenAPI when excluded).',
   },
   paths: {
     '/healthz': {
@@ -160,6 +161,10 @@ export const openApiDocument = {
           '401': { description: 'Unauthorized' },
           '403': { description: 'Forbidden' },
           '409': { description: 'Conflict (duplicate email)' },
+          '429': {
+            description:
+              'Rate limit exceeded (per-user sensitive budget and/or general IP limit); Retry-After may be set',
+          },
           '503': { description: 'Identity dependency unavailable' },
         },
       },
@@ -205,6 +210,10 @@ export const openApiDocument = {
           '401': { description: 'Unauthorized' },
           '403': { description: 'Forbidden' },
           '404': { description: 'Not found' },
+          '429': {
+            description:
+              'Rate limit exceeded (per-user sensitive budget and/or general IP limit); Retry-After may be set',
+          },
         },
       },
     },
@@ -225,6 +234,10 @@ export const openApiDocument = {
           '401': { description: 'Unauthorized' },
           '403': { description: 'Forbidden / MFA required' },
           '404': { description: 'Not found' },
+          '429': {
+            description:
+              'Rate limit exceeded (per-user sensitive budget and/or general IP limit); Retry-After may be set',
+          },
           '502': { description: 'Session revocation failed after password change' },
           '503': { description: 'Identity dependency unavailable' },
         },
@@ -242,6 +255,10 @@ export const openApiDocument = {
           '403': { description: 'Forbidden / self-disable / MFA required' },
           '404': { description: 'Not found' },
           '409': { description: 'Last admin protected / deleted user' },
+          '429': {
+            description:
+              'Rate limit exceeded (per-user sensitive budget and/or general IP limit); Retry-After may be set',
+          },
           '502': { description: 'Identity or session revocation error' },
           '503': { description: 'Identity dependency unavailable' },
         },
@@ -259,6 +276,10 @@ export const openApiDocument = {
           '403': { description: 'Forbidden / MFA required' },
           '404': { description: 'Not found' },
           '409': { description: 'Deleted user' },
+          '429': {
+            description:
+              'Rate limit exceeded (per-user sensitive budget and/or general IP limit); Retry-After may be set',
+          },
           '502': { description: 'Identity provider error' },
           '503': { description: 'Identity dependency unavailable' },
         },

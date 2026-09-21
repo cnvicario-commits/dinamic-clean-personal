@@ -63,6 +63,19 @@ describe('tokens_valid_after invalidation', () => {
     expect(isAccessTokenInvalidated(undefined, epoch)).toBe(true)
     expect(isAccessTokenInvalidated(after, null)).toBe(false)
   })
+
+  it('Option A boundary: same-second iat after fractional cutoff is still invalidated', () => {
+    // cutoff = 12:00:00.100 → cutSec = floor; JWT iat = 12:00:00 → DENY
+    const epoch = '2026-06-15T12:00:00.100Z'
+    const sameSecondIat = Math.floor(Date.parse('2026-06-15T12:00:00.800Z') / 1000)
+    expect(sameSecondIat).toBe(Math.floor(Date.parse(epoch) / 1000))
+    expect(isAccessTokenInvalidated(sameSecondIat, epoch)).toBe(true)
+    expect(isAccessTokenInvalidated(sameSecondIat + 1, epoch)).toBe(false)
+  })
+
+  it('invalid tokens_valid_after string → DENY', () => {
+    expect(isAccessTokenInvalidated(1_700_000_000, 'not-a-date')).toBe(true)
+  })
 })
 
 describe('user lifecycle service', () => {
@@ -114,8 +127,20 @@ describe('user lifecycle service', () => {
         row.rol = rol
         return { ...row }
       },
-      withAdminLifecycleLock: async (fn) =>
-        fn([...profiles.values()].filter((p) => p.rol === 'admin')),
+      withAdminLifecycleLock: async (fn) => {
+        const admins = [...profiles.values()].filter((p) => p.rol === 'admin')
+        return fn({
+          admins,
+          tx: {
+            async updateRole(userId, rol) {
+              const row = profiles.get(userId)
+              if (!row) throw new AppError(404, 'not_found', 'Profile not found')
+              row.rol = rol
+              return { ...row }
+            },
+          },
+        })
+      },
     }
     return { identity, profiles: profilesRepo, banned, tokensValidAfter, profileMap: profiles }
   }
@@ -172,5 +197,41 @@ describe('user lifecycle service', () => {
       details: { banned: true, session_invalidation: 'failed' },
     })
     expect(s.banned.has(userC)).toBe(true)
+  })
+
+  it('demotion uses lock tx.updateRole (not pool updateRole)', async () => {
+    const { changeUserRole } = await import('../src/application/users/users-service.js')
+    const s = stack([
+      { id: adminA, nombre_completo: 'A', rol: 'admin' },
+      { id: adminB, nombre_completo: 'B', rol: 'admin' },
+    ])
+    let poolUpdateCalls = 0
+    let txUpdateCalls = 0
+    const origUpdate = s.profiles.updateRole.bind(s.profiles)
+    s.profiles.updateRole = async (userId, rol) => {
+      poolUpdateCalls += 1
+      return origUpdate(userId, rol)
+    }
+    s.profiles.withAdminLifecycleLock = async (fn) => {
+      const admins = [...s.profileMap.values()].filter((p) => p.rol === 'admin')
+      return fn({
+        admins,
+        tx: {
+          async updateRole(userId, rol) {
+            txUpdateCalls += 1
+            return origUpdate(userId, rol)
+          },
+        },
+      })
+    }
+    await changeUserRole(
+      { identity: s.identity, profiles: s.profiles },
+      adminB,
+      'compras',
+      { actorUserId: adminA },
+    )
+    expect(txUpdateCalls).toBe(1)
+    expect(poolUpdateCalls).toBe(0)
+    expect(s.profileMap.get(adminB)?.rol).toBe('compras')
   })
 })

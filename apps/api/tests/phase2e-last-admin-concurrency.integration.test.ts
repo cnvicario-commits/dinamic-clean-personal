@@ -1,11 +1,12 @@
 /**
- * Opt-in concurrency test for last-active-admin invariant (pg_advisory_xact_lock).
+ * Opt-in concurrency test: exactly two ACTIVE admins A and B (no third actor admin).
  *
- * Requires real DATABASE_URL + Auth Admin on TEST project:
+ * Cross operations (A disables B || B disables A) — self-disable is forbidden.
+ *
+ * Required:
  *   RUN_SUPABASE_INTEGRATION=1 NODE_ENV=test EXPECTED_SUPABASE_TEST_PROJECT_REF=...
  *
- * Spawns two parallel disable/demote operations; exactly one may succeed when only
- * two ACTIVE admins exist (final ACTIVE admin count >= 1).
+ * Suite aborts if other ACTIVE admins exist (TEST_ENV_NOT_ISOLATED_FOR_LAST_ADMIN_CONCURRENCY).
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { loadEnv } from '../src/config/env.js'
@@ -18,14 +19,15 @@ import { AppError } from '../src/http/errors/app-error.js'
 
 const enabled = process.env.RUN_SUPABASE_INTEGRATION === '1'
 
-describe.skipIf(!enabled)('Phase 2E last-admin concurrency (opt-in)', () => {
+describe.skipIf(!enabled)('Phase 2E last-admin concurrency (exactly two admins)', () => {
   const createdIds: string[] = []
+  /** ACTIVE admins temporarily banned so the suite has exactly A+B. Restored in afterAll. */
+  const bannedForIsolation: string[] = []
   let identity: ReturnType<typeof createIdentityAdmin>
   let profiles: ReturnType<typeof createProfilesRepository>
   let db: ReturnType<typeof createDb>
   let adminA: string
   let adminB: string
-  let actor: string
 
   beforeAll(async () => {
     assertDinamicCleanTestTarget()
@@ -49,10 +51,27 @@ describe.skipIf(!enabled)('Phase 2E last-admin concurrency (opt-in)', () => {
     }
     adminA = await mk('A')
     adminB = await mk('B')
-    actor = await mk('Actor')
-  })
+
+    // Force exactly-two ACTIVE admins: temporarily ban every other ACTIVE admin in TEST.
+    // Restored in afterAll. If any remain ACTIVE after ban attempts → hard fail (no weak asserts).
+    await isolateExactlyTwoActiveAdmins()
+
+    const otherActiveAdminCount = await countOtherActiveAdmins()
+    if (otherActiveAdminCount !== 0) {
+      throw new Error(
+        `TEST_ENV_NOT_ISOLATED_FOR_LAST_ADMIN_CONCURRENCY (otherActiveAdminCount=${otherActiveAdminCount})`,
+      )
+    }
+  }, 120_000)
 
   afterAll(async () => {
+    for (const id of bannedForIsolation) {
+      try {
+        await identity.unbanAuthUser(id)
+      } catch {
+        // best-effort restore
+      }
+    }
     for (const id of [...createdIds]) {
       try {
         await identity.unbanAuthUser(id).catch(() => undefined)
@@ -62,60 +81,108 @@ describe.skipIf(!enabled)('Phase 2E last-admin concurrency (opt-in)', () => {
       }
     }
     if (db) await db.close()
-  })
+  }, 120_000)
 
-  async function countActiveAdmins(): Promise<number> {
-    let all = 0
+  async function isolateExactlyTwoActiveAdmins(): Promise<void> {
+    const states = await identity.listAuthUserSecurityStates()
     for (const r of await profiles.list()) {
       if (r.rol !== 'admin') continue
-      const st = await identity.getAuthUserSecurityState(r.id)
-      if (st.status === 'ACTIVE') all += 1
+      if (r.id === adminA || r.id === adminB) continue
+      if (states.get(r.id)?.status !== 'ACTIVE') continue
+      await identity.banAuthUser(r.id)
+      bannedForIsolation.push(r.id)
     }
-    return all
   }
 
-  it('concurrent disable A and disable B → >= 1 ACTIVE admin remains', async () => {
-    // Ensure A and B active admins
+  async function countOtherActiveAdmins(): Promise<number> {
+    const states = await identity.listAuthUserSecurityStates()
+    const adminRows = (await profiles.list()).filter((r) => r.rol === 'admin')
+    let n = 0
+    for (const r of adminRows) {
+      if (r.id === adminA || r.id === adminB) continue
+      if (states.get(r.id)?.status === 'ACTIVE') n += 1
+    }
+    return n
+  }
+
+  async function resetPairAsActiveAdmins() {
     await identity.unbanAuthUser(adminA).catch(() => undefined)
     await identity.unbanAuthUser(adminB).catch(() => undefined)
     await profiles.updateRole(adminA, 'admin')
     await profiles.updateRole(adminB, 'admin')
+  }
 
-    const deps = { identity, profiles }
-    const results = await Promise.allSettled([
-      disableUser(deps, adminA, { userId: actor }),
-      disableUser(deps, adminB, { userId: actor }),
-    ])
+  async function countGlobalActiveAdmins(): Promise<number> {
+    const states = await identity.listAuthUserSecurityStates()
+    let n = 0
+    for (const r of await profiles.list()) {
+      if (r.rol !== 'admin') continue
+      if (states.get(r.id)?.status === 'ACTIVE') n += 1
+    }
+    return n
+  }
 
+  function summarize(results: PromiseSettledResult<unknown>[]) {
     const fulfilled = results.filter((r) => r.status === 'fulfilled').length
-    const rejectedProtected = results.filter(
+    const protectedRejects = results.filter(
       (r) =>
         r.status === 'rejected' &&
         r.reason instanceof AppError &&
         r.reason.code === 'last_admin_protected',
     ).length
+    return { fulfilled, protectedRejects }
+  }
 
-    expect(fulfilled + rejectedProtected).toBe(2)
-    expect(fulfilled).toBeLessThanOrEqual(1)
-    expect(await countActiveAdmins()).toBeGreaterThanOrEqual(1)
-  })
+  function assertIsolatedRace(results: PromiseSettledResult<unknown>[]) {
+    const { fulfilled, protectedRejects } = summarize(results)
+    expect(fulfilled).toBe(1)
+    expect(protectedRejects).toBe(1)
+  }
 
-  it('concurrent demote A and demote B → >= 1 ACTIVE admin remains', async () => {
-    await identity.unbanAuthUser(adminA).catch(() => undefined)
-    await identity.unbanAuthUser(adminB).catch(() => undefined)
-    await profiles.updateRole(adminA, 'admin')
-    await profiles.updateRole(adminB, 'admin')
+  it(
+    'disable A || disable B (cross): ACTIVE_ADMIN_COUNT >= 1',
+    async () => {
+      await resetPairAsActiveAdmins()
+      const deps = { identity, profiles }
+      const results = await Promise.allSettled([
+        disableUser(deps, adminB, { userId: adminA }),
+        disableUser(deps, adminA, { userId: adminB }),
+      ])
+      assertIsolatedRace(results)
+      expect(await countGlobalActiveAdmins()).toBeGreaterThanOrEqual(1)
+    },
+    90_000,
+  )
 
-    const deps = { identity, profiles }
-    const results = await Promise.allSettled([
-      changeUserRole(deps, adminA, 'compras', { actorUserId: actor }),
-      changeUserRole(deps, adminB, 'compras', { actorUserId: actor }),
-    ])
+  it(
+    'demote A || demote B: ACTIVE_ADMIN_COUNT >= 1',
+    async () => {
+      await resetPairAsActiveAdmins()
+      const deps = { identity, profiles }
+      const results = await Promise.allSettled([
+        changeUserRole(deps, adminB, 'compras', { actorUserId: adminA }),
+        changeUserRole(deps, adminA, 'compras', { actorUserId: adminB }),
+      ])
+      assertIsolatedRace(results)
+      expect(await countGlobalActiveAdmins()).toBeGreaterThanOrEqual(1)
+    },
+    90_000,
+  )
 
-    const fulfilled = results.filter((r) => r.status === 'fulfilled').length
-    expect(fulfilled).toBeLessThanOrEqual(1)
-    expect(await countActiveAdmins()).toBeGreaterThanOrEqual(1)
-  })
+  it(
+    'disable A || demote B: ACTIVE_ADMIN_COUNT >= 1',
+    async () => {
+      await resetPairAsActiveAdmins()
+      const deps = { identity, profiles }
+      const results = await Promise.allSettled([
+        disableUser(deps, adminA, { userId: adminB }),
+        changeUserRole(deps, adminB, 'compras', { actorUserId: adminA }),
+      ])
+      assertIsolatedRace(results)
+      expect(await countGlobalActiveAdmins()).toBeGreaterThanOrEqual(1)
+    },
+    90_000,
+  )
 })
 
 if (!enabled) {

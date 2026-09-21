@@ -53,3 +53,7 @@ export function conflict(message: string, details?: unknown): AppError {
 export function serviceUnavailable(message: string): AppError {
   return new AppError(503, 'service_unavailable', message)
 }
+
+export function rateLimitExceeded(message = 'Rate limit exceeded'): AppError {
+  return new AppError(429, 'rate_limit_exceeded', message)
+}

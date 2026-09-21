@@ -1,5 +1,6 @@
 import type { Role } from '../../domain/rbac.js'
 import type { Db } from '../db/pool.js'
+import type pg from 'pg'
 import { AppError, conflict, notFound } from '../../http/errors/app-error.js'
 
 export type ProfileRecord = {
@@ -7,6 +8,16 @@ export type ProfileRecord = {
   nombre_completo: string | null
   rol: string
   created_at?: string
+}
+
+/** Transaction-scoped ops that MUST use the lock connection. */
+export type AdminLifecycleTx = {
+  updateRole(userId: string, rol: Role): Promise<ProfileRecord>
+}
+
+export type AdminLifecycleLockContext = {
+  admins: ProfileRecord[]
+  tx: AdminLifecycleTx
 }
 
 /**
@@ -23,13 +34,10 @@ export type ProfilesRepository = {
   upsert(input: { id: string; nombreCompleto: string; rol: Role }): Promise<ProfileRecord>
   updateRole(userId: string, rol: Role): Promise<ProfileRecord>
   /**
-   * Serialize admin lifecycle (disable/demote) across processes via
-   * `pg_advisory_xact_lock`. Holds the transaction open until `fn` completes
-   * (including Auth Admin ban) so check+mutation share one critical section.
+   * Serialize admin lifecycle across processes via `pg_advisory_xact_lock`.
+   * Demotion UPDATEs must use `ctx.tx` (same connection / BEGIN…COMMIT).
    */
-  withAdminLifecycleLock<T>(
-    fn: (admins: ProfileRecord[]) => Promise<T>,
-  ): Promise<T>
+  withAdminLifecycleLock<T>(fn: (ctx: AdminLifecycleLockContext) => Promise<T>): Promise<T>
 }
 
 /** Prefer PostgreSQL SQLSTATE; message match is fallback only. */
@@ -68,6 +76,30 @@ export function mapProfileWriteError(err: unknown): AppError {
     )
   }
   return new AppError(502, 'profile_write_failed', 'Profile persistence failed')
+}
+
+/** Shared UPDATE … rol helper for pool query or transactional client. */
+type SqlQueryable = {
+  query: <T extends pg.QueryResultRow = pg.QueryResultRow>(
+    text: string,
+    params?: unknown[],
+  ) => Promise<pg.QueryResult<T>>
+}
+
+export async function updateRoleWithClient(
+  client: SqlQueryable,
+  userId: string,
+  rol: Role,
+): Promise<ProfileRecord> {
+  const result = await client.query<ProfileRecord>(
+    `update public.perfiles
+     set rol = $2
+     where id = $1::uuid
+     returning id, nombre_completo, rol, created_at::text as created_at`,
+    [userId, rol],
+  )
+  if (!result.rows[0]) throw notFound('Profile not found')
+  return result.rows[0]
 }
 
 export function createProfilesRepository(db: Db): ProfilesRepository {
@@ -132,15 +164,7 @@ export function createProfilesRepository(db: Db): ProfilesRepository {
 
     async updateRole(userId, rol) {
       try {
-        const result = await db.query<ProfileRecord>(
-          `update public.perfiles
-           set rol = $2
-           where id = $1::uuid
-           returning id, nombre_completo, rol, created_at::text as created_at`,
-          [userId, rol],
-        )
-        if (!result.rows[0]) throw notFound('Profile not found')
-        return result.rows[0]
+        return await updateRoleWithClient(db, userId, rol)
       } catch (err) {
         if (err instanceof AppError) throw err
         throw mapProfileWriteError(err)
@@ -161,7 +185,17 @@ export function createProfilesRepository(db: Db): ProfilesRepository {
            order by id
            for update`,
         )
-        const value = await fn(result.rows)
+        const tx: AdminLifecycleTx = {
+          async updateRole(userId, rol) {
+            try {
+              return await updateRoleWithClient(client, userId, rol)
+            } catch (err) {
+              if (err instanceof AppError) throw err
+              throw mapProfileWriteError(err)
+            }
+          },
+        }
+        const value = await fn({ admins: result.rows, tx })
         await client.query('commit')
         return value
       } catch (err) {

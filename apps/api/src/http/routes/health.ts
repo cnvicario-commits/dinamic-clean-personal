@@ -1,9 +1,9 @@
 import type { FastifyPluginAsync } from 'fastify'
 
 export const healthRoutes: FastifyPluginAsync = async (app) => {
-  app.get('/healthz', async () => ({ status: 'ok' }))
+  app.get('/healthz', { config: { rateLimit: false } }, async () => ({ status: 'ok' }))
 
-  app.get('/readyz', async (_request, reply) => {
+  app.get('/readyz', { config: { rateLimit: false } }, async (_request, reply) => {
     try {
       const dbOk = await app.db.isReady()
       if (!dbOk) {

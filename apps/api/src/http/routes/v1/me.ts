@@ -1,6 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { requirePermission } from '../../plugins/auth.js'
-import { loadProfile } from '../../../infrastructure/db/profiles-repo.js'
 import {
   buildMeResponse,
   parseUpdateOwnProfileBody,
@@ -14,9 +13,12 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requirePermission('profile:read_self')] },
     async (request) => {
       const auth = request.auth!
-      // Already authenticated in preHandler (ban + tokens_valid_after). Refresh profile fields only.
-      const profile = await loadProfile(app.db, auth.userId)
-      return buildMeResponse(auth, profile)
+      // Profile + revocation already resolved in authenticateRequest — no second lookup.
+      return buildMeResponse(auth, {
+        profileId: auth.profileId,
+        role: auth.role,
+        nombreCompleto: auth.nombreCompleto,
+      })
     },
   )
 
