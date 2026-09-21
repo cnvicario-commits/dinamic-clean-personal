@@ -23,10 +23,13 @@ export type ProfilesRepository = {
   upsert(input: { id: string; nombreCompleto: string; rol: Role }): Promise<ProfileRecord>
   updateRole(userId: string, rol: Role): Promise<ProfileRecord>
   /**
-   * Lock admin profile rows (SELECT … FOR UPDATE) then run fn.
-   * Used for last-active-admin invariant around disable / demote.
+   * Serialize admin lifecycle (disable/demote) across processes via
+   * `pg_advisory_xact_lock`. Holds the transaction open until `fn` completes
+   * (including Auth Admin ban) so check+mutation share one critical section.
    */
-  withAdminProfilesLocked<T>(fn: (admins: ProfileRecord[]) => Promise<T>): Promise<T>
+  withAdminLifecycleLock<T>(
+    fn: (admins: ProfileRecord[]) => Promise<T>,
+  ): Promise<T>
 }
 
 /** Prefer PostgreSQL SQLSTATE; message match is fallback only. */
@@ -144,10 +147,13 @@ export function createProfilesRepository(db: Db): ProfilesRepository {
       }
     },
 
-    async withAdminProfilesLocked(fn) {
+    async withAdminLifecycleLock(fn) {
+      // Stable key for Phase 2E admin lifecycle serialization (not a secret).
+      const ADMIN_LIFECYCLE_LOCK_KEY = 872_014_201
       const client = await db.pool.connect()
       try {
         await client.query('begin')
+        await client.query('select pg_advisory_xact_lock($1)', [ADMIN_LIFECYCLE_LOCK_KEY])
         const result = await client.query<ProfileRecord>(
           `select id, nombre_completo, rol, created_at::text as created_at
            from public.perfiles
@@ -162,7 +168,7 @@ export function createProfilesRepository(db: Db): ProfilesRepository {
         try {
           await client.query('rollback')
         } catch {
-          // ignore rollback errors
+          // ignore rollback errors — lock released with transaction end
         }
         throw err
       } finally {

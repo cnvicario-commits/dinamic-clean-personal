@@ -106,8 +106,9 @@ describe('createUser compensation', () => {
         email: null,
         status: 'ACTIVE',
         bannedUntil: null,
+        tokensValidAfter: null,
       }),
-      revokeUserSessions: async () => undefined,
+      invalidateAccessTokens: async () => undefined,
       listAuthUserSecurityStates: async () => new Map(),
       ...overrides.identity,
     }
@@ -123,7 +124,7 @@ describe('createUser compensation', () => {
       updateRole: async () => {
         throw new Error('n/a')
       },
-      withAdminProfilesLocked: async (fn) => fn([]),
+      withAdminLifecycleLock: async (fn) => fn([]),
       ...overrides.profiles,
     }
     return { identity, profiles }
@@ -198,6 +199,7 @@ describe('createUser compensation', () => {
       nombreCompleto: 'A',
       rol: 'supervisor',
       email: 'a@b.com',
+      status: 'ACTIVE',
       disabled: false,
     })
   })

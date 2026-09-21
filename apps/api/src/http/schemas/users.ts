@@ -55,14 +55,17 @@ export const profileResponseSchema = z.object({
 
 /**
  * Admin user list/detail DTO.
- * `email` is required (nullable when Auth has no email) — never omit to hide lookup failure.
- * `disabled` reflects Auth ban SoT (banned_until).
+ * `status` is Auth lifecycle: ACTIVE | DISABLED | MISSING_AUTH (never invent ACTIVE).
+ * `disabled` is true only when status === DISABLED (FE convenience).
  */
+export const adminUserLifecycleStatusSchema = z.enum(['ACTIVE', 'DISABLED', 'MISSING_AUTH'])
+
 export const adminUserResponseSchema = z.object({
   id: z.string().uuid(),
   nombreCompleto: z.string().nullable(),
   rol: roleSchema,
   email: z.string().nullable(),
+  status: adminUserLifecycleStatusSchema,
   disabled: z.boolean(),
 })
 
@@ -82,4 +85,5 @@ export const meResponseSchema = z.object({
 export type MeResponse = z.infer<typeof meResponseSchema>
 export type ProfileResponse = z.infer<typeof profileResponseSchema>
 export type AdminUserResponse = z.infer<typeof adminUserResponseSchema>
+export type AdminUserLifecycleStatus = z.infer<typeof adminUserLifecycleStatusSchema>
 export type UsersListResponse = z.infer<typeof usersListResponseSchema>

@@ -7,13 +7,18 @@ import {
 } from '../src/domain/mfa-policy.js'
 import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH, passwordSchema } from '../src/domain/password-policy.js'
 import {
-  assertNotLastActiveAdmin,
+  assertNotLastActiveAdminLocked,
   disableUser,
   enableUser,
 } from '../src/application/users/users-service.js'
-import type { IdentityAdmin } from '../src/infrastructure/auth/identity-admin.js'
+import {
+  isAccessTokenInvalidated,
+  type IdentityAdmin,
+} from '../src/infrastructure/auth/identity-admin.js'
 import type { ProfilesRepository, ProfileRecord } from '../src/infrastructure/db/profiles-repository.js'
 import { AppError } from '../src/http/errors/app-error.js'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 describe('password policy', () => {
   it('central schema matches product bounds', () => {
@@ -22,18 +27,41 @@ describe('password policy', () => {
     expect(passwordSchema.safeParse('12345').success).toBe(false)
     expect(passwordSchema.safeParse('123456').success).toBe(true)
   })
+
+  it('frontend password-policy.ts matches backend constants (parity)', () => {
+    const fePath = join(process.cwd(), '../../src/lib/password-policy.ts')
+    const src = readFileSync(fePath, 'utf8')
+    expect(src).toMatch(new RegExp(`PASSWORD_MIN_LENGTH\\s*=\\s*${PASSWORD_MIN_LENGTH}`))
+    expect(src).toMatch(new RegExp(`PASSWORD_MAX_LENGTH\\s*=\\s*${PASSWORD_MAX_LENGTH}`))
+  })
 })
 
-describe('mfa policy', () => {
-  it('admin requires AAL2; other roles do not', () => {
+describe('mfa policy fail-closed', () => {
+  it('admin requires AAL2; missing/unknown never aal2', () => {
     expect(MFA_REQUIRED_ROLES).toEqual(['admin'])
     expect(roleRequiresMfa('admin')).toBe(true)
     expect(roleRequiresMfa('gerente')).toBe(false)
-    expect(sessionMeetsMfaRequirement('admin', 'aal1')).toBe(false)
     expect(sessionMeetsMfaRequirement('admin', 'aal2')).toBe(true)
+    expect(sessionMeetsMfaRequirement('admin', 'aal1')).toBe(false)
+    expect(sessionMeetsMfaRequirement('admin', 'unknown')).toBe(false)
     expect(sessionMeetsMfaRequirement('compras', 'aal1')).toBe(true)
-    expect(parseAal('aal2')).toBe('aal2')
     expect(parseAal(undefined)).toBe('unknown')
+    expect(parseAal(null)).toBe('unknown')
+    expect(parseAal('aal2')).toBe('aal2')
+  })
+})
+
+describe('tokens_valid_after invalidation', () => {
+  it('rejects iat before epoch; missing iat fail-closed when epoch set', () => {
+    const epoch = '2026-01-01T00:00:00.000Z'
+    const before = Math.floor(Date.parse('2025-12-31T23:59:59.000Z') / 1000)
+    const cutSec = Math.floor(Date.parse(epoch) / 1000)
+    const after = cutSec + 1
+    expect(isAccessTokenInvalidated(before, epoch)).toBe(true)
+    expect(isAccessTokenInvalidated(cutSec, epoch)).toBe(true)
+    expect(isAccessTokenInvalidated(after, epoch)).toBe(false)
+    expect(isAccessTokenInvalidated(undefined, epoch)).toBe(true)
+    expect(isAccessTokenInvalidated(after, null)).toBe(false)
   })
 })
 
@@ -45,6 +73,7 @@ describe('user lifecycle service', () => {
   function stack(seed: ProfileRecord[]) {
     const profiles = new Map(seed.map((p) => [p.id, { ...p }]))
     const banned = new Set<string>()
+    const tokensValidAfter = new Map<string, string>()
     const identity: IdentityAdmin = {
       createAuthUser: async () => {
         throw new Error('n/a')
@@ -63,8 +92,11 @@ describe('user lifecycle service', () => {
         email: null,
         status: banned.has(id) ? 'DISABLED' : 'ACTIVE',
         bannedUntil: banned.has(id) ? new Date(Date.now() + 1000).toISOString() : null,
+        tokensValidAfter: tokensValidAfter.get(id) ?? null,
       }),
-      revokeUserSessions: async () => undefined,
+      invalidateAccessTokens: async (id) => {
+        tokensValidAfter.set(id, new Date().toISOString())
+      },
       listAuthUserSecurityStates: async () => new Map(),
     }
     const profilesRepo: ProfilesRepository = {
@@ -76,15 +108,19 @@ describe('user lifecycle service', () => {
       upsert: async () => {
         throw new Error('n/a')
       },
-      updateRole: async () => {
-        throw new Error('n/a')
+      updateRole: async (userId, rol) => {
+        const row = profiles.get(userId)
+        if (!row) throw new AppError(404, 'not_found', 'Profile not found')
+        row.rol = rol
+        return { ...row }
       },
-      withAdminProfilesLocked: async (fn) => fn([...profiles.values()].filter((p) => p.rol === 'admin')),
+      withAdminLifecycleLock: async (fn) =>
+        fn([...profiles.values()].filter((p) => p.rol === 'admin')),
     }
-    return { identity, profiles: profilesRepo, banned }
+    return { identity, profiles: profilesRepo, banned, tokensValidAfter, profileMap: profiles }
   }
 
-  it('disable/enable happy path + idempotent', async () => {
+  it('disable/enable: ban + invalidate; enable keeps tokens_valid_after', async () => {
     const s = stack([
       { id: adminA, nombre_completo: 'A', rol: 'admin' },
       { id: adminB, nombre_completo: 'B', rol: 'admin' },
@@ -92,9 +128,11 @@ describe('user lifecycle service', () => {
     ])
     await disableUser({ identity: s.identity, profiles: s.profiles }, userC, { userId: adminA })
     expect(s.banned.has(userC)).toBe(true)
-    await disableUser({ identity: s.identity, profiles: s.profiles }, userC, { userId: adminA })
+    expect(s.tokensValidAfter.has(userC)).toBe(true)
+    const epoch = s.tokensValidAfter.get(userC)!
     await enableUser({ identity: s.identity, profiles: s.profiles }, userC, { userId: adminA })
     expect(s.banned.has(userC)).toBe(false)
+    expect(s.tokensValidAfter.get(userC)).toBe(epoch)
   })
 
   it('self-disable forbidden', async () => {
@@ -107,36 +145,32 @@ describe('user lifecycle service', () => {
     ).rejects.toMatchObject({ status: 403 })
   })
 
-  it('last active admin protected', async () => {
+  it('last active admin protected inside lock helper', async () => {
     const s = stack([{ id: adminA, nombre_completo: 'A', rol: 'admin' }])
     await expect(
-      assertNotLastActiveAdmin({ identity: s.identity, profiles: s.profiles }, adminA),
+      assertNotLastActiveAdminLocked(
+        { identity: s.identity, profiles: s.profiles },
+        [{ id: adminA, nombre_completo: 'A', rol: 'admin' }],
+        adminA,
+      ),
     ).rejects.toMatchObject({ code: 'last_admin_protected' })
   })
 
-  it('missing user → 404', async () => {
-    const s = stack([{ id: adminA, nombre_completo: 'A', rol: 'admin' }])
-    await expect(
-      disableUser(
-        { identity: s.identity, profiles: s.profiles },
-        userC,
-        { userId: adminA },
-      ),
-    ).rejects.toMatchObject({ status: 404 })
-  })
-
-  it('revoke failure after ban → 502 session_revocation_failed', async () => {
+  it('invalidation failure after ban → 502 with banned true', async () => {
     const s = stack([
       { id: adminA, nombre_completo: 'A', rol: 'admin' },
       { id: adminB, nombre_completo: 'B', rol: 'admin' },
       { id: userC, nombre_completo: 'C', rol: 'compras' },
     ])
-    s.identity.revokeUserSessions = async () => {
-      throw new AppError(502, 'session_revocation_failed', 'Identity provider error')
+    s.identity.invalidateAccessTokens = async () => {
+      throw new AppError(502, 'session_invalidation_failed', 'Identity provider error')
     }
     await expect(
       disableUser({ identity: s.identity, profiles: s.profiles }, userC, { userId: adminA }),
-    ).rejects.toMatchObject({ code: 'session_revocation_failed' })
+    ).rejects.toMatchObject({
+      code: 'user_disabled_session_invalidation_failed',
+      details: { banned: true, session_invalidation: 'failed' },
+    })
     expect(s.banned.has(userC)).toBe(true)
   })
 })

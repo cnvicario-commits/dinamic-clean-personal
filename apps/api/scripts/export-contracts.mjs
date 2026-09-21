@@ -117,12 +117,15 @@ export type ProfileResponse = {
 }
 
 /** Admin list/detail — email is required (nullable when Auth has none). */
+export type AdminUserLifecycleStatus = 'ACTIVE' | 'DISABLED' | 'MISSING_AUTH'
+
 export type AdminUserResponse = {
   id: string
   nombreCompleto: string | null
   rol: Role
   email: string | null
-  /** Auth ban SoT (banned_until). */
+  status: AdminUserLifecycleStatus
+  /** True only when status === DISABLED. */
   disabled: boolean
 }
 

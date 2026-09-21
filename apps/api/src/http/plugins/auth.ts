@@ -46,15 +46,28 @@ export async function authenticateRequest(
     deps.identityAdmin && typeof deps.identityAdmin.getAuthUserSecurityState === 'function'
       ? deps.identityAdmin
       : null
-  const profile = await loadProfile(deps.db, verified.sub, { identity })
+  const started = Date.now()
+  try {
+    const profile = await loadProfile(deps.db, verified.sub, {
+      identity,
+      jwtIat: verified.payload.iat,
+    })
 
-  request.auth = {
-    userId: verified.sub,
-    profileId: profile.profileId,
-    role: profile.role,
-    email: verified.email,
-    aal: parseAal(verified.payload.aal),
-    requestId: request.id,
+    request.auth = {
+      userId: verified.sub,
+      profileId: profile.profileId,
+      role: profile.role,
+      email: verified.email,
+      aal: parseAal(verified.payload.aal),
+      requestId: request.id,
+    }
+  } finally {
+    if (identity) {
+      request.log.debug(
+        { authAdminLookupMs: Date.now() - started, userId: verified.sub },
+        'auth_security_state_lookup',
+      )
+    }
   }
 }
 

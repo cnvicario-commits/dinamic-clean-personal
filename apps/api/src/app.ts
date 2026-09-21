@@ -70,7 +70,7 @@ function stubIdentityAdmin(): IdentityAdmin {
     banAuthUser: unavailable,
     unbanAuthUser: unavailable,
     getAuthUserSecurityState: unavailable,
-    revokeUserSessions: unavailable,
+    invalidateAccessTokens: unavailable,
     listAuthUserSecurityStates: unavailable,
   }
 }
@@ -85,7 +85,7 @@ function stubProfilesRepo(): ProfilesRepository {
     updateNombreCompleto: unavailable,
     upsert: unavailable,
     updateRole: unavailable,
-    withAdminProfilesLocked: unavailable,
+    withAdminLifecycleLock: unavailable,
   }
 }
 
