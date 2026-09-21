@@ -86,7 +86,13 @@ export function createIdentityAdmin(env: Env): IdentityAdmin {
         }
         if (users.length < perPage) break
         page += 1
-        if (page > 100) break // hard stop — ops alert if exceeded
+        if (page > 100) {
+          throw new AppError(
+            502,
+            'auth_list_truncated',
+            'Auth user listing exceeded safe page limit — refine pagination or contact ops',
+          )
+        }
       }
       return map
     },

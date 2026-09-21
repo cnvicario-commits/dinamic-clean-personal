@@ -21,6 +21,10 @@ export type {
   ProblemDetails,
 } from './types'
 export {
+  GENERATED_ROLES,
+  GENERATED_PERMISSIONS,
+} from './types'
+export {
   ApiClientError,
   createDinamicApiClient,
   type DinamicApiClient,

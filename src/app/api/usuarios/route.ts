@@ -70,14 +70,18 @@ function exactKeys(body: Record<string, unknown>, allowed: string[]): boolean {
   return keys.length === expect.length && keys.every((k, i) => k === expect[i])
 }
 
+const INTERNAL_USERS_ERROR = 'Error interno al comunicarse con el servicio de usuarios.'
+
+function internalUsersErrorResponse(e: unknown) {
+  console.error('[api/usuarios] unexpected error', e instanceof Error ? e.name : typeof e)
+  return NextResponse.json({ error: INTERNAL_USERS_ERROR }, { status: 500 })
+}
+
 export async function GET() {
   try {
     return await forward('/v1/users', { method: 'GET' })
   } catch (e) {
-    return NextResponse.json(
-      { error: 'Error inesperado: ' + (e instanceof Error ? e.message : String(e)) },
-      { status: 500 },
-    )
+    return internalUsersErrorResponse(e)
   }
 }
 
@@ -86,10 +90,7 @@ export async function POST(request: Request) {
     const body = await request.text()
     return await forward('/v1/users', { method: 'POST', body })
   } catch (e) {
-    return NextResponse.json(
-      { error: 'Error inesperado: ' + (e instanceof Error ? e.message : String(e)) },
-      { status: 500 },
-    )
+    return internalUsersErrorResponse(e)
   }
 }
 
@@ -131,9 +132,6 @@ export async function PATCH(request: Request) {
       { status: 400 },
     )
   } catch (e) {
-    return NextResponse.json(
-      { error: 'Error inesperado: ' + (e instanceof Error ? e.message : String(e)) },
-      { status: 500 },
-    )
+    return internalUsersErrorResponse(e)
   }
 }
