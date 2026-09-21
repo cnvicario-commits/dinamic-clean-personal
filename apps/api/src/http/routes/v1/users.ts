@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify'
 import { requirePermission, requireMfaForPrivilegedActor } from '../../plugins/auth.js'
+import { createSensitiveRateLimitPreHandler } from '../../plugins/sensitive-rate-limit.js'
 import { badRequest } from '../../errors/app-error.js'
 import {
   changeUserRole,
@@ -44,6 +45,16 @@ function usersDeps(app: FastifyInstance) {
 const privileged = [requireMfaForPrivilegedActor()]
 
 export const usersRoutes: FastifyPluginAsync = async (app) => {
+  const sensitive =
+    app.config.RATE_LIMIT_ENABLED
+      ? [
+          createSensitiveRateLimitPreHandler({
+            max: app.config.RATE_LIMIT_SENSITIVE_MAX,
+            windowMs: app.config.RATE_LIMIT_WINDOW_MS,
+          }),
+        ]
+      : []
+
   app.get(
     '/v1/users',
     { preHandler: [requirePermission('profiles:read_any')] },
@@ -61,7 +72,7 @@ export const usersRoutes: FastifyPluginAsync = async (app) => {
 
   app.post(
     '/v1/users',
-    { preHandler: [requirePermission('users:create'), ...privileged] },
+    { preHandler: [...sensitive, requirePermission('users:create'), ...privileged] },
     async (request, reply) => {
       const input = parseCreateUserBody(requireObjectBody(request.body))
       const created = await createUser(usersDeps(app), input, { requestId: request.id })
@@ -71,7 +82,9 @@ export const usersRoutes: FastifyPluginAsync = async (app) => {
 
   app.patch<{ Params: { id: string } }>(
     '/v1/users/:id/role',
-    { preHandler: [requirePermission('users:change_role'), ...privileged] },
+    {
+      preHandler: [...sensitive, requirePermission('users:change_role'), ...privileged],
+    },
     async (request) => {
       const id = parseUserIdParam(request.params.id)
       const input = parseChangeUserRoleBody(requireObjectBody(request.body))
@@ -84,7 +97,9 @@ export const usersRoutes: FastifyPluginAsync = async (app) => {
 
   app.post<{ Params: { id: string } }>(
     '/v1/users/:id/password',
-    { preHandler: [requirePermission('users:set_password'), ...privileged] },
+    {
+      preHandler: [...sensitive, requirePermission('users:set_password'), ...privileged],
+    },
     async (request, reply) => {
       const id = parseUserIdParam(request.params.id)
       const input = parseSetUserPasswordBody(requireObjectBody(request.body))
@@ -98,7 +113,7 @@ export const usersRoutes: FastifyPluginAsync = async (app) => {
 
   app.post<{ Params: { id: string } }>(
     '/v1/users/:id/disable',
-    { preHandler: [requirePermission('users:disable'), ...privileged] },
+    { preHandler: [...sensitive, requirePermission('users:disable'), ...privileged] },
     async (request, reply) => {
       const id = parseUserIdParam(request.params.id)
       await disableUser(usersDeps(app), id, {
@@ -111,7 +126,7 @@ export const usersRoutes: FastifyPluginAsync = async (app) => {
 
   app.post<{ Params: { id: string } }>(
     '/v1/users/:id/enable',
-    { preHandler: [requirePermission('users:enable'), ...privileged] },
+    { preHandler: [...sensitive, requirePermission('users:enable'), ...privileged] },
     async (request, reply) => {
       const id = parseUserIdParam(request.params.id)
       await enableUser(usersDeps(app), id, {

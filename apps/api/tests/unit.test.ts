@@ -28,6 +28,65 @@ describe('config', () => {
     } as NodeJS.ProcessEnv)
     expect(env.PORT).toBe(3001)
     expect(env.SHUTDOWN_TIMEOUT_MS).toBe(10_000)
+    expect(env.TRUST_PROXY_CIDRS).toEqual([])
+    expect(env.RATE_LIMIT_ENABLED).toBe(false)
+    expect(env.RATE_LIMIT_WINDOW_MS).toBe(60_000)
+    expect(env.RATE_LIMIT_GENERAL_MAX).toBe(600)
+    expect(env.RATE_LIMIT_SENSITIVE_MAX).toBe(20)
+  })
+
+  it('parses TRUST_PROXY_CIDRS and rejects invalid entries', () => {
+    const env = loadEnv({
+      NODE_ENV: 'test',
+      CORS_ORIGIN: 'http://localhost:3000',
+      DATABASE_URL: 'postgresql://u:p@localhost:5432/db',
+      SUPABASE_URL: 'https://example.supabase.co',
+      TRUST_PROXY_CIDRS: '127.0.0.1, 10.0.0.0/8',
+    } as NodeJS.ProcessEnv)
+    expect(env.TRUST_PROXY_CIDRS).toEqual(['127.0.0.1', '10.0.0.0/8'])
+
+    expect(() =>
+      loadEnv({
+        NODE_ENV: 'test',
+        CORS_ORIGIN: 'http://localhost:3000',
+        DATABASE_URL: 'postgresql://u:p@localhost:5432/db',
+        SUPABASE_URL: 'https://example.supabase.co',
+        TRUST_PROXY_CIDRS: '*',
+      } as NodeJS.ProcessEnv),
+    ).toThrow(/TRUST_PROXY_CIDRS/)
+  })
+
+  it('rejects CORS origins without http/https scheme', () => {
+    expect(() =>
+      loadEnv({
+        NODE_ENV: 'test',
+        CORS_ORIGIN: 'localhost:3000',
+        DATABASE_URL: 'postgresql://u:p@localhost:5432/db',
+        SUPABASE_URL: 'https://example.supabase.co',
+      } as NodeJS.ProcessEnv),
+    ).toThrow(/CORS_ORIGIN/)
+  })
+
+  it('rejects wildcard CORS_ORIGIN in production', () => {
+    expect(() =>
+      loadEnv({
+        NODE_ENV: 'production',
+        CORS_ORIGIN: 'https://app.example.com,*',
+        DATABASE_URL: 'postgresql://u:p@localhost:5432/db',
+        SUPABASE_URL: 'https://example.supabase.co',
+        SUPABASE_SERVICE_ROLE_KEY: 'svc',
+      } as NodeJS.ProcessEnv),
+    ).toThrow(/CORS_ORIGIN/)
+  })
+
+  it('RATE_LIMIT_ENABLED defaults true outside test', () => {
+    const env = loadEnv({
+      NODE_ENV: 'development',
+      CORS_ORIGIN: 'http://localhost:3000',
+      DATABASE_URL: 'postgresql://u:p@localhost:5432/db',
+      SUPABASE_URL: 'https://example.supabase.co',
+    } as NodeJS.ProcessEnv)
+    expect(env.RATE_LIMIT_ENABLED).toBe(true)
   })
 })
 

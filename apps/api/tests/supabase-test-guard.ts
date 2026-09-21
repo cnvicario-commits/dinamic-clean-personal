@@ -20,6 +20,14 @@ export function extractProjectRefFromDatabaseUrl(databaseUrl: string): string | 
   return null
 }
 
+/**
+ * Opt-in gate for describe.skipIf. Flag-only: RUN_SUPABASE_INTEGRATION=1.
+ * beforeAll must call assertDinamicCleanTestTarget() so missing TEST env fails the suite.
+ */
+export function isSupabaseIntegrationEnabled(): boolean {
+  return process.env.RUN_SUPABASE_INTEGRATION === '1'
+}
+
 export type TestTargetAssertOptions = {
   requireJwt?: boolean
 }

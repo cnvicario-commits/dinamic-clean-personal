@@ -6,6 +6,7 @@ export type AuthContext = {
   profileId: string
   role: Role
   email: string | null
+  nombreCompleto: string | null
   /** Supabase Auth assurance level from JWT (`aal` claim). Never trust JWT for role. */
   aal: AuthAssuranceLevel
   requestId: string

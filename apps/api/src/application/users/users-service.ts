@@ -248,9 +248,9 @@ export async function changeUserRole(
     return toProfileResponse(row)
   }
 
-  const row = await deps.profiles.withAdminLifecycleLock(async (admins) => {
+  const row = await deps.profiles.withAdminLifecycleLock(async ({ admins, tx }) => {
     await assertNotLastActiveAdminLocked(deps, admins, userId)
-    return deps.profiles.updateRole(userId, rol)
+    return tx.updateRole(userId, rol)
   })
 
   deps.logAdminAction?.({
@@ -274,26 +274,26 @@ export async function setUserPassword(
     throw notFound('User not found')
   }
   await deps.identity.setAuthPassword(userId, password)
-    try {
-      await deps.identity.invalidateAccessTokens(userId)
-    } catch {
-      deps.logAdminAction?.({
-        ...(opts?.requestId !== undefined ? { requestId: opts.requestId } : {}),
-        ...(opts?.actorUserId !== undefined ? { actorUserId: opts.actorUserId } : {}),
-        targetUserId: userId,
-        action: 'set_password_invalidate_tokens',
-        result: 'error',
-      })
-      throw new AppError(
-        502,
-        'password_changed_session_invalidation_failed',
-        'Password updated but access-token invalidation failed',
-        {
-          password_changed: true,
-          session_invalidation: 'failed',
-        },
-      )
-    }
+  try {
+    await deps.identity.invalidateAccessTokens(userId)
+  } catch {
+    deps.logAdminAction?.({
+      ...(opts?.requestId !== undefined ? { requestId: opts.requestId } : {}),
+      ...(opts?.actorUserId !== undefined ? { actorUserId: opts.actorUserId } : {}),
+      targetUserId: userId,
+      action: 'set_password_invalidate_tokens',
+      result: 'error',
+    })
+    throw new AppError(
+      502,
+      'password_changed_session_invalidation_failed',
+      'Password updated but access-token invalidation failed',
+      {
+        password_changed: true,
+        session_invalidation: 'failed',
+      },
+    )
+  }
   deps.logAdminAction?.({
     ...(opts?.requestId !== undefined ? { requestId: opts.requestId } : {}),
     ...(opts?.actorUserId !== undefined ? { actorUserId: opts.actorUserId } : {}),
@@ -352,7 +352,7 @@ export async function disableUser(
   }
 
   if (existing.rol === 'admin') {
-    await deps.profiles.withAdminLifecycleLock(async (admins) => {
+    await deps.profiles.withAdminLifecycleLock(async ({ admins }) => {
       const state = await deps.identity.getAuthUserSecurityState(targetUserId)
       if (state.status === 'ACTIVE') {
         await assertNotLastActiveAdminLocked(deps, admins, targetUserId)
@@ -375,7 +375,13 @@ export async function disableUser(
 
 /**
  * Enable = lift Auth ban only. Does not reset role/password/MFA.
- * Does not clear tokens_valid_after (fresh login required for pre-disable JWTs).
+ * Does not clear tokens_valid_after → pre-disable access JWTs stay dead.
+ *
+ * Refresh semantics (Option B — honest Supabase limitation):
+ * There is no documented Admin revoke-by-user-id. After enable, a pre-disable
+ * refresh token MAY mint a new access token. That new access token is allowed
+ * only if its `iat` is after `tokens_valid_after`. Pre-disable access JWTs
+ * remain rejected. Do not claim "fresh password login required" for refresh.
  */
 export async function enableUser(
   deps: UsersDeps,
@@ -411,19 +417,17 @@ export async function assertNotLastActiveAdminLocked(
   admins: ProfileRecord[],
   targetUserId: string,
 ): Promise<void> {
-  let activeOthers = 0
+  // Early-exit: one other ACTIVE admin is enough. Avoids N Auth lookups when many rows exist.
   for (const admin of admins) {
     if (admin.id === targetUserId) continue
     const state = await deps.identity.getAuthUserSecurityState(admin.id)
     if (state.status === 'ACTIVE') {
-      activeOthers += 1
+      return
     }
   }
-  if (activeOthers < 1) {
-    throw new AppError(
-      409,
-      'last_admin_protected',
-      'Cannot disable or demote the last active admin',
-    )
-  }
+  throw new AppError(
+    409,
+    'last_admin_protected',
+    'Cannot disable or demote the last active admin',
+  )
 }

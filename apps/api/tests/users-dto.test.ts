@@ -124,7 +124,15 @@ describe('createUser compensation', () => {
       updateRole: async () => {
         throw new Error('n/a')
       },
-      withAdminLifecycleLock: async (fn) => fn([]),
+      withAdminLifecycleLock: async (fn) =>
+        fn({
+          admins: [],
+          tx: {
+            updateRole: async () => {
+              throw new Error('n/a')
+            },
+          },
+        }),
       ...overrides.profiles,
     }
     return { identity, profiles }

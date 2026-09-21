@@ -20,6 +20,11 @@ export function testEnv(overrides: Partial<Env> = {}): Env {
     SUPABASE_URL: TEST_SUPABASE_URL,
     SUPABASE_JWT_SECRET: TEST_JWT_SECRET,
     SHUTDOWN_TIMEOUT_MS: 10_000,
+    TRUST_PROXY_CIDRS: [],
+    RATE_LIMIT_ENABLED: false,
+    RATE_LIMIT_WINDOW_MS: 60_000,
+    RATE_LIMIT_GENERAL_MAX: 600,
+    RATE_LIMIT_SENSITIVE_MAX: 20,
     ...overrides,
   }
 }

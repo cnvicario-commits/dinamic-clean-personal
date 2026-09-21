@@ -39,10 +39,14 @@ export function createDb(env: Env): Db {
     return pool.query<T>(text, params)
   }
 
+  let closed = false
+
   return {
     pool,
     query,
     async close() {
+      if (closed) return
+      closed = true
       await pool.end()
     },
     async isReady() {

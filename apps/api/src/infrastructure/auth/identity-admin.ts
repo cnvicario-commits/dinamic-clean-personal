@@ -104,7 +104,11 @@ export function securityStateFromAuthUser(user: User): AuthUserSecurityState {
 
 /**
  * Fail-closed when an invalidation epoch is set but JWT lacks usable `iat`,
- * or when iat (seconds) is strictly before tokens_valid_after.
+ * or when `iat` is at/before the epoch second (Option A — strict second boundary).
+ *
+ * JWT `iat` is second-precision. A login in the same second as invalidation may
+ * still be rejected; clients should retry in the next second. Prefer this over
+ * inventing a custom claim that Auth does not emit.
  */
 export function isAccessTokenInvalidated(
   jwtIatSeconds: unknown,
@@ -116,7 +120,6 @@ export function isAccessTokenInvalidated(
   if (typeof jwtIatSeconds !== 'number' || !Number.isFinite(jwtIatSeconds)) {
     return true
   }
-  // JWT iat is second-precision; treat tokens issued at/before the epoch second as invalid.
   const cutSec = Math.floor(cutMs / 1000)
   return jwtIatSeconds <= cutSec
 }
@@ -213,17 +216,11 @@ export function createIdentityAdmin(env: Env): IdentityAdmin {
     },
 
     async getAuthUserSecurityState(userId) {
-      const started = Date.now()
-      try {
-        const { data, error } = await client.auth.admin.getUserById(userId)
-        if (error || !data.user) {
-          throw mapAuthAdminError(error, 'auth_get_user_failed')
-        }
-        return securityStateFromAuthUser(data.user)
-      } finally {
-        // Structured latency for Auth Admin dependency (no secrets).
-        void started
+      const { data, error } = await client.auth.admin.getUserById(userId)
+      if (error || !data.user) {
+        throw mapAuthAdminError(error, 'auth_get_user_failed')
       }
+      return securityStateFromAuthUser(data.user)
     },
 
     async invalidateAccessTokens(userId) {

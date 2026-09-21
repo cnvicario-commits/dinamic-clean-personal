@@ -54,7 +54,15 @@ const noopProfiles: ProfilesRepository = {
   updateRole: async () => {
     throw new Error('unused')
   },
-  withAdminLifecycleLock: async (fn) => fn([]),
+  withAdminLifecycleLock: async (fn) =>
+    fn({
+      admins: [],
+      tx: {
+        updateRole: async () => {
+          throw new Error('unused')
+        },
+      },
+    }),
 }
 
 describe('http offline (mock db + HS256)', () => {
