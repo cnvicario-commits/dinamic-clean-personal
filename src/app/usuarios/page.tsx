@@ -110,10 +110,24 @@ export default async function UsuariosPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-col gap-1">
-                      <span className={`text-xs ${p.disabled ? 'text-rose-600' : 'text-emerald-700'}`}>
-                        {p.disabled ? 'Deshabilitado' : 'Activo'}
+                      <span
+                        className={`text-xs ${
+                          p.status === 'DISABLED'
+                            ? 'text-rose-600'
+                            : p.status === 'MISSING_AUTH'
+                              ? 'text-amber-700'
+                              : 'text-emerald-700'
+                        }`}
+                      >
+                        {p.status === 'DISABLED'
+                          ? 'Deshabilitado'
+                          : p.status === 'MISSING_AUTH'
+                            ? 'Sin Auth'
+                            : 'Activo'}
                       </span>
-                      <UsuarioEstadoBoton perfilId={p.id} disabled={Boolean(p.disabled)} />
+                      {p.status !== 'MISSING_AUTH' ? (
+                        <UsuarioEstadoBoton perfilId={p.id} disabled={Boolean(p.disabled)} />
+                      ) : null}
                     </div>
                   </td>
                   <td className="px-4 py-3">

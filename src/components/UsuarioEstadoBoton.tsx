@@ -22,13 +22,13 @@ export default function UsuarioEstadoBoton({
       const res = await fetch(`/api/usuarios/${perfilId}/${action}`, { method: 'POST' })
       if (res.status === 401) {
         const data = (await res.json().catch(() => null)) as { code?: string; error?: string } | null
-        if (data?.code === 'user_disabled') {
+        if (data?.code === 'user_disabled' || data?.code === 'session_invalidated') {
           window.location.href = '/login'
           return
         }
       }
       if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as { error?: string } | null
+        const data = (await res.json().catch(() => null)) as { error?: string; code?: string } | null
         setError(data?.error ?? 'No se pudo actualizar el estado.')
         return
       }

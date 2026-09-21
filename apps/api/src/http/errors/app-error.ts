@@ -24,6 +24,11 @@ export function userDisabled(message = 'User is disabled'): AppError {
   return new AppError(401, 'user_disabled', message)
 }
 
+/** Access token issued before tokens_valid_after epoch (disable / password change). */
+export function sessionInvalidated(message = 'Session invalidated'): AppError {
+  return new AppError(401, 'session_invalidated', message)
+}
+
 export function forbidden(message = 'Forbidden'): AppError {
   return new AppError(403, 'forbidden', message)
 }

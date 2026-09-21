@@ -1,7 +1,16 @@
 import type { Db } from '../db/pool.js'
 import { isRole, type Role } from '../../domain/rbac.js'
-import { AppError, forbidden, unauthorized, userDisabled } from '../../http/errors/app-error.js'
-import type { IdentityAdmin } from '../auth/identity-admin.js'
+import {
+  AppError,
+  forbidden,
+  sessionInvalidated,
+  unauthorized,
+  userDisabled,
+} from '../../http/errors/app-error.js'
+import {
+  isAccessTokenInvalidated,
+  type IdentityAdmin,
+} from '../auth/identity-admin.js'
 
 export type ProfileRow = {
   id: string
@@ -16,23 +25,16 @@ export type LoadedProfile = {
 }
 
 export type LoadProfileOptions = {
-  /**
-   * Preferred Phase 2E path: Auth Admin security state (works when dinamic_api
-   * cannot SELECT auth.users). When provided, DB ban probe is skipped.
-   */
   identity?: IdentityAdmin | null
+  /** JWT `iat` (seconds). Required for tokens_valid_after enforcement when identity is wired. */
+  jwtIat?: unknown
 }
 
 /**
  * Load profile by auth user id.
  *
- * `public.perfiles` has no `activo` column — ACTIVE/DISABLED SoT is Auth `banned_until`.
- * Role SoT is always `perfiles.rol` (never JWT role claims).
- *
- * Revocation:
- * 1. If `identity` is provided → Auth Admin getUserSecurityState (fail-closed).
- * 2. Else try SELECT auth.users (may work for elevated DB roles).
- * 3. If neither works → residual risk documented (prefer always wiring IdentityAdmin).
+ * Role SoT = `perfiles.rol`. ACTIVE/DISABLED SoT = Auth `banned_until`.
+ * Access-token invalidation SoT = Auth `app_metadata.tokens_valid_after` (Option C).
  */
 export async function loadProfile(
   db: Db,
@@ -52,7 +54,7 @@ export async function loadProfile(
   }
 
   if (options.identity) {
-    await assertAuthUserNotRevokedViaIdentity(options.identity, userId)
+    await assertAuthUserNotRevokedViaIdentity(options.identity, userId, options.jwtIat)
   } else {
     await assertAuthUserNotRevoked(db, userId)
   }
@@ -75,6 +77,7 @@ type AuthUserRevocationRow = {
 export async function assertAuthUserNotRevokedViaIdentity(
   identity: IdentityAdmin,
   userId: string,
+  jwtIat?: unknown,
 ): Promise<void> {
   const state = await identity.getAuthUserSecurityState(userId)
   if (state.status === 'DELETED') {
@@ -83,13 +86,11 @@ export async function assertAuthUserNotRevokedViaIdentity(
   if (state.status === 'DISABLED') {
     throw userDisabled('Auth user banned')
   }
+  if (isAccessTokenInvalidated(jwtIat, state.tokensValidAfter)) {
+    throw sessionInvalidated('Access token invalidated')
+  }
 }
 
-/**
- * Fail closed when auth.users is queryable and the user is missing, banned, or deleted.
- * If the query fails for access/schema reasons (not an AppError), swallow and proceed —
- * residual risk when IdentityAdmin is not wired.
- */
 export async function assertAuthUserNotRevoked(db: Db, userId: string): Promise<void> {
   try {
     const result = await db.query<AuthUserRevocationRow>(

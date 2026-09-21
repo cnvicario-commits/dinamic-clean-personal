@@ -1,8 +1,16 @@
 import type { Role } from './rbac-catalog.js'
 
 /**
- * Roles that require Supabase Auth MFA assurance (AAL2) for privileged user-admin ops.
- * Catalog-only config — enforcement is server-side via requireAal / assertMfaAssurance.
+ * Roles that require Supabase Auth MFA assurance (AAL2) for privileged user-admin
+ * **mutations** (create / change_role / set_password / disable / enable).
+ *
+ * Fail-closed: missing or unknown `aal` claim is NEVER treated as aal2.
+ *
+ * Explicitly NOT MFA-gated (read-only):
+ * - GET /v1/users
+ * - GET /v1/users/:id
+ * - GET/PATCH /v1/me
+ * - GET /v1/employees
  *
  * gerente is intentionally NOT included until product confirms.
  */
@@ -20,7 +28,8 @@ export function roleRequiresMfa(role: unknown): boolean {
 }
 
 /**
- * Privileged user-admin operations that require step-up MFA when actor role is MFA-required.
+ * Privileged user-admin mutations when actor role is MFA-required.
+ * aal2 → allow; aal1 / unknown / missing → deny.
  */
 export function sessionMeetsMfaRequirement(
   actorRole: unknown,

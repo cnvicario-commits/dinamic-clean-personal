@@ -29,6 +29,8 @@ export async function signAccessToken(opts: {
   email?: string
   /** Supabase assurance level claim. Defaults to aal2 so privileged admin tests pass MFA gate. */
   aal?: 'aal1' | 'aal2'
+  /** Shift `iat`/`exp` by N seconds (tests for tokens_valid_after). */
+  issuedAtOffsetSeconds?: number
   secret?: string
   issuer?: string
   audience?: string
@@ -36,6 +38,7 @@ export async function signAccessToken(opts: {
 }): Promise<string> {
   const secret = opts.secret ?? TEST_JWT_SECRET
   const key = createSecretKey(Buffer.from(secret))
+  const nowSec = Math.floor(Date.now() / 1000) + (opts.issuedAtOffsetSeconds ?? 0)
   let builder = new SignJWT({
     email: opts.email ?? 'user@example.com',
     role: 'authenticated',
@@ -45,12 +48,12 @@ export async function signAccessToken(opts: {
     .setSubject(opts.sub)
     .setIssuer(opts.issuer ?? TEST_ISSUER)
     .setAudience(opts.audience ?? 'authenticated')
-    .setIssuedAt()
+    .setIssuedAt(nowSec)
 
   if (opts.expiresIn !== undefined) {
     builder = builder.setExpirationTime(opts.expiresIn)
   } else {
-    builder = builder.setExpirationTime('1h')
+    builder = builder.setExpirationTime(nowSec + 3600)
   }
 
   return builder.sign(key)

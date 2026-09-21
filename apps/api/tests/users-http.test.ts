@@ -14,6 +14,7 @@ function memoryStack(seed: ProfileRecord[]) {
   const emails = new Map(seed.map((p) => [p.id, `${p.rol}@example.com` as string | null]))
   const banned = new Set<string>()
   const deleted = new Set<string>()
+  const tokensValidAfter = new Map<string, string>()
 
   function securityState(id: string) {
     if (deleted.has(id)) {
@@ -22,6 +23,7 @@ function memoryStack(seed: ProfileRecord[]) {
         email: emails.get(id) ?? null,
         status: 'DELETED' as const,
         bannedUntil: null,
+        tokensValidAfter: tokensValidAfter.get(id) ?? null,
       }
     }
     if (banned.has(id)) {
@@ -30,6 +32,7 @@ function memoryStack(seed: ProfileRecord[]) {
         email: emails.get(id) ?? null,
         status: 'DISABLED' as const,
         bannedUntil: new Date(Date.now() + 86_400_000).toISOString(),
+        tokensValidAfter: tokensValidAfter.get(id) ?? null,
       }
     }
     return {
@@ -37,6 +40,7 @@ function memoryStack(seed: ProfileRecord[]) {
       email: emails.get(id) ?? null,
       status: 'ACTIVE' as const,
       bannedUntil: null,
+      tokensValidAfter: tokensValidAfter.get(id) ?? null,
     }
   }
 
@@ -73,8 +77,8 @@ function memoryStack(seed: ProfileRecord[]) {
       }
       return securityState(id)
     },
-    async revokeUserSessions() {
-      return
+    async invalidateAccessTokens(id) {
+      tokensValidAfter.set(id, new Date().toISOString())
     },
     async listAuthUserSecurityStates() {
       const map = new Map()
@@ -109,12 +113,12 @@ function memoryStack(seed: ProfileRecord[]) {
       row.rol = rol
       return { ...row }
     },
-    async withAdminProfilesLocked(fn) {
+    async withAdminLifecycleLock(fn) {
       const admins = [...profiles.values()].filter((p) => p.rol === 'admin')
       return fn(admins)
     },
   }
-  return { identity, profilesRepo, emails, profiles, banned }
+  return { identity, profilesRepo, emails, profiles, banned, tokensValidAfter }
 }
 
 async function appForRole(
@@ -606,13 +610,15 @@ describe('users/profiles HTTP authorization', () => {
     }
   })
 
-  it('disabled user token → 401 user_disabled', async () => {
+  it('disable → user_disabled; enable → old token session_invalidated; fresh iat ALLOW', async () => {
     const secondAdmin = '66666666-6666-4666-8666-666666666666'
     const stack = memoryStack([
       { id: adminId, nombre_completo: 'Caller', rol: 'admin' },
       { id: secondAdmin, nombre_completo: 'Admin2', rol: 'admin' },
       { id: otherId, nombre_completo: 'Other', rol: 'compras' },
     ])
+    const victimToken = await signAccessToken({ sub: otherId })
+
     const adminDb = createProfileStubDb({
       profile: { id: adminId, nombre_completo: 'Caller', rol: 'admin' },
     })
@@ -633,8 +639,56 @@ describe('users/profiles HTTP authorization', () => {
           })
         ).statusCode,
       ).toBe(204)
-    } finally {
+
+      const victimDbBanned = createProfileStubDb({
+        profile: { id: otherId, nombre_completo: 'Other', rol: 'compras' },
+      })
       await adminApp.close()
+      const bannedApp = await buildApp(testEnv(), {
+        db: victimDbBanned,
+        identityAdmin: stack.identity,
+        profilesRepo: stack.profilesRepo,
+      })
+      await bannedApp.ready()
+      try {
+        const denied = await bannedApp.inject({
+          method: 'GET',
+          url: '/v1/me',
+          headers: { authorization: `Bearer ${victimToken}` },
+        })
+        expect(denied.statusCode).toBe(401)
+        expect(denied.json()).toMatchObject({ code: 'user_disabled' })
+
+        const adminDb2 = createProfileStubDb({
+          profile: { id: adminId, nombre_completo: 'Caller', rol: 'admin' },
+        })
+        await bannedApp.close()
+        const enableApp = await buildApp(testEnv(), {
+          db: adminDb2,
+          identityAdmin: stack.identity,
+          profilesRepo: stack.profilesRepo,
+        })
+        await enableApp.ready()
+        try {
+          expect(
+            (
+              await enableApp.inject({
+                method: 'POST',
+                url: `/v1/users/${otherId}/enable`,
+                headers: { authorization: `Bearer ${adminToken}` },
+              })
+            ).statusCode,
+          ).toBe(204)
+        } finally {
+          await enableApp.close()
+        }
+      } catch (e) {
+        await bannedApp.close().catch(() => undefined)
+        throw e
+      }
+    } catch (e) {
+      await adminApp.close().catch(() => undefined)
+      throw e
     }
 
     const victimDb = createProfileStubDb({
@@ -647,16 +701,78 @@ describe('users/profiles HTTP authorization', () => {
     })
     await victimApp.ready()
     try {
-      const victimToken = await signAccessToken({ sub: otherId })
-      const after = await victimApp.inject({
+      const afterEnable = await victimApp.inject({
         method: 'GET',
         url: '/v1/me',
         headers: { authorization: `Bearer ${victimToken}` },
       })
-      expect(after.statusCode).toBe(401)
-      expect(after.json()).toMatchObject({ code: 'user_disabled' })
+      expect(afterEnable.statusCode).toBe(401)
+      expect(afterEnable.json()).toMatchObject({ code: 'session_invalidated' })
+
+      const fresh = await signAccessToken({ sub: otherId, issuedAtOffsetSeconds: 2 })
+      const ok = await victimApp.inject({
+        method: 'GET',
+        url: '/v1/me',
+        headers: { authorization: `Bearer ${fresh}` },
+      })
+      expect(ok.statusCode).toBe(200)
     } finally {
       await victimApp.close()
+    }
+  })
+
+  it('admin aal1 / missing aal → privileged mutation DENY mfa_required; aal2 ALLOW', async () => {
+    const secondAdmin = '66666666-6666-4666-8666-666666666666'
+    const stack = memoryStack([
+      { id: adminId, nombre_completo: 'Caller', rol: 'admin' },
+      { id: secondAdmin, nombre_completo: 'Admin2', rol: 'admin' },
+      { id: otherId, nombre_completo: 'Other', rol: 'compras' },
+    ])
+    const app = await appForRole('admin', stack)
+    try {
+      for (const aal of ['aal1', undefined] as const) {
+        const token = await signAccessToken({
+          sub: adminId,
+          ...(aal ? { aal } : { aal: undefined }),
+        })
+        // Force missing aal by signing without claim
+        const tok =
+          aal === undefined
+            ? await (async () => {
+                const { SignJWT } = await import('jose')
+                const { createSecretKey } = await import('node:crypto')
+                const { TEST_JWT_SECRET, TEST_ISSUER } = await import('./helpers.js')
+                const key = createSecretKey(Buffer.from(TEST_JWT_SECRET))
+                return new SignJWT({ email: 'a@b.com', role: 'authenticated' })
+                  .setProtectedHeader({ alg: 'HS256' })
+                  .setSubject(adminId)
+                  .setIssuer(TEST_ISSUER)
+                  .setAudience('authenticated')
+                  .setIssuedAt()
+                  .setExpirationTime('1h')
+                  .sign(key)
+              })()
+            : token
+        const res = await app.inject({
+          method: 'POST',
+          url: `/v1/users/${otherId}/disable`,
+          headers: { authorization: `Bearer ${tok}` },
+        })
+        expect(res.statusCode, String(aal)).toBe(403)
+        expect(res.json()).toMatchObject({ code: 'mfa_required' })
+      }
+      const okTok = await signAccessToken({ sub: adminId, aal: 'aal2' })
+      expect(
+        (
+          await app.inject({
+            method: 'POST',
+            url: `/v1/users/${otherId}/disable`,
+            headers: { authorization: `Bearer ${okTok}` },
+          })
+        ).statusCode,
+      ).toBe(204)
+    } finally {
+      await app.close()
     }
   })
 

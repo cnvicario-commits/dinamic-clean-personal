@@ -14,9 +14,8 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [requirePermission('profile:read_self')] },
     async (request) => {
       const auth = request.auth!
-      const profile = await loadProfile(app.db, auth.userId, {
-        identity: app.usersModuleReady ? app.identityAdmin : null,
-      })
+      // Already authenticated in preHandler (ban + tokens_valid_after). Refresh profile fields only.
+      const profile = await loadProfile(app.db, auth.userId)
       return buildMeResponse(auth, profile)
     },
   )

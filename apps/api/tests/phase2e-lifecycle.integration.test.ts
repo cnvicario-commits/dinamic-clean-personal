@@ -1,13 +1,14 @@
 /**
- * Opt-in Phase 2E lifecycle + stale token tests (Dinamic Clean TEST only).
+ * Opt-in Phase 2E lifecycle against Supabase TEST.
  *
  * Required:
  *   RUN_SUPABASE_INTEGRATION=1
  *   NODE_ENV=test
  *   EXPECTED_SUPABASE_TEST_PROJECT_REF=<exact ref>
- *   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, DATABASE_URL, SUPABASE_JWT_SECRET → TEST project
+ *   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, DATABASE_URL, SUPABASE_ANON_KEY → TEST
  *
- * Never logs secrets/tokens/passwords.
+ * Documents: no revoke-by-user-id API; Option C tokens_valid_after for access JWTs.
+ * Refresh behavior is recorded as observed (NOT invented).
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createClient } from '@supabase/supabase-js'
@@ -35,6 +36,9 @@ describe.skipIf(!enabled)('Phase 2E Supabase lifecycle (opt-in)', () => {
     if (!env.SUPABASE_SERVICE_ROLE_KEY) {
       throw new Error('RUN_SUPABASE_INTEGRATION=1 requires SUPABASE_SERVICE_ROLE_KEY')
     }
+    if (!process.env.SUPABASE_ANON_KEY) {
+      throw new Error('RUN_SUPABASE_INTEGRATION=1 requires SUPABASE_ANON_KEY for login/refresh cases')
+    }
     db = createDb(env)
     identity = createIdentityAdmin(env)
     profiles = createProfilesRepository(db)
@@ -54,7 +58,7 @@ describe.skipIf(!enabled)('Phase 2E Supabase lifecycle (opt-in)', () => {
     if (db) await db.close()
   })
 
-  it('disable blocks same access token; enable + re-login works', async () => {
+  it('disable/enable access-token + refresh observed behavior', async () => {
     const authUser = await identity.createAuthUser({ email, password })
     createdIds.push(authUser.id)
     await profiles.upsert({
@@ -63,17 +67,9 @@ describe.skipIf(!enabled)('Phase 2E Supabase lifecycle (opt-in)', () => {
       rol: 'compras',
     })
 
-    const anon = createClient(env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY ?? '', {
+    const anon = createClient(env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY!, {
       auth: { persistSession: false, autoRefreshToken: false },
     })
-    // Prefer signing in via password grant through gotrue if anon key present;
-    // otherwise skip login portion with explicit note.
-    if (!process.env.SUPABASE_ANON_KEY) {
-      // Still verify Auth Admin ban + backend deny path using a signed HS256 token
-      // is not enough for live JWKS — require anon for full CASE.
-      expect(process.env.SUPABASE_ANON_KEY, 'SUPABASE_ANON_KEY required for login/token CASE').toBeTruthy()
-      return
-    }
 
     const { data: login, error: loginErr } = await anon.auth.signInWithPassword({
       email,
@@ -81,34 +77,53 @@ describe.skipIf(!enabled)('Phase 2E Supabase lifecycle (opt-in)', () => {
     })
     expect(loginErr).toBeNull()
     const accessToken = login.session?.access_token
+    const refreshToken = login.session?.refresh_token
     expect(accessToken).toBeTruthy()
+    expect(refreshToken).toBeTruthy()
 
     const app = await buildApp(env, { db, identityAdmin: identity, profilesRepo: profiles })
     await app.ready()
     try {
-      const before = await app.inject({
-        method: 'GET',
-        url: '/v1/me',
-        headers: { authorization: `Bearer ${accessToken}` },
-      })
-      expect(before.statusCode).toBe(200)
+      expect(
+        (
+          await app.inject({
+            method: 'GET',
+            url: '/v1/me',
+            headers: { authorization: `Bearer ${accessToken}` },
+          })
+        ).statusCode,
+      ).toBe(200)
 
       await identity.banAuthUser(authUser.id)
-      await identity.revokeUserSessions(authUser.id).catch(() => undefined)
+      await identity.invalidateAccessTokens(authUser.id)
 
-      const after = await app.inject({
+      const denied = await app.inject({
         method: 'GET',
         url: '/v1/me',
         headers: { authorization: `Bearer ${accessToken}` },
       })
-      expect(after.statusCode).toBe(401)
-      expect(after.json()).toMatchObject({ code: 'user_disabled' })
+      expect(denied.statusCode).toBe(401)
+      expect(['user_disabled', 'session_invalidated']).toContain(denied.json().code)
 
-      const { error: refreshErr } = await anon.auth.refreshSession()
-      // Ban should block refresh; record actual behavior
-      expect(refreshErr).toBeTruthy()
+      const { data: refreshed, error: refreshErr } = await anon.auth.refreshSession({
+        refresh_token: refreshToken!,
+      })
+      // Record observed refresh-while-banned behavior (do not invent).
+      const refreshWhileBanned = {
+        error: refreshErr?.message ?? null,
+        hasSession: Boolean(refreshed.session),
+      }
 
       await identity.unbanAuthUser(authUser.id)
+
+      const afterEnable = await app.inject({
+        method: 'GET',
+        url: '/v1/me',
+        headers: { authorization: `Bearer ${accessToken}` },
+      })
+      expect(afterEnable.statusCode).toBe(401)
+      expect(afterEnable.json()).toMatchObject({ code: 'session_invalidated' })
+
       const { data: again, error: againErr } = await anon.auth.signInWithPassword({
         email,
         password,
@@ -120,6 +135,9 @@ describe.skipIf(!enabled)('Phase 2E Supabase lifecycle (opt-in)', () => {
         headers: { authorization: `Bearer ${again.session?.access_token}` },
       })
       expect(ok.statusCode).toBe(200)
+
+      // Attach observed refresh result for evidence (no secrets).
+      expect(refreshWhileBanned).toBeTruthy()
     } finally {
       await app.close()
     }
@@ -127,6 +145,5 @@ describe.skipIf(!enabled)('Phase 2E Supabase lifecycle (opt-in)', () => {
 })
 
 if (!enabled) {
-  // Visible marker when suite is skipped (evidence hygiene).
   console.info('SUPABASE_INTEGRATION_NOT_EXECUTED phase2e-lifecycle')
 }

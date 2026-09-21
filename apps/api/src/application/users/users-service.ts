@@ -1,4 +1,4 @@
-import type { IdentityAdmin } from '../../infrastructure/auth/identity-admin.js'
+import type { IdentityAdmin, AuthUserSecurityState } from '../../infrastructure/auth/identity-admin.js'
 import type { ProfilesRepository, ProfileRecord } from '../../infrastructure/db/profiles-repository.js'
 import type { Role } from '../../domain/rbac.js'
 import { badRequest, notFound, conflict, forbidden, AppError } from '../../http/errors/app-error.js'
@@ -9,6 +9,7 @@ import {
   updateOwnProfileBodySchema,
   userIdParamSchema,
   type AdminUserResponse,
+  type AdminUserLifecycleStatus,
   type ChangeUserRoleBody,
   type CreateUserBody,
   type MeResponse,
@@ -24,9 +25,7 @@ import type { LoadedProfile } from '../../infrastructure/db/profiles-repo.js'
 export type UsersDeps = {
   identity: IdentityAdmin
   profiles: ProfilesRepository
-  /** Optional logger for compensation failures (no secrets). */
   logOrphan?: (payload: { requestId?: string; authUserId: string }) => void
-  /** Structured admin action log (no passwords / JWTs). */
   logAdminAction?: (payload: {
     requestId?: string
     actorUserId?: string
@@ -87,20 +86,36 @@ function toProfileResponse(row: ProfileRecord): ProfileResponse {
   }
 }
 
+function lifecycleFromState(
+  state: AuthUserSecurityState | undefined,
+): { status: AdminUserLifecycleStatus; disabled: boolean; email: string | null } {
+  if (!state) {
+    return { status: 'MISSING_AUTH', disabled: false, email: null }
+  }
+  if (state.status === 'DISABLED') {
+    return { status: 'DISABLED', disabled: true, email: state.email }
+  }
+  if (state.status === 'DELETED') {
+    return { status: 'MISSING_AUTH', disabled: false, email: state.email }
+  }
+  return { status: 'ACTIVE', disabled: false, email: state.email }
+}
+
 function toAdminUser(
   row: ProfileRecord,
-  email: string | null,
-  disabled: boolean,
+  state: AuthUserSecurityState | undefined,
 ): AdminUserResponse {
   if (!isRole(row.rol)) {
     throw badRequest('Profile has invalid role')
   }
+  const life = lifecycleFromState(state)
   return {
     id: row.id,
     nombreCompleto: row.nombre_completo,
     rol: row.rol,
-    email,
-    disabled,
+    email: life.email,
+    status: life.status,
+    disabled: life.disabled,
   }
 }
 
@@ -118,7 +133,6 @@ export async function buildMeResponse(
   }
 }
 
-/** Target is always the authenticated subject — never from body. */
 export async function updateOwnProfile(
   profiles: ProfilesRepository,
   userId: string,
@@ -134,10 +148,7 @@ export async function listUsers(deps: UsersDeps): Promise<UsersListResponse> {
     deps.identity.listAuthUserSecurityStates(),
   ])
   return {
-    items: rows.map((p) => {
-      const state = states.get(p.id)
-      return toAdminUser(p, state?.email ?? null, state?.status === 'DISABLED')
-    }),
+    items: rows.map((p) => toAdminUser(p, states.get(p.id))),
   }
 }
 
@@ -146,14 +157,19 @@ export async function getUser(deps: UsersDeps, id: string): Promise<AdminUserRes
   if (!row) {
     throw notFound('User not found')
   }
-  const state = await deps.identity.getAuthUserSecurityState(id)
-  return toAdminUser(row, state.email, state.status === 'DISABLED')
+  let state: AuthUserSecurityState | undefined
+  try {
+    state = await deps.identity.getAuthUserSecurityState(id)
+  } catch (err) {
+    if (err instanceof AppError && err.status === 404) {
+      state = undefined
+    } else {
+      throw err
+    }
+  }
+  return toAdminUser(row, state)
 }
 
-/**
- * Create Auth user then profile. On profile failure: delete Auth user.
- * Compensation failure → 500 user_create_orphan (never success).
- */
 export async function createUser(
   deps: UsersDeps,
   input: CreateUserBody,
@@ -170,7 +186,13 @@ export async function createUser(
       nombreCompleto: input.nombreCompleto,
       rol: input.rol,
     })
-    return toAdminUser(row, authUser.email, false)
+    return toAdminUser(row, {
+      id: authUser.id,
+      email: authUser.email,
+      status: 'ACTIVE',
+      bannedUntil: null,
+      tokensValidAfter: null,
+    })
   } catch (err) {
     try {
       await deps.identity.deleteAuthUser(authUser.id)
@@ -199,9 +221,8 @@ export async function createUser(
 }
 
 /**
- * Role change uses DB `perfiles.rol` immediately (upgrade and downgrade).
- * Old JWT role claims are ignored — authorize() uses request.auth.role from loadProfile.
- * Demoting the last active admin is blocked.
+ * Role SoT = perfiles.rol (immediate upgrade and downgrade).
+ * JWT role claims are ignored. Demote of last ACTIVE admin is blocked under advisory lock.
  */
 export async function changeUserRole(
   deps: UsersDeps,
@@ -215,11 +236,23 @@ export async function changeUserRole(
   }
 
   const demotingAdmin = existing.rol === 'admin' && rol !== 'admin'
-  if (demotingAdmin) {
-    await assertNotLastActiveAdmin(deps, userId)
+  if (!demotingAdmin) {
+    const row = await deps.profiles.updateRole(userId, rol)
+    deps.logAdminAction?.({
+      ...(opts?.requestId !== undefined ? { requestId: opts.requestId } : {}),
+      ...(opts?.actorUserId !== undefined ? { actorUserId: opts.actorUserId } : {}),
+      targetUserId: userId,
+      action: 'change_role',
+      result: 'ok',
+    })
+    return toProfileResponse(row)
   }
 
-  const row = await deps.profiles.updateRole(userId, rol)
+  const row = await deps.profiles.withAdminLifecycleLock(async (admins) => {
+    await assertNotLastActiveAdminLocked(deps, admins, userId)
+    return deps.profiles.updateRole(userId, rol)
+  })
+
   deps.logAdminAction?.({
     ...(opts?.requestId !== undefined ? { requestId: opts.requestId } : {}),
     ...(opts?.actorUserId !== undefined ? { actorUserId: opts.actorUserId } : {}),
@@ -241,20 +274,26 @@ export async function setUserPassword(
     throw notFound('User not found')
   }
   await deps.identity.setAuthPassword(userId, password)
-  try {
-    await deps.identity.revokeUserSessions(userId)
-  } catch (err) {
-    deps.logAdminAction?.({
-      ...(opts?.requestId !== undefined ? { requestId: opts.requestId } : {}),
-      ...(opts?.actorUserId !== undefined ? { actorUserId: opts.actorUserId } : {}),
-      targetUserId: userId,
-      action: 'set_password_revoke_sessions',
-      result: 'error',
-    })
-    throw err instanceof AppError
-      ? err
-      : new AppError(502, 'session_revocation_failed', 'Password updated but session revocation failed')
-  }
+    try {
+      await deps.identity.invalidateAccessTokens(userId)
+    } catch {
+      deps.logAdminAction?.({
+        ...(opts?.requestId !== undefined ? { requestId: opts.requestId } : {}),
+        ...(opts?.actorUserId !== undefined ? { actorUserId: opts.actorUserId } : {}),
+        targetUserId: userId,
+        action: 'set_password_invalidate_tokens',
+        result: 'error',
+      })
+      throw new AppError(
+        502,
+        'password_changed_session_invalidation_failed',
+        'Password updated but access-token invalidation failed',
+        {
+          password_changed: true,
+          session_invalidation: 'failed',
+        },
+      )
+    }
   deps.logAdminAction?.({
     ...(opts?.requestId !== undefined ? { requestId: opts.requestId } : {}),
     ...(opts?.actorUserId !== undefined ? { actorUserId: opts.actorUserId } : {}),
@@ -270,8 +309,9 @@ export type LifecycleActor = {
 }
 
 /**
- * Disable = Auth ban (banned_until). Idempotent if already DISABLED.
- * Does not change role / password / MFA factors.
+ * Disable = Auth ban + bump tokens_valid_after (Option C).
+ * Enable does NOT clear tokens_valid_after → pre-disable access tokens stay dead.
+ * Refresh revoke-by-user-id is unsupported by Supabase Admin SDK — not claimed here.
  */
 export async function disableUser(
   deps: UsersDeps,
@@ -287,34 +327,41 @@ export async function disableUser(
     throw notFound('User not found')
   }
 
-  const state = await deps.identity.getAuthUserSecurityState(targetUserId)
-  if (state.status === 'DELETED') {
-    throw conflict('Cannot disable a deleted user')
+  const runBanAndInvalidate = async (state: Awaited<
+    ReturnType<IdentityAdmin['getAuthUserSecurityState']>
+  >) => {
+    if (state.status === 'DELETED') {
+      throw conflict('Cannot disable a deleted user')
+    }
+    if (state.status !== 'DISABLED') {
+      await deps.identity.banAuthUser(targetUserId)
+    }
+    try {
+      await deps.identity.invalidateAccessTokens(targetUserId)
+    } catch {
+      throw new AppError(
+        502,
+        'user_disabled_session_invalidation_failed',
+        'User banned but access-token invalidation failed',
+        {
+          banned: true,
+          session_invalidation: 'failed',
+        },
+      )
+    }
   }
 
-  if (existing.rol === 'admin' && state.status === 'ACTIVE') {
-    await assertNotLastActiveAdmin(deps, targetUserId)
-  }
-
-  if (state.status !== 'DISABLED') {
-    await deps.identity.banAuthUser(targetUserId)
-  }
-
-  try {
-    await deps.identity.revokeUserSessions(targetUserId)
-  } catch (err) {
-    deps.logAdminAction?.({
-      ...(actor.requestId !== undefined ? { requestId: actor.requestId } : {}),
-      actorUserId: actor.userId,
-      targetUserId,
-      action: 'disable_revoke_sessions',
-      result: 'error',
+  if (existing.rol === 'admin') {
+    await deps.profiles.withAdminLifecycleLock(async (admins) => {
+      const state = await deps.identity.getAuthUserSecurityState(targetUserId)
+      if (state.status === 'ACTIVE') {
+        await assertNotLastActiveAdminLocked(deps, admins, targetUserId)
+      }
+      await runBanAndInvalidate(state)
     })
-    // Ban already applied — fail closed for access tokens via security-state check.
-    // Surface revocation failure so callers do not assume refresh tokens are dead.
-    throw err instanceof AppError
-      ? err
-      : new AppError(502, 'session_revocation_failed', 'User disabled but session revocation failed')
+  } else {
+    const state = await deps.identity.getAuthUserSecurityState(targetUserId)
+    await runBanAndInvalidate(state)
   }
 
   deps.logAdminAction?.({
@@ -327,8 +374,8 @@ export async function disableUser(
 }
 
 /**
- * Enable = lift Auth ban. Idempotent if already ACTIVE.
- * Does not reset role / password / MFA.
+ * Enable = lift Auth ban only. Does not reset role/password/MFA.
+ * Does not clear tokens_valid_after (fresh login required for pre-disable JWTs).
  */
 export async function enableUser(
   deps: UsersDeps,
@@ -358,29 +405,25 @@ export async function enableUser(
   })
 }
 
-/**
- * Ensure at least one other ACTIVE admin remains after disabling/demoting `targetUserId`.
- * Locks admin profile rows when the repository supports FOR UPDATE.
- */
-export async function assertNotLastActiveAdmin(
+/** Must run inside withAdminLifecycleLock critical section. */
+export async function assertNotLastActiveAdminLocked(
   deps: UsersDeps,
+  admins: ProfileRecord[],
   targetUserId: string,
 ): Promise<void> {
-  await deps.profiles.withAdminProfilesLocked(async (admins) => {
-    let activeOthers = 0
-    for (const admin of admins) {
-      if (admin.id === targetUserId) continue
-      const state = await deps.identity.getAuthUserSecurityState(admin.id)
-      if (state.status === 'ACTIVE') {
-        activeOthers += 1
-      }
+  let activeOthers = 0
+  for (const admin of admins) {
+    if (admin.id === targetUserId) continue
+    const state = await deps.identity.getAuthUserSecurityState(admin.id)
+    if (state.status === 'ACTIVE') {
+      activeOthers += 1
     }
-    if (activeOthers < 1) {
-      throw new AppError(
-        409,
-        'last_admin_protected',
-        'Cannot disable or demote the last active admin',
-      )
-    }
-  })
+  }
+  if (activeOthers < 1) {
+    throw new AppError(
+      409,
+      'last_admin_protected',
+      'Cannot disable or demote the last active admin',
+    )
+  }
 }

@@ -64,15 +64,22 @@ export async function POST(
     }
 
     const problem = payload as { detail?: string; title?: string; code?: string; error?: string } | null
-    if (problem?.code === 'user_disabled') {
+    if (problem?.code === 'user_disabled' || problem?.code === 'session_invalidated') {
       const supabase = await createClient()
       await supabase.auth.signOut()
       return NextResponse.json(
-        { error: 'Usuario deshabilitado.', code: 'user_disabled' },
+        {
+          error:
+            problem.code === 'user_disabled'
+              ? 'Usuario deshabilitado.'
+              : 'Sesión invalidada.',
+          code: problem.code,
+        },
         { status: 401 },
       )
     }
 
+    // Never forward raw provider dumps — only problem detail/title already sanitized by API.
     const message =
       problem?.detail ?? problem?.title ?? problem?.error ?? 'Error en la API de usuarios.'
     return NextResponse.json(

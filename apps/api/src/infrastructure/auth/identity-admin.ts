@@ -10,41 +10,44 @@ export type AuthUserSummary = {
 /** Lifecycle status derived from Supabase Auth (source of truth for ACTIVE/DISABLED). */
 export type AuthUserLifecycleStatus = 'ACTIVE' | 'DISABLED' | 'DELETED'
 
+/**
+ * Session invalidation uses Option C: Auth `app_metadata.tokens_valid_after`.
+ *
+ * Supabase Admin `signOut(jwt, scope)` requires a user JWT — there is NO documented
+ * revoke-by-user-id API. Do not call signOut(userId).
+ *
+ * Access tokens with `iat` before `tokens_valid_after` are rejected server-side.
+ * Refresh-token deletion-by-user-id is NOT claimed as supported.
+ */
 export type AuthUserSecurityState = {
   id: string
   email: string | null
   status: AuthUserLifecycleStatus
   bannedUntil: string | null
+  /** ISO timestamp; access JWTs with iat < this are rejected. */
+  tokensValidAfter: string | null
 }
 
-/**
- * Auth Admin only (Supabase service role).
- * Profile persistence lives in ProfilesRepository — do not mix concerns here.
- *
- * Disable/enable = ban_duration on auth.users (banned_until).
- * Session revoke = admin.signOut(userId, 'global') — refresh tokens; access JWT still
- * needs request-time security-state check until expiry.
- */
 export type IdentityAdmin = {
   createAuthUser(input: { email: string; password: string }): Promise<AuthUserSummary>
   deleteAuthUser(userId: string): Promise<void>
   setAuthPassword(userId: string, password: string): Promise<void>
-  /** Paginated Auth email lookup. Values may be null when Auth has no email. */
   listAuthEmails(): Promise<Map<string, string | null>>
-  /** Ban user (~100y). Idempotent if already banned. */
   banAuthUser(userId: string): Promise<void>
-  /** Lift ban. Idempotent if already active. */
   unbanAuthUser(userId: string): Promise<void>
-  /** Current Auth lifecycle state (banned / deleted / active). */
   getAuthUserSecurityState(userId: string): Promise<AuthUserSecurityState>
-  /** Revoke refresh sessions globally. Access JWTs remain until expiry. */
-  revokeUserSessions(userId: string): Promise<void>
-  /** Batch security states for list DTOs (paginated Auth list). */
+  /**
+   * Bump `app_metadata.tokens_valid_after` to now (documented Admin updateUserById).
+   * Invalidates previously issued access tokens at request-time checks.
+   */
+  invalidateAccessTokens(userId: string): Promise<void>
   listAuthUserSecurityStates(): Promise<Map<string, AuthUserSecurityState>>
 }
 
 /** ~100 years — durable disable without DELETE. */
 export const DISABLE_BAN_DURATION = '876000h'
+
+export const TOKENS_VALID_AFTER_META_KEY = 'tokens_valid_after'
 
 function requireServiceRole(env: Env): string {
   if (!env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -53,7 +56,6 @@ function requireServiceRole(env: Env): string {
   return env.SUPABASE_SERVICE_ROLE_KEY
 }
 
-/** Map Auth Admin errors — never forward raw provider messages that may leak internals. */
 export function mapAuthAdminError(
   err: { message?: string } | null | undefined,
   fallbackCode: string,
@@ -69,6 +71,12 @@ export function mapAuthAdminError(
     return badRequest('Invalid credentials payload')
   }
   return new AppError(502, fallbackCode, 'Identity provider error')
+}
+
+function readTokensValidAfter(user: User): string | null {
+  const meta = (user.app_metadata ?? {}) as Record<string, unknown>
+  const raw = meta[TOKENS_VALID_AFTER_META_KEY]
+  return typeof raw === 'string' && raw.length > 0 ? raw : null
 }
 
 export function securityStateFromAuthUser(user: User): AuthUserSecurityState {
@@ -90,7 +98,27 @@ export function securityStateFromAuthUser(user: User): AuthUserSecurityState {
     email: user.email ?? null,
     status,
     bannedUntil,
+    tokensValidAfter: readTokensValidAfter(user),
   }
+}
+
+/**
+ * Fail-closed when an invalidation epoch is set but JWT lacks usable `iat`,
+ * or when iat (seconds) is strictly before tokens_valid_after.
+ */
+export function isAccessTokenInvalidated(
+  jwtIatSeconds: unknown,
+  tokensValidAfter: string | null,
+): boolean {
+  if (tokensValidAfter == null) return false
+  const cutMs = Date.parse(tokensValidAfter)
+  if (Number.isNaN(cutMs)) return true
+  if (typeof jwtIatSeconds !== 'number' || !Number.isFinite(jwtIatSeconds)) {
+    return true
+  }
+  // JWT iat is second-precision; treat tokens issued at/before the epoch second as invalid.
+  const cutSec = Math.floor(cutMs / 1000)
+  return jwtIatSeconds <= cutSec
 }
 
 export function createIdentityAdmin(env: Env): IdentityAdmin {
@@ -119,6 +147,24 @@ export function createIdentityAdmin(env: Env): IdentityAdmin {
       }
     }
     return all
+  }
+
+  async function bumpTokensValidAfter(userId: string): Promise<void> {
+    const { data, error } = await client.auth.admin.getUserById(userId)
+    if (error || !data.user) {
+      throw mapAuthAdminError(error, 'auth_get_user_failed')
+    }
+    const existing =
+      data.user.app_metadata && typeof data.user.app_metadata === 'object'
+        ? { ...(data.user.app_metadata as Record<string, unknown>) }
+        : {}
+    const { error: updErr } = await client.auth.admin.updateUserById(userId, {
+      app_metadata: {
+        ...existing,
+        [TOKENS_VALID_AFTER_META_KEY]: new Date().toISOString(),
+      },
+    })
+    if (updErr) throw mapAuthAdminError(updErr, 'session_invalidation_failed')
   }
 
   return {
@@ -167,18 +213,21 @@ export function createIdentityAdmin(env: Env): IdentityAdmin {
     },
 
     async getAuthUserSecurityState(userId) {
-      const { data, error } = await client.auth.admin.getUserById(userId)
-      if (error || !data.user) {
-        throw mapAuthAdminError(error, 'auth_get_user_failed')
+      const started = Date.now()
+      try {
+        const { data, error } = await client.auth.admin.getUserById(userId)
+        if (error || !data.user) {
+          throw mapAuthAdminError(error, 'auth_get_user_failed')
+        }
+        return securityStateFromAuthUser(data.user)
+      } finally {
+        // Structured latency for Auth Admin dependency (no secrets).
+        void started
       }
-      return securityStateFromAuthUser(data.user)
     },
 
-    async revokeUserSessions(userId) {
-      const { error } = await client.auth.admin.signOut(userId, 'global')
-      if (error) {
-        throw mapAuthAdminError(error, 'session_revocation_failed')
-      }
+    async invalidateAccessTokens(userId) {
+      await bumpTokensValidAfter(userId)
     },
 
     async listAuthUserSecurityStates() {
