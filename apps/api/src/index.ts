@@ -1,6 +1,25 @@
-import 'dotenv/config'
+import { config as loadDotenv } from 'dotenv'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { loadEnv } from './config/env.js'
 import { buildApp } from './app.js'
+
+/**
+ * Load env from apps/api/.env first, then monorepo root `.env` / `.env.local`
+ * (Next keeps SUPABASE_SERVICE_ROLE_KEY in root `.env.local`).
+ * Existing process.env wins (dotenv does not override by default).
+ */
+const here = dirname(fileURLToPath(import.meta.url))
+const apiRoot = resolve(here, '..') // apps/api
+const repoRoot = resolve(apiRoot, '../..') // monorepo root (apps/api → apps → root)
+for (const path of [
+  resolve(apiRoot, '.env'),
+  resolve(apiRoot, '.env.local'),
+  resolve(repoRoot, '.env'),
+  resolve(repoRoot, '.env.local'),
+]) {
+  loadDotenv({ path })
+}
 
 async function main() {
   const env = loadEnv()

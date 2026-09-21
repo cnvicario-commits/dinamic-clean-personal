@@ -46,8 +46,8 @@ describe('permission engine (Phase 2A)', () => {
   })
 
   it('8. admin without explicit grant → DENY', () => {
-    expect(authorize({ role: 'admin' }, 'users:change_role')).toBe(false)
-    expect(authorize({ role: 'admin' }, 'profiles:read_any')).toBe(false)
+    expect(authorize({ role: 'admin' }, 'users:disable')).toBe(false)
+    expect(authorize({ role: 'admin' }, 'roles:manage')).toBe(false)
     expect(permissionsFor('admin')).not.toContain('*' as Permission)
   })
 
@@ -86,9 +86,10 @@ describe('permission engine (Phase 2A)', () => {
     expect(authorize({} as { role: unknown }, 'profile:read_self')).toBe(false)
   })
 
-  it('every known role has explicit profile:read_self grant', () => {
+  it('every known role has explicit profile:read_self and profile:update_self grants', () => {
     for (const role of ROLES) {
       expect(authorize({ role }, 'profile:read_self')).toBe(true)
+      expect(authorize({ role }, 'profile:update_self')).toBe(true)
     }
   })
 })

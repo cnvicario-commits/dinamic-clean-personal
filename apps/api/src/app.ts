@@ -3,10 +3,19 @@ import cors from '@fastify/cors'
 import type { Env } from './config/env.js'
 import { createDb, type Db } from './infrastructure/db/pool.js'
 import { createJwtVerifier, type JwtVerifier } from './infrastructure/auth/jwt.js'
+import {
+  createIdentityAdmin,
+  type IdentityAdmin,
+} from './infrastructure/auth/identity-admin.js'
+import {
+  createProfilesRepository,
+  type ProfilesRepository,
+} from './infrastructure/db/profiles-repository.js'
 import { authenticateRequest } from './http/plugins/auth.js'
 import { healthRoutes } from './http/routes/health.js'
 import { meRoutes } from './http/routes/v1/me.js'
 import { employeesRoutes } from './http/routes/v1/employees.js'
+import { usersRoutes } from './http/routes/v1/users.js'
 import { AppError } from './http/errors/app-error.js'
 import { sendProblem, toAppError } from './http/errors/problem-details.js'
 import { openApiDocument } from './http/openapi.js'
@@ -15,17 +24,38 @@ declare module 'fastify' {
   interface FastifyInstance {
     db: Db
     jwtVerifier: JwtVerifier
+    identityAdmin: IdentityAdmin
+    profilesRepo: ProfilesRepository
+    /** False when production users module lacks service role / injects. */
+    usersModuleReady: boolean
     config: Env
   }
 }
 
 export type BuildAppOptions = {
-  /** Inject for tests (mock readiness / profile queries). */
   db?: Db
   jwtVerifier?: JwtVerifier
+  identityAdmin?: IdentityAdmin
+  profilesRepo?: ProfilesRepository
+  /** Force users-module readiness in tests when mocks are injected. */
+  usersModuleReady?: boolean
+}
+
+/**
+ * Production must not start without SERVICE_ROLE_KEY (users module dependency).
+ * Test/development may inject mocks or run without the key (readyz will fail if required).
+ */
+export function assertUsersModuleConfig(env: Env, options: BuildAppOptions): void {
+  if (env.NODE_ENV === 'production' && !options.identityAdmin && !env.SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error(
+      'Invalid configuration: SUPABASE_SERVICE_ROLE_KEY is required in production for the users module',
+    )
+  }
 }
 
 export async function buildApp(env: Env, options: BuildAppOptions = {}) {
+  assertUsersModuleConfig(env, options)
+
   const app = Fastify({
     logger: {
       level: env.LOG_LEVEL,
@@ -34,6 +64,7 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
           'req.headers.authorization',
           'DATABASE_URL',
           'SUPABASE_JWT_SECRET',
+          'SUPABASE_SERVICE_ROLE_KEY',
           'password',
           'token',
         ],
@@ -48,8 +79,50 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
   const db = options.db ?? createDb(env)
   const jwtVerifier = options.jwtVerifier ?? createJwtVerifier(env)
 
+  const hasKey = Boolean(env.SUPABASE_SERVICE_ROLE_KEY)
+  const identityAdmin =
+    options.identityAdmin ?? (hasKey ? createIdentityAdmin(env) : null)
+  const profilesRepo =
+    options.profilesRepo ?? (hasKey ? createProfilesRepository(env, db) : null)
+
+  const usersModuleReady =
+    options.usersModuleReady ??
+    (identityAdmin != null && profilesRepo != null)
+
+  if (!identityAdmin || !profilesRepo) {
+    // Stubs only outside production (assertUsersModuleConfig already blocked prod).
+    const unavailable = () => {
+      throw new AppError(503, 'service_unavailable', 'Identity dependency unavailable')
+    }
+    app.decorate(
+      'identityAdmin',
+      identityAdmin ??
+        ({
+          createAuthUser: unavailable,
+          deleteAuthUser: unavailable,
+          setAuthPassword: unavailable,
+          listAuthEmails: async () => new Map(),
+        } satisfies IdentityAdmin),
+    )
+    app.decorate(
+      'profilesRepo',
+      profilesRepo ??
+        ({
+          list: unavailable,
+          getById: unavailable,
+          updateNombreCompleto: unavailable,
+          upsert: unavailable,
+          updateRole: unavailable,
+        } satisfies ProfilesRepository),
+    )
+  } else {
+    app.decorate('identityAdmin', identityAdmin)
+    app.decorate('profilesRepo', profilesRepo)
+  }
+
   app.decorate('db', db)
   app.decorate('jwtVerifier', jwtVerifier)
+  app.decorate('usersModuleReady', usersModuleReady)
   app.decorate('config', env)
 
   const origins = env.CORS_ORIGIN.split(',').map((s) => s.trim()).filter(Boolean)
@@ -77,6 +150,7 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
   await app.register(healthRoutes)
   await app.register(meRoutes)
   await app.register(employeesRoutes)
+  await app.register(usersRoutes)
 
   app.get('/openapi.json', async () => openApiDocument)
 
@@ -96,7 +170,16 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
             )
           : toAppError(err)
 
-    if (appErr.status >= 500) {
+    if (appErr.code === 'user_create_orphan') {
+      request.log.error(
+        {
+          code: appErr.code,
+          requestId: request.id,
+          details: appErr.details,
+        },
+        'user create orphan — reconcile Auth user',
+      )
+    } else if (appErr.status >= 500) {
       request.log.error({ err }, 'request failed')
     } else {
       request.log.warn({ code: appErr.code, message: appErr.message }, 'request rejected')

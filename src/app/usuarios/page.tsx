@@ -1,35 +1,69 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
-import { createAdminClient } from '@/utils/supabase/admin'
 import UsuarioForm from '@/components/UsuarioForm'
 import CambiarRolSelect from '@/components/CambiarRolSelect'
 import CambiarPasswordBoton from '@/components/CambiarPasswordBoton'
 import { ROLES, type Rol } from '@/utils/permisos'
+import {
+  ApiClientError,
+  createDinamicApiClient,
+  type AdminUserResponse,
+} from '@/lib/api/generated'
+
+async function fetchUsersFromApi(accessToken: string): Promise<AdminUserResponse[]> {
+  const base = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL
+  if (!base) {
+    throw new ApiClientError('API_URL / NEXT_PUBLIC_API_URL is not configured', 0, null)
+  }
+  const client = createDinamicApiClient({ baseUrl: base, accessToken })
+  try {
+    const data = await client.listUsers()
+    return data.items
+  } catch (e) {
+    if (e instanceof ApiClientError) {
+      console.error('users_api_failed', {
+        status: e.status,
+        requestId: e.requestId,
+        path: '/v1/users',
+        code: e.problem?.code ?? null,
+      })
+      const hint =
+        e.status === 503
+          ? ' El API no tiene disponible el módulo de usuarios (revisá SUPABASE_SERVICE_ROLE_KEY en apps/api y reiniciá el backend).'
+          : e.status === 0
+            ? ' No se pudo conectar con el API (revisá API_URL y que apps/api esté en marcha).'
+            : ''
+      throw new ApiClientError(
+        'No se pudieron cargar los usuarios. Reintentá o contactá a soporte.' + hint,
+        e.status,
+        e.requestId,
+        e.problem,
+      )
+    }
+    throw e
+  }
+}
 
 export default async function UsuariosPage() {
   const supabase = await createClient()
 
-  // src/proxy.ts ya bloquea esta ruta para quien no sea admin; este chequeo
-  // es solo un respaldo (por si algún día se navega acá sin pasar por él).
+  // proxy.ts already gates /usuarios to admin; this is a defense-in-depth UI check.
+  // Authorization for data is enforced by Fastify profiles:read_any.
   const {
     data: { session },
   } = await supabase.auth.getSession()
   if (!session) redirect('/login')
 
-  const { data: miPerfil } = await supabase.from('perfiles').select('rol').eq('id', session.user.id).single()
-  if (miPerfil?.rol !== 'admin') redirect('/sin-acceso')
-
-  const { data: perfiles } = await supabase
-    .from('perfiles')
-    .select('id, nombre_completo, rol')
-    .order('nombre_completo')
-
-  // El email vive en Auth (auth.users), no en la tabla perfiles — se trae
-  // acá con el cliente admin (service role) y se cruza por id. Ya se
-  // verificó arriba que quien pide la página es admin antes de usarlo.
-  const admin = createAdminClient()
-  const { data: usuariosAuth } = await admin.auth.admin.listUsers({ perPage: 1000 })
-  const emailPorId = new Map((usuariosAuth?.users ?? []).map((u) => [u.id, u.email ?? '-']))
+  let perfiles: AdminUserResponse[] = []
+  let loadError: string | null = null
+  try {
+    perfiles = await fetchUsersFromApi(session.access_token)
+  } catch (e) {
+    if (e instanceof ApiClientError && e.status === 403) {
+      redirect('/sin-acceso')
+    }
+    loadError = e instanceof Error ? e.message : 'Error al cargar usuarios'
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-10">
@@ -44,34 +78,38 @@ export default async function UsuariosPage() {
       </div>
 
       <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
-        Usuarios existentes ({perfiles?.length ?? 0})
+        Usuarios existentes ({perfiles.length})
       </h2>
-      <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-slate-50 text-left text-slate-500 border-b border-slate-200">
-              <th className="px-4 py-3 font-medium">Nombre</th>
-              <th className="px-4 py-3 font-medium">Email</th>
-              <th className="px-4 py-3 font-medium">Rol</th>
-              <th className="px-4 py-3 font-medium">Contraseña</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(perfiles ?? []).map((p) => (
-              <tr key={p.id} className="border-b border-slate-100 last:border-0">
-                <td className="px-4 py-3 text-slate-800">{p.nombre_completo}</td>
-                <td className="px-4 py-3 text-slate-600">{emailPorId.get(p.id) ?? '-'}</td>
-                <td className="px-4 py-3">
-                  <CambiarRolSelect perfilId={p.id} rolActual={(p.rol as Rol) ?? null} />
-                </td>
-                <td className="px-4 py-3">
-                  <CambiarPasswordBoton perfilId={p.id} />
-                </td>
+      {loadError ? (
+        <p className="text-rose-600 text-sm mb-4">{loadError}</p>
+      ) : (
+        <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 text-left text-slate-500 border-b border-slate-200">
+                <th className="px-4 py-3 font-medium">Nombre</th>
+                <th className="px-4 py-3 font-medium">Email</th>
+                <th className="px-4 py-3 font-medium">Rol</th>
+                <th className="px-4 py-3 font-medium">Contraseña</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {perfiles.map((p) => (
+                <tr key={p.id} className="border-b border-slate-100 last:border-0">
+                  <td className="px-4 py-3 text-slate-800">{p.nombreCompleto}</td>
+                  <td className="px-4 py-3 text-slate-600">{p.email ?? '-'}</td>
+                  <td className="px-4 py-3">
+                    <CambiarRolSelect perfilId={p.id} rolActual={(p.rol as Rol) ?? null} />
+                  </td>
+                  <td className="px-4 py-3">
+                    <CambiarPasswordBoton perfilId={p.id} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <p className="text-xs text-slate-400 mt-4">
         Roles disponibles: {ROLES.map((r) => r.etiqueta).join(', ')}.

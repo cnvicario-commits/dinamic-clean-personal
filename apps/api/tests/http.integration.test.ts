@@ -19,7 +19,7 @@ describe('http offline (mock db + HS256)', () => {
       authUser: { banned_until: null, deleted_at: null },
       isReady: async () => true,
     })
-    app = await buildApp(testEnv(), { db })
+    app = await buildApp(testEnv(), { db, usersModuleReady: true })
     await app.ready()
   })
 

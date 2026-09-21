@@ -5,7 +5,16 @@ describe('openapi contract (Phase 1)', () => {
   it('exposes required paths', () => {
     const paths = Object.keys(openApiDocument.paths).sort()
     expect(paths).toEqual(
-      ['/healthz', '/readyz', '/v1/employees', '/v1/me'].sort(),
+      [
+        '/healthz',
+        '/readyz',
+        '/v1/employees',
+        '/v1/me',
+        '/v1/users',
+        '/v1/users/{id}',
+        '/v1/users/{id}/password',
+        '/v1/users/{id}/role',
+      ].sort(),
     )
   })
 

@@ -31,6 +31,10 @@ export function notFound(message = 'Not found'): AppError {
   return new AppError(404, 'not_found', message)
 }
 
+export function conflict(message: string, details?: unknown): AppError {
+  return new AppError(409, 'conflict', message, details)
+}
+
 export function serviceUnavailable(message: string): AppError {
   return new AppError(503, 'service_unavailable', message)
 }

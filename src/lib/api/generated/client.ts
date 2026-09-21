@@ -4,10 +4,17 @@
  */
 
 import type {
+  AdminUserResponse,
+  ChangeUserRoleBody,
+  CreateUserBody,
   EmployeesResponse,
   ListEmployeesQuery,
   MeResponse,
   ProblemDetails,
+  ProfileResponse,
+  SetUserPasswordBody,
+  UpdateOwnProfileBody,
+  UsersListResponse,
 } from './types'
 
 export type DinamicApiClientOptions = {
@@ -54,20 +61,28 @@ async function parseProblem(res: Response): Promise<ProblemDetails | null> {
 
 export type DinamicApiClient = {
   getMe: () => Promise<MeResponse>
+  updateMe: (body: UpdateOwnProfileBody) => Promise<ProfileResponse>
   listEmployees: (query?: ListEmployeesQuery) => Promise<EmployeesResponse>
+  listUsers: () => Promise<UsersListResponse>
+  createUser: (body: CreateUserBody) => Promise<AdminUserResponse>
+  changeUserRole: (id: string, body: ChangeUserRoleBody) => Promise<ProfileResponse>
+  setUserPassword: (id: string, body: SetUserPasswordBody) => Promise<void>
 }
 
 /**
- * Minimal typed client for Phase 1 endpoints.
+ * Typed client for Phase 1–2B endpoints.
  * Throws ApiClientError with status + requestId (header or problem body) on non-2xx.
  */
 export function createDinamicApiClient(options: DinamicApiClientOptions): DinamicApiClient {
   const fetchImpl = options.fetch ?? fetch
   const token = options.accessToken
 
-  async function requestJson<T>(path: string, init?: RequestInit & { query?: Record<string, string> }): Promise<T> {
+  async function requestJson<T>(
+    path: string,
+    init?: RequestInit & { query?: Record<string, string>; emptyResponse?: boolean },
+  ): Promise<T> {
     const url = joinUrl(options.baseUrl, path)
-    const { query, ...rest } = init ?? {}
+    const { query, emptyResponse, ...rest } = init ?? {}
     if (query) {
       for (const [k, v] of Object.entries(query)) {
         url.searchParams.set(k, v)
@@ -78,6 +93,7 @@ export function createDinamicApiClient(options: DinamicApiClientOptions): Dinami
       headers: {
         Accept: 'application/json',
         Authorization: `Bearer ${token}`,
+        ...(rest.body ? { 'Content-Type': 'application/json' } : {}),
         ...(rest.headers ?? {}),
       },
       cache: 'no-store',
@@ -99,6 +115,10 @@ export function createDinamicApiClient(options: DinamicApiClientOptions): Dinami
       )
     }
 
+    if (emptyResponse || res.status === 204) {
+      return undefined as T
+    }
+
     return (await res.json()) as T
   }
 
@@ -106,12 +126,40 @@ export function createDinamicApiClient(options: DinamicApiClientOptions): Dinami
     getMe() {
       return requestJson<MeResponse>('/v1/me')
     },
+    updateMe(body) {
+      return requestJson<ProfileResponse>('/v1/me', {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      })
+    },
     listEmployees(query = {}) {
       const q: Record<string, string> = {}
       if (query.page !== undefined) q.page = String(query.page)
       if (query.pageSize !== undefined) q.pageSize = String(query.pageSize)
       if (query.activo !== undefined) q.activo = query.activo ? 'true' : 'false'
       return requestJson<EmployeesResponse>('/v1/employees', { query: q })
+    },
+    listUsers() {
+      return requestJson<UsersListResponse>('/v1/users')
+    },
+    createUser(body) {
+      return requestJson<AdminUserResponse>('/v1/users', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      })
+    },
+    changeUserRole(id, body) {
+      return requestJson<ProfileResponse>(`/v1/users/${id}/role`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      })
+    },
+    setUserPassword(id, body) {
+      return requestJson<void>(`/v1/users/${id}/password`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+        emptyResponse: true,
+      })
     },
   }
 }
