@@ -1,7 +1,8 @@
 import { z } from 'zod'
-import { ROLES } from '../../domain/rbac.js'
+import { PERMISSIONS, ROLES } from '../../domain/rbac.js'
 
-const roleSchema = z.enum(ROLES)
+export const roleSchema = z.enum(ROLES)
+export const permissionSchema = z.enum(PERMISSIONS)
 
 /** PATCH /v1/me — only SELF_EDITABLE field. Reject unknown/privileged keys. */
 export const updateOwnProfileBodySchema = z
@@ -72,7 +73,7 @@ export const meResponseSchema = z.object({
   role: roleSchema,
   email: z.string().nullable(),
   nombreCompleto: z.string().nullable(),
-  permissions: z.array(z.string()),
+  permissions: z.array(permissionSchema),
 })
 
 export type MeResponse = z.infer<typeof meResponseSchema>

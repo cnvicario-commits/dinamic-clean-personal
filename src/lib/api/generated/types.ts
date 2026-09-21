@@ -3,18 +3,126 @@
  * Regenerate: cd apps/api && npm run export:contracts
  */
 
-/** Roles mirrored from apps/api/src/domain/rbac.ts */
-export type Role = 'admin' | 'gerente' | 'compras' | 'supervisor' | 'auditoria'
+/** Roles mirrored from apps/api/src/domain/rbac-catalog.ts */
+export type Role =
+  | 'admin'
+  | 'gerente'
+  | 'compras'
+  | 'supervisor'
+  | 'auditoria'
 
-/** Permissions mirrored from apps/api/src/domain/rbac.ts */
+/** Permissions mirrored from apps/api/src/domain/rbac-catalog.ts */
 export type Permission =
   | 'profile:read_self'
   | 'profile:update_self'
   | 'profiles:read_any'
-  | 'employees:read'
   | 'users:create'
   | 'users:change_role'
   | 'users:set_password'
+  | 'employees:read'
+  | 'employees:create'
+  | 'employees:update'
+  | 'assignments:read'
+  | 'assignments:create'
+  | 'assignments:update'
+  | 'attendance:read'
+  | 'attendance:update'
+  | 'attendance:export'
+  | 'clients:read'
+  | 'clients:create'
+  | 'client_addresses:read'
+  | 'client_addresses:update'
+  | 'client_quotes:read'
+  | 'client_quotes:create'
+  | 'client_quotes:delete'
+  | 'companies:read'
+  | 'companies:create'
+  | 'companies:update'
+  | 'suppliers:read'
+  | 'suppliers:update'
+  | 'articles:read'
+  | 'articles:update'
+  | 'articles:import'
+  | 'purchase_requests:read'
+  | 'purchase_requests:create'
+  | 'purchase_requests:update'
+  | 'purchase_orders:read'
+  | 'purchase_orders:create'
+  | 'purchase_orders:update'
+  | 'warehouse_requests:read'
+  | 'warehouse_requests:create'
+  | 'warehouse_requests:update'
+  | 'economic_results:read'
+  | 'economic_results:import'
+  | 'crm:read'
+  | 'crm:create'
+  | 'crm:update'
+  | 'crm:delete'
+  | 'audits:read'
+  | 'audits:create'
+  | 'audits:update'
+  | 'audit_checklists:manage'
+
+/** Runtime catalogs for exact parity tests (machine-readable). */
+export const GENERATED_ROLES = [
+  'admin',
+  'gerente',
+  'compras',
+  'supervisor',
+  'auditoria',
+] as const
+
+export const GENERATED_PERMISSIONS = [
+  'profile:read_self',
+  'profile:update_self',
+  'profiles:read_any',
+  'users:create',
+  'users:change_role',
+  'users:set_password',
+  'employees:read',
+  'employees:create',
+  'employees:update',
+  'assignments:read',
+  'assignments:create',
+  'assignments:update',
+  'attendance:read',
+  'attendance:update',
+  'attendance:export',
+  'clients:read',
+  'clients:create',
+  'client_addresses:read',
+  'client_addresses:update',
+  'client_quotes:read',
+  'client_quotes:create',
+  'client_quotes:delete',
+  'companies:read',
+  'companies:create',
+  'companies:update',
+  'suppliers:read',
+  'suppliers:update',
+  'articles:read',
+  'articles:update',
+  'articles:import',
+  'purchase_requests:read',
+  'purchase_requests:create',
+  'purchase_requests:update',
+  'purchase_orders:read',
+  'purchase_orders:create',
+  'purchase_orders:update',
+  'warehouse_requests:read',
+  'warehouse_requests:create',
+  'warehouse_requests:update',
+  'economic_results:read',
+  'economic_results:import',
+  'crm:read',
+  'crm:create',
+  'crm:update',
+  'crm:delete',
+  'audits:read',
+  'audits:create',
+  'audits:update',
+  'audit_checklists:manage',
+] as const
 
 /** GET /v1/me response */
 export type MeResponse = {

@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { FastifyInstance } from 'fastify'
 import { buildApp } from '../src/app.js'
+import type { IdentityAdmin } from '../src/infrastructure/auth/identity-admin.js'
+import type { ProfilesRepository } from '../src/infrastructure/db/profiles-repository.js'
 import {
   createMockDb,
   createProfileStubDb,
@@ -9,6 +11,27 @@ import {
 } from './helpers.js'
 
 const userId = '22222222-2222-2222-2222-222222222222'
+
+const noopIdentity: IdentityAdmin = {
+  createAuthUser: async () => ({ id: userId, email: 'a@example.com' }),
+  deleteAuthUser: async () => undefined,
+  setAuthPassword: async () => undefined,
+  listAuthEmails: async () => new Map([[userId, 'a@example.com']]),
+}
+
+const noopProfiles: ProfilesRepository = {
+  list: async () => [],
+  getById: async () => null,
+  updateNombreCompleto: async () => {
+    throw new Error('unused')
+  },
+  upsert: async () => {
+    throw new Error('unused')
+  },
+  updateRole: async () => {
+    throw new Error('unused')
+  },
+}
 
 describe('http offline (mock db + HS256)', () => {
   let app: FastifyInstance
@@ -19,7 +42,11 @@ describe('http offline (mock db + HS256)', () => {
       authUser: { banned_until: null, deleted_at: null },
       isReady: async () => true,
     })
-    app = await buildApp(testEnv(), { db, usersModuleReady: true })
+    app = await buildApp(testEnv(), {
+      db,
+      identityAdmin: noopIdentity,
+      profilesRepo: noopProfiles,
+    })
     await app.ready()
   })
 

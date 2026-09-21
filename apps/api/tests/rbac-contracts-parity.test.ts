@@ -1,21 +1,49 @@
 import { describe, expect, it } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { join, dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { PERMISSIONS, ROLES } from '../src/domain/rbac.js'
 import { openApiDocument } from '../src/http/openapi.js'
-
-const root = join(dirname(fileURLToPath(import.meta.url)), '../../..')
+import { permissionSchema } from '../src/http/schemas/users.js'
+import {
+  GENERATED_PERMISSIONS,
+  GENERATED_ROLES,
+} from '../../../src/lib/api/generated/types.js'
 
 describe('RBAC / OpenAPI contract parity', () => {
-  it('generated FE types mention every backend Role and Permission', () => {
-    const types = readFileSync(join(root, 'src/lib/api/generated/types.ts'), 'utf8')
-    for (const role of ROLES) {
-      expect(types).toContain(`'${role}'`)
-    }
+  it('backend ROLES === frontend GENERATED_ROLES (exact)', () => {
+    expect([...GENERATED_ROLES].sort()).toEqual([...ROLES].sort())
+    expect(GENERATED_ROLES).toHaveLength(ROLES.length)
+    const missingFe = ROLES.filter((r) => !GENERATED_ROLES.includes(r))
+    const extraFe = GENERATED_ROLES.filter((r) => !(ROLES as readonly string[]).includes(r))
+    expect(missingFe, `missing frontend roles: ${missingFe.join(',')}`).toEqual([])
+    expect(extraFe, `extra/obsolete frontend roles: ${extraFe.join(',')}`).toEqual([])
+  })
+
+  it('backend PERMISSIONS === frontend GENERATED_PERMISSIONS (exact)', () => {
+    expect([...GENERATED_PERMISSIONS].sort()).toEqual([...PERMISSIONS].sort())
+    expect(GENERATED_PERMISSIONS).toHaveLength(PERMISSIONS.length)
+    const missingFe = PERMISSIONS.filter((p) => !GENERATED_PERMISSIONS.includes(p))
+    const extraFe = GENERATED_PERMISSIONS.filter(
+      (p) => !(PERMISSIONS as readonly string[]).includes(p),
+    )
+    expect(missingFe, `missing frontend permissions: ${missingFe.join(',')}`).toEqual([])
+    expect(extraFe, `extra/obsolete frontend permissions: ${extraFe.join(',')}`).toEqual([])
+  })
+
+  it('permissionSchema accepts known Permission and rejects unknown', () => {
     for (const permission of PERMISSIONS) {
-      expect(types).toContain(`'${permission}'`)
+      expect(permissionSchema.safeParse(permission).success).toBe(true)
     }
+    expect(permissionSchema.safeParse('users:delete').success).toBe(false)
+    expect(permissionSchema.safeParse('*').success).toBe(false)
+    expect(permissionSchema.safeParse('employees.read').success).toBe(false)
+    expect(permissionSchema.safeParse('').success).toBe(false)
+  })
+
+  it('OpenAPI MeResponse permissions use Permission enum (not bare string[])', () => {
+    const me = openApiDocument.components.schemas.MeResponse as {
+      properties?: { permissions?: { items?: { enum?: string[]; type?: string } } }
+    }
+    const items = me.properties?.permissions?.items
+    expect(items?.enum).toEqual([...PERMISSIONS])
   })
 
   it('OpenAPI documents users paths and AdminUserResponse', () => {

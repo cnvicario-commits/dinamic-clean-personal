@@ -26,7 +26,10 @@ declare module 'fastify' {
     jwtVerifier: JwtVerifier
     identityAdmin: IdentityAdmin
     profilesRepo: ProfilesRepository
-    /** False when production users module lacks service role / injects. */
+    /**
+     * True only when both IdentityAdmin and ProfilesRepository are wired
+     * (config key or test injects). Never true for stubs.
+     */
     usersModuleReady: boolean
     config: Env
   }
@@ -35,21 +38,48 @@ declare module 'fastify' {
 export type BuildAppOptions = {
   db?: Db
   jwtVerifier?: JwtVerifier
+  /** Test inject — when both identity + profiles are provided, module is ready. */
   identityAdmin?: IdentityAdmin
   profilesRepo?: ProfilesRepository
-  /** Force users-module readiness in tests when mocks are injected. */
-  usersModuleReady?: boolean
 }
 
 /**
  * Production must not start without SERVICE_ROLE_KEY (users module dependency).
- * Test/development may inject mocks or run without the key (readyz will fail if required).
  */
 export function assertUsersModuleConfig(env: Env, options: BuildAppOptions): void {
-  if (env.NODE_ENV === 'production' && !options.identityAdmin && !env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (
+    env.NODE_ENV === 'production' &&
+    !(options.identityAdmin && options.profilesRepo) &&
+    !env.SUPABASE_SERVICE_ROLE_KEY
+  ) {
     throw new Error(
       'Invalid configuration: SUPABASE_SERVICE_ROLE_KEY is required in production for the users module',
     )
+  }
+}
+
+function stubIdentityAdmin(): IdentityAdmin {
+  const unavailable = () => {
+    throw new AppError(503, 'service_unavailable', 'Identity dependency unavailable')
+  }
+  return {
+    createAuthUser: unavailable,
+    deleteAuthUser: unavailable,
+    setAuthPassword: unavailable,
+    listAuthEmails: unavailable,
+  }
+}
+
+function stubProfilesRepo(): ProfilesRepository {
+  const unavailable = () => {
+    throw new AppError(503, 'service_unavailable', 'Identity dependency unavailable')
+  }
+  return {
+    list: unavailable,
+    getById: unavailable,
+    updateNombreCompleto: unavailable,
+    upsert: unavailable,
+    updateRole: unavailable,
   }
 }
 
@@ -85,41 +115,11 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
   const profilesRepo =
     options.profilesRepo ?? (hasKey ? createProfilesRepository(env, db) : null)
 
-  const usersModuleReady =
-    options.usersModuleReady ??
-    (identityAdmin != null && profilesRepo != null)
+  // Ready iff both deps are real (injected or constructed) — never when using stubs.
+  const usersModuleReady = identityAdmin != null && profilesRepo != null
 
-  if (!identityAdmin || !profilesRepo) {
-    // Stubs only outside production (assertUsersModuleConfig already blocked prod).
-    const unavailable = () => {
-      throw new AppError(503, 'service_unavailable', 'Identity dependency unavailable')
-    }
-    app.decorate(
-      'identityAdmin',
-      identityAdmin ??
-        ({
-          createAuthUser: unavailable,
-          deleteAuthUser: unavailable,
-          setAuthPassword: unavailable,
-          listAuthEmails: async () => new Map(),
-        } satisfies IdentityAdmin),
-    )
-    app.decorate(
-      'profilesRepo',
-      profilesRepo ??
-        ({
-          list: unavailable,
-          getById: unavailable,
-          updateNombreCompleto: unavailable,
-          upsert: unavailable,
-          updateRole: unavailable,
-        } satisfies ProfilesRepository),
-    )
-  } else {
-    app.decorate('identityAdmin', identityAdmin)
-    app.decorate('profilesRepo', profilesRepo)
-  }
-
+  app.decorate('identityAdmin', identityAdmin ?? stubIdentityAdmin())
+  app.decorate('profilesRepo', profilesRepo ?? stubProfilesRepo())
   app.decorate('db', db)
   app.decorate('jwtVerifier', jwtVerifier)
   app.decorate('usersModuleReady', usersModuleReady)

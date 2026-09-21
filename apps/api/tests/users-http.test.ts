@@ -75,26 +75,70 @@ async function appForRole(
     db,
     identityAdmin: stack.identity,
     profilesRepo: stack.profilesRepo,
-    usersModuleReady: true,
   })
   await app.ready()
   return app
 }
 
 describe('readyz users module', () => {
-  it('returns 503 when users module not ready even if DB is ready', async () => {
+  it('DB unavailable → 503 (database)', async () => {
     const db = createProfileStubDb({
       profile: { id: adminId, nombre_completo: 'A', rol: 'admin' },
+      isReady: async () => false,
     })
+    const stack = memoryStack([{ id: adminId, nombre_completo: 'A', rol: 'admin' }])
     const app = await buildApp(testEnv({ NODE_ENV: 'test' }), {
       db,
-      usersModuleReady: false,
+      identityAdmin: stack.identity,
+      profilesRepo: stack.profilesRepo,
     })
     await app.ready()
     try {
       const res = await app.inject({ method: 'GET', url: '/readyz' })
       expect(res.statusCode).toBe(503)
+      expect(res.json()).toMatchObject({ reason: 'database' })
+    } finally {
+      await app.close()
+    }
+  })
+
+  it('DB ready + users dependencies unavailable (stubs) → 503', async () => {
+    const db = createProfileStubDb({
+      profile: { id: adminId, nombre_completo: 'A', rol: 'admin' },
+      isReady: async () => true,
+    })
+    // No identityAdmin / profilesRepo and no SERVICE_ROLE_KEY → stubs → not ready
+    const app = await buildApp(testEnv({ NODE_ENV: 'test' }), {
+      db,
+    })
+    await app.ready()
+    try {
+      expect(app.usersModuleReady).toBe(false)
+      const res = await app.inject({ method: 'GET', url: '/readyz' })
+      expect(res.statusCode).toBe(503)
       expect(res.json()).toMatchObject({ reason: 'users_module_dependency' })
+    } finally {
+      await app.close()
+    }
+  })
+
+  it('DB ready + users dependencies functional → 200', async () => {
+    const db = createProfileStubDb({
+      profile: { id: adminId, nombre_completo: 'A', rol: 'admin' },
+      isReady: async () => true,
+    })
+    const stack = memoryStack([{ id: adminId, nombre_completo: 'A', rol: 'admin' }])
+    const app = await buildApp(testEnv({ NODE_ENV: 'test' }), {
+      db,
+      identityAdmin: stack.identity,
+      profilesRepo: stack.profilesRepo,
+    })
+    await app.ready()
+    try {
+      expect(app.usersModuleReady).toBe(true)
+      const res = await app.inject({ method: 'GET', url: '/readyz' })
+      expect(res.statusCode).toBe(200)
+      expect(res.json()).toMatchObject({ status: 'ready' })
     } finally {
       await app.close()
     }
