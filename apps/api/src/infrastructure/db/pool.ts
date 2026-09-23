@@ -4,6 +4,7 @@ import {
   probePhase2dProfilesCapabilities,
   type Phase2dCapabilityResult,
 } from './phase2d-capabilities.js'
+import { probePhase3aCapabilities, type Phase3aCapabilityResult } from './phase3a-capabilities.js'
 
 const { Pool } = pg
 
@@ -17,6 +18,7 @@ export type Db = {
   isReady: () => Promise<boolean>
   /** Read-only Phase 2D perfiles capability probe (no writes). */
   checkPhase2dProfilesCapabilities: () => Promise<Phase2dCapabilityResult>
+  checkPhase3aCapabilities: () => Promise<Phase3aCapabilityResult>
 }
 
 export function createDb(env: Env): Db {
@@ -60,6 +62,9 @@ export function createDb(env: Env): Db {
     },
     async checkPhase2dProfilesCapabilities() {
       return probePhase2dProfilesCapabilities(query)
+    },
+    async checkPhase3aCapabilities() {
+      return probePhase3aCapabilities(query)
     },
   }
 }

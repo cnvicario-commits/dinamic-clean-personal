@@ -45,7 +45,25 @@ curl -sS -D- http://127.0.0.1:3001/readyz -o /dev/null
 docker compose -f deploy/docker-compose.api.yml ps
 ```
 
-Expect `healthz` → 200, `readyz` → 200 when DB is reachable, `X-Request-Id` present.
+Expect `healthz` → 200 for process liveness, and `readyz` → 200 only after the DB contract is
+compatible. A missing Phase 3A migration returns 503 `db_schema_incompatible`; the Compose
+healthcheck uses `/readyz`, so that image cannot become healthy.
+
+Before deploy, run the read-only gate with explicit environment identity (never infer production
+from a hostname):
+
+```bash
+RUN_DB_COMPATIBILITY_CHECK=1 \
+DB_COMPATIBILITY_TARGET=test \
+EXPECTED_SUPABASE_PROJECT_REF="$EXPECTED_SUPABASE_TEST_PROJECT_REF" \
+DATABASE_PROJECT_REF="$EXPECTED_SUPABASE_TEST_PROJECT_REF" \
+npm run db:check-compatibility
+```
+
+The gate checks the four baseline tables, `dinamic_api` role/non-BYPASSRLS, Phase 3A column grants,
+RLS, six named policies, and absence of browser INSERT/UPDATE. It is read-only and never runs
+migrations automatically. Apply the versioned migration through the approved database deployment
+process first, then run the gate and `/readyz` before promoting the image.
 
 Authenticated smoke (token from test Auth session):
 

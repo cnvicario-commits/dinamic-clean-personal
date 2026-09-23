@@ -2,6 +2,7 @@ import { SignJWT } from 'jose'
 import { createSecretKey } from 'node:crypto'
 import type { Db } from '../src/infrastructure/db/pool.js'
 import type { Phase2dCapabilityResult } from '../src/infrastructure/db/phase2d-capabilities.js'
+import type { Phase3aCapabilityResult } from '../src/infrastructure/db/phase3a-capabilities.js'
 import type { Env } from '../src/config/env.js'
 import type pg from 'pg'
 
@@ -74,6 +75,7 @@ export function createMockDb(options: {
   query?: QueryHandler
   close?: () => Promise<void>
   checkPhase2dProfilesCapabilities?: () => Promise<Phase2dCapabilityResult>
+  checkPhase3aCapabilities?: () => Promise<Phase3aCapabilityResult>
 }): Db {
   return {
     pool: {} as pg.Pool,
@@ -82,6 +84,8 @@ export function createMockDb(options: {
     isReady: options.isReady ?? (async () => true),
     checkPhase2dProfilesCapabilities:
       options.checkPhase2dProfilesCapabilities ?? (async () => ({ ok: true })),
+    checkPhase3aCapabilities:
+      options.checkPhase3aCapabilities ?? (async () => ({ ok: true, currentUser: 'dinamic_api' })),
   }
 }
 
@@ -91,10 +95,12 @@ export function createProfileStubDb(opts: {
   authUser?: { banned_until: string | null; deleted_at: string | null } | null | 'unavailable'
   isReady?: () => Promise<boolean>
   checkPhase2dProfilesCapabilities?: () => Promise<Phase2dCapabilityResult>
+  checkPhase3aCapabilities?: () => Promise<Phase3aCapabilityResult>
 }): Db {
   return createMockDb({
     isReady: opts.isReady,
     checkPhase2dProfilesCapabilities: opts.checkPhase2dProfilesCapabilities,
+    checkPhase3aCapabilities: opts.checkPhase3aCapabilities,
     async query(text, params) {
       const sql = text.replace(/\s+/g, ' ').toLowerCase()
       if (sql.includes('from public.perfiles')) {

@@ -78,6 +78,23 @@ afterEach(async () => {
 async function token() { return signAccessToken({ sub: actorId }) }
 
 describe('Phase 3A employees', () => {
+  it('returns existing rows without an accidental default filter', async () => {
+    const { app, seen } = await appFor()
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/employees?page=1&pageSize=25',
+      headers: { authorization: `Bearer ${await token()}` },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().total).toBeGreaterThan(0)
+    expect(res.json().items).toHaveLength(1)
+    const countQuery = seen.find((query) => query.sql.includes('count(*)') && query.sql.includes('public.empleados'))
+    const listQuery = seen.find((query) => query.sql.startsWith('select e.id'))
+    expect(countQuery?.sql).not.toContain(' where ')
+    expect(listQuery?.sql).not.toContain(' where ')
+    expect(countQuery?.params).toEqual([])
+  })
+
   it('lists with server-side pagination, search, status and client filters', async () => {
     const { app, seen } = await appFor()
     const res = await app.inject({ method: 'GET', url: `/v1/employees?page=2&pageSize=10&activo=true&search=Ana&clienteId=${clientId}`, headers: { authorization: `Bearer ${await token()}` } })

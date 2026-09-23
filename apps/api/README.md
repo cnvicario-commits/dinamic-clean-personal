@@ -16,6 +16,7 @@ npm run dev            # http://127.0.0.1:3001
 - `npm run typecheck` — `tsc --noEmit`
 - `npm test`
 - `npm run build`
+- `npm run db:check-compatibility` — read-only deployment DB contract gate; requires explicit target/project variables
 - `npm start`
 - `npm run export:contracts` — generate typed client under `src/lib/api/generated/`
 
