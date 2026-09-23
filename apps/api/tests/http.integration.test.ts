@@ -185,6 +185,28 @@ describe('http readiness 503 (mock isReady false)', () => {
   })
 })
 
+describe('http readiness 503 (Phase 3A contract drift)', () => {
+  let app: FastifyInstance
+
+  beforeAll(async () => {
+    const db = createMockDb({
+      checkPhase3aCapabilities: async () => ({ ok: false, reason: 'missing_policy_empleados_dinamic_api_select' }),
+    })
+    app = await buildApp(testEnv(), { db, identityAdmin: {} as IdentityAdmin })
+    await app.ready()
+  })
+
+  afterAll(async () => {
+    await app.close()
+  })
+
+  it('GET /readyz → 503 DB_SCHEMA_INCOMPATIBLE', async () => {
+    const res = await app.inject({ method: 'GET', url: '/readyz' })
+    expect(res.statusCode).toBe(503)
+    expect(res.json()).toMatchObject({ reason: 'db_schema_incompatible' })
+  })
+})
+
 describe('http RBAC employees:read via inject + stub role', () => {
   async function withRole(rol: string): Promise<FastifyInstance> {
     const db = createProfileStubDb({
