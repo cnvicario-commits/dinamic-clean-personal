@@ -185,7 +185,20 @@ export type ListEmployeesQuery = {
   page?: number
   pageSize?: number
   activo?: boolean
+  search?: string
+  clienteId?: string
 }
+
+export type CreateEmployeeBody = {
+  nombreApellido: string
+  cuil: string
+  legajo?: string | null
+  fechaIngreso?: string | null
+  horasContrato: 4 | 8
+  empresa: 'DINAMIC' | 'MORAL'
+}
+
+export type UpdateEmployeeStatusBody = { activo: boolean }
 
 export type EmployeeAssignment = {
   fecha_desde: string
@@ -209,6 +222,27 @@ export type EmployeesResponse = {
   pageSize: number
   total: number
 }
+
+export type EmployeeMutationResponse = Omit<EmployeeListItem, 'asignaciones'>
+export type ListAssignmentsQuery = { page?: number; pageSize?: number; active?: boolean }
+export type CreateAssignmentBody = { empleadoId: string; clienteId: string; fechaDesde: string }
+export type AssignmentListItem = {
+  id: string; empleado_id: string; empleado_nombre: string; cliente_id: string
+  cliente_nombre: string; fecha_desde: string; fecha_hasta: string | null
+}
+export type AssignmentsResponse = { items: AssignmentListItem[]; page: number; pageSize: number; total: number }
+export type HrCatalogsResponse = {
+  employees: { id: string; nombre_apellido: string }[]
+  clients: { id: string; nombre: string }[]
+}
+export type HrCatalogInclude = 'employees' | 'clients' | 'employees,clients'
+export type AttendanceQuery = { page?: number; pageSize?: number; empleadoId?: string; desde?: string; hasta?: string }
+export type AttendanceCode = { codigo: string; descripcion: string; codigoBejerman: string | null; cuentaComoAusencia: boolean }
+export type AttendanceItem = { id:string; empleadoId:string; fecha:string; codigo:string; horasExtras:number; cargadoPor:string|null; createdAt:string; observaciones:string|null; archivoUrl:string|null; clienteDestinoId:string|null; clienteHorasExtraId:string|null; empleadoNombre:string|null }
+export type AttendanceResponse = { items: AttendanceItem[]; page:number; pageSize:number; total:number }
+export type AttendanceUpsert = { empleadoId:string; fecha:string; codigo:string; horasExtras?:number; observaciones?:string|null; archivoUrl?:string|null; clienteDestinoId?:string|null; clienteHorasExtraId?:string|null }
+export type BejermanReportData = { employees: {id:string;nombre_apellido:string;legajo:string|null;empresa:string|null}[]; assignments:{empleado_id:string;cliente_id:string}[]; clients:{id:string;nombre:string;codigo_costos:string|null}[]; attendance:{empleado_id:string;fecha:string;codigo:string}[] }
+export type OvertimeReportData = { attendance:{empleado_id:string;horas_extras:number;cliente_destino_id:string|null;cliente_horas_extra_id:string|null;nombre_apellido:string}[]; assignments:{empleado_id:string;cliente_id:string}[]; clients:{id:string;nombre:string}[] }
 
 /** RFC 7807-ish problem body returned by the API when available */
 export type ProblemDetails = {

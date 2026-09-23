@@ -2,9 +2,19 @@ import { z } from 'zod'
 import {
   employeeAssignmentSchema,
   employeeListItemSchema,
+  employeeMutationResponseSchema,
   employeesResponseSchema,
+  createEmployeeBodySchema,
+  updateEmployeeStatusBodySchema,
   LIST_EMPLOYEES_QUERY_OPENAPI,
 } from './schemas/employees.js'
+import {
+  assignmentListItemSchema,
+  assignmentsResponseSchema,
+  createAssignmentBodySchema,
+  LIST_ASSIGNMENTS_QUERY_OPENAPI,
+} from './schemas/assignments.js'
+import { hrCatalogsResponseSchema } from './schemas/hr-catalogs.js'
 import {
   adminUserResponseSchema,
   changeUserRoleBodySchema,
@@ -36,6 +46,12 @@ function queryParameter(
   }
 }
 
+function assignmentQueryParameter(name: keyof typeof LIST_ASSIGNMENTS_QUERY_OPENAPI.properties) {
+  return { name, in: 'query' as const, required: false, schema: LIST_ASSIGNMENTS_QUERY_OPENAPI.properties[name] }
+}
+
+const idParameter = [{ name: 'id', in: 'path' as const, required: true, schema: { type: 'string', format: 'uuid' } }]
+
 const bearer = [{ bearerAuth: [] }]
 
 export const openApiDocument = {
@@ -44,7 +60,7 @@ export const openApiDocument = {
     title: 'Dinamic Clean API',
     version: '0.2.0',
     description:
-      'Enterprise backend — Phase 2B users/profiles. General IP rate limiting may return 429 on any route (except health/OpenAPI when excluded).',
+      'Enterprise application backend. General IP rate limiting may return 429 on any route (except health/OpenAPI when excluded).',
   },
   paths: {
     '/healthz': {
@@ -103,12 +119,14 @@ export const openApiDocument = {
     },
     '/v1/employees': {
       get: {
-        summary: 'List employees (paginated, read-only)',
+        summary: 'List employees (paginated and filtered)',
         security: bearer,
         parameters: [
           queryParameter('page'),
           queryParameter('pageSize'),
           queryParameter('activo'),
+          queryParameter('search'),
+          queryParameter('clienteId'),
         ],
         responses: {
           '200': {
@@ -124,7 +142,74 @@ export const openApiDocument = {
           '403': { description: 'Forbidden' },
         },
       },
+      post: {
+        summary: 'Create employee', security: bearer,
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/CreateEmployeeBody' } } } },
+        responses: {
+          '201': { description: 'Created', content: { 'application/json': { schema: { $ref: '#/components/schemas/EmployeeMutationResponse' } } } },
+          '400': { description: 'Validation' }, '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' }, '409': { description: 'Duplicate CUIL' },
+        },
+      },
     },
+    '/v1/employees/{id}/status': {
+      patch: {
+        summary: 'Activate or deactivate employee', security: bearer, parameters: idParameter,
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/UpdateEmployeeStatusBody' } } } },
+        responses: {
+          '200': { description: 'Updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/EmployeeMutationResponse' } } } },
+          '400': { description: 'Validation' }, '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' }, '404': { description: 'Not found' },
+        },
+      },
+    },
+    '/v1/assignments': {
+      get: {
+        summary: 'List assignments', security: bearer,
+        parameters: [assignmentQueryParameter('page'), assignmentQueryParameter('pageSize'), assignmentQueryParameter('active')],
+        responses: {
+          '200': { description: 'Assignments', content: { 'application/json': { schema: { $ref: '#/components/schemas/AssignmentsResponse' } } } },
+          '400': { description: 'Validation' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' },
+        },
+      },
+      post: {
+        summary: 'Create assignment', security: bearer,
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/CreateAssignmentBody' } } } },
+        responses: {
+          '201': { description: 'Created', content: { 'application/json': { schema: { $ref: '#/components/schemas/AssignmentListItem' } } } },
+          '400': { description: 'Validation' }, '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' }, '404': { description: 'Employee or client not found' },
+        },
+      },
+    },
+    '/v1/assignments/{id}/close': {
+      patch: {
+        summary: 'Close an active assignment using the database current date', security: bearer, parameters: idParameter,
+        responses: {
+          '200': { description: 'Closed', content: { 'application/json': { schema: { $ref: '#/components/schemas/AssignmentListItem' } } } },
+          '400': { description: 'Invalid id' }, '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' }, '404': { description: 'Not found' },
+          '409': { description: 'Already closed' },
+        },
+      },
+    },
+    '/v1/hr/catalogs': {
+      get: {
+        summary: 'Minimal employee and client catalogs for Core HR', security: bearer,
+        parameters: [{ name: 'include', in: 'query', required: true, schema: { type: 'string', enum: ['employees', 'clients', 'employees,clients'] } }],
+        responses: {
+          '200': { description: 'Catalogs', content: { 'application/json': { schema: { $ref: '#/components/schemas/HrCatalogsResponse' } } } },
+          '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' },
+        },
+      },
+    },
+    '/v1/attendance': {
+      get: { summary:'List attendance', security: bearer, parameters:[{name:'page',in:'query',schema:{type:'integer',minimum:1}},{name:'pageSize',in:'query',schema:{type:'integer',minimum:1,maximum:100}},{name:'empleadoId',in:'query',schema:{type:'string',format:'uuid'}},{name:'desde',in:'query',schema:{type:'string',format:'date'}},{name:'hasta',in:'query',schema:{type:'string',format:'date'}}], responses:{'200':{description:'Attendance page'},'400':{description:'Invalid query'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'}} },
+      put: { summary:'Create or update attendance', security: bearer, requestBody:{required:true,content:{'application/json':{schema:{type:'object',required:['empleadoId','fecha','codigo']}}}}, responses:{'200':{description:'Attendance'},'400':{description:'Invalid body/code'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'}} },
+    },
+    '/v1/attendance/codes': { get:{summary:'List attendance codes',security:bearer,responses:{'200':{description:'Codes'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'}}} },
+    '/v1/hr/reports/bejerman': { get:{summary:'Bejerman report dataset',security:bearer,parameters:[{name:'from',in:'query',required:true,schema:{type:'string',format:'date'}},{name:'to',in:'query',required:true,schema:{type:'string',format:'date'}}],responses:{'200':{description:'Report dataset',content:{'application/json':{schema:{$ref:'#/components/schemas/BejermanReportData'}}}},'400':{description:'Invalid range'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'}}} },
+    '/v1/hr/reports/overtime': { get:{summary:'Overtime report dataset',security:bearer,parameters:[{name:'from',in:'query',required:true,schema:{type:'string',format:'date'}},{name:'to',in:'query',required:true,schema:{type:'string',format:'date'}}],responses:{'200':{description:'Report dataset',content:{'application/json':{schema:{$ref:'#/components/schemas/OvertimeReportData'}}}},'400':{description:'Invalid range'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'}}} },
     '/v1/users': {
       get: {
         summary: 'List profiles (admin)',
@@ -295,6 +380,14 @@ export const openApiDocument = {
       EmployeeListItem: zodJsonSchema(employeeListItemSchema),
       EmployeesResponse: zodJsonSchema(employeesResponseSchema),
       ListEmployeesQuery: LIST_EMPLOYEES_QUERY_OPENAPI,
+      CreateEmployeeBody: zodJsonSchema(createEmployeeBodySchema),
+      UpdateEmployeeStatusBody: zodJsonSchema(updateEmployeeStatusBodySchema),
+      EmployeeMutationResponse: zodJsonSchema(employeeMutationResponseSchema),
+      AssignmentListItem: zodJsonSchema(assignmentListItemSchema),
+      AssignmentsResponse: zodJsonSchema(assignmentsResponseSchema),
+      ListAssignmentsQuery: LIST_ASSIGNMENTS_QUERY_OPENAPI,
+      CreateAssignmentBody: zodJsonSchema(createAssignmentBodySchema),
+      HrCatalogsResponse: zodJsonSchema(hrCatalogsResponseSchema),
       MeResponse: zodJsonSchema(meResponseSchema),
       ProfileResponse: zodJsonSchema(profileResponseSchema),
       AdminUserResponse: zodJsonSchema(adminUserResponseSchema),
@@ -303,6 +396,8 @@ export const openApiDocument = {
       CreateUserBody: zodJsonSchema(createUserBodySchema),
       ChangeUserRoleBody: zodJsonSchema(changeUserRoleBodySchema),
       SetUserPasswordBody: zodJsonSchema(setUserPasswordBodySchema),
+      BejermanReportData: { type:'object',required:['employees','assignments','clients','attendance'],properties:{employees:{type:'array',items:{type:'object',required:['id','nombre_apellido','legajo','empresa'],properties:{id:{type:'string'},nombre_apellido:{type:'string'},legajo:{type:['string','null']},empresa:{type:['string','null']}}}},assignments:{type:'array',items:{type:'object',required:['empleado_id','cliente_id'],properties:{empleado_id:{type:'string'},cliente_id:{type:'string'}}}},clients:{type:'array',items:{type:'object',required:['id','nombre','codigo_costos'],properties:{id:{type:'string'},nombre:{type:'string'},codigo_costos:{type:['string','null']}}}},attendance:{type:'array',items:{type:'object',required:['empleado_id','fecha','codigo'],properties:{empleado_id:{type:'string'},fecha:{type:'string',format:'date'},codigo:{type:'string'}}}}}},
+      OvertimeReportData: { type:'object',required:['attendance','assignments','clients'],properties:{attendance:{type:'array',items:{type:'object',required:['empleado_id','horas_extras','cliente_destino_id','cliente_horas_extra_id','nombre_apellido'],properties:{empleado_id:{type:'string'},horas_extras:{type:'number'},cliente_destino_id:{type:['string','null']},cliente_horas_extra_id:{type:['string','null']},nombre_apellido:{type:'string'}}}},assignments:{type:'array',items:{type:'object',required:['empleado_id','cliente_id'],properties:{empleado_id:{type:'string'},cliente_id:{type:'string'}}}},clients:{type:'array',items:{type:'object',required:['id','nombre'],properties:{id:{type:'string'},nombre:{type:'string'}}}}}},
     },
   },
 } as const

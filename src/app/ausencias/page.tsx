@@ -1,109 +1,32 @@
-import type { ComponentProps } from 'react'
-import { createClient } from '@/utils/supabase/server'
+'use client'
+import { useEffect, useState } from 'react'
 import AusenciaForm from '@/components/AusenciaForm'
-import ExportarAusencias from '@/components/ExportarAusencias'
 import ReporteBejerman from '@/components/ReporteBejerman'
 import ReporteHorasExtraCliente from '@/components/ReporteHorasExtraCliente'
-import { type RelOne, relOne } from '@/lib/supabase-rel'
+import ExportarAusencias from '@/components/ExportarAusencias'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
+import type { AttendanceItem, AssignmentListItem } from '@/lib/api/generated/types'
 
-type AsistenciaListado = {
-  id: string
-  fecha: string
-  codigo: string
-  horas_extras: number | null
-  observaciones: string | null
-  archivo_url: string | null
-  empleados: RelOne<{ nombre_apellido: string }>
+type ExportRow = { fecha:string; codigo:string; horas_extras:number; observaciones:string|null; empleados:{nombre_apellido:string}|null }
+async function allAssignments(api: Awaited<ReturnType<typeof createAuthenticatedBrowserApiClient>>) {
+  const pageSize=100, first=await api.listAssignments({active:true,page:1,pageSize}), pages=Math.ceil(first.total/pageSize)
+  const rows=[...first.items]; for(let p=2;p<=pages;p+=1){const next=await api.listAssignments({active:true,page:p,pageSize}); rows.push(...next.items)}
+  return rows
 }
+async function allAttendance(api: Awaited<ReturnType<typeof createAuthenticatedBrowserApiClient>>) {
+  const pageSize=100, first=await api.listAttendance({page:1,pageSize}), pages=Math.ceil(first.total/pageSize)
+  const rows=[...first.items]; for(let p=2;p<=pages;p+=1){const next=await api.listAttendance({page:p,pageSize}); rows.push(...next.items)}
+  return rows
+}
+function exportRows(items:AttendanceItem[]): ExportRow[] { return items.map(a=>({fecha:a.fecha,codigo:a.codigo,horas_extras:a.horasExtras,observaciones:a.observaciones,empleados:a.empleadoNombre?{nombre_apellido:a.empleadoNombre}:null})) }
 
-export default async function AusenciasPage() {
-  const supabase = await createClient()
-  const { data: empleados } = await supabase
-    .from('empleados')
-    .select('id, nombre_apellido')
-    .order('nombre_apellido')
-  const { data: clientes } = await supabase
-    .from('clientes')
-    .select('id, nombre')
-    .order('nombre')
-  const { data: asignaciones } = await supabase
-    .from('asignaciones')
-    .select('empleado_id, cliente_id')
-    .is('fecha_hasta', null)
-  const { data: codigos } = await supabase
-    .from('codigos_novedad')
-    .select('codigo, descripcion')
-    .order('codigo')
-  const { data: asistencias } = await supabase
-    .from('asistencias')
-    .select('id, fecha, codigo, horas_extras, observaciones, archivo_url, empleados(nombre_apellido)')
-    .order('fecha', { ascending: false })
-  return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
-      <h1 className="text-2xl font-bold text-slate-900 mb-6">Novedades</h1>
-      <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-5 mb-8">
-        <AusenciaForm
-          empleados={empleados || []}
-          clientes={clientes || []}
-          asignaciones={asignaciones || []}
-          codigos={codigos || []}
-        />
-      </div>
-      <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-5 mb-8">
-        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Reporte para Bejerman</h2>
-        <ReporteBejerman />
-        <div className="border-t border-slate-100 mt-5 pt-5">
-          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Horas extra por cliente</h2>
-          <ReporteHorasExtraCliente />
-        </div>
-      </div>
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
-          Listado ({asistencias?.length ?? 0})
-        </h2>
-        <ExportarAusencias
-          asistencias={(asistencias || []) as ComponentProps<typeof ExportarAusencias>['asistencias']}
-        />
-      </div>
-      <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto">
-        <table className="w-full text-sm min-w-[640px]">
-          <thead>
-            <tr className="bg-slate-50 text-left text-slate-500 border-b border-slate-200">
-              <th className="px-4 py-3 font-medium">Empleado</th>
-              <th className="px-4 py-3 font-medium">Fecha</th>
-              <th className="px-4 py-3 font-medium">Código</th>
-              <th className="px-4 py-3 font-medium">Horas extra</th>
-              <th className="px-4 py-3 font-medium">Observaciones</th>
-              <th className="px-4 py-3 font-medium">Archivo</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(asistencias as AsistenciaListado[] | null)?.map((a) => (
-              <tr key={a.id} className="border-b border-slate-100 last:border-0">
-                <td className="px-4 py-3 text-slate-800">{relOne(a.empleados)?.nombre_apellido}</td>
-                <td className="px-4 py-3 text-slate-600">{a.fecha}</td>
-                <td className="px-4 py-3">
-                  <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${a.codigo === 'P' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                    {a.codigo}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-slate-600">{a.horas_extras || '-'}</td>
-                <td className="px-4 py-3 text-slate-600">{a.observaciones || '-'}</td>
-                <td className="px-4 py-3">
-                  {a.archivo_url ? (
-                    <a href={a.archivo_url} target="_blank" className="text-teal-600 hover:underline">Ver</a>
-                  ) : (
-                    '-'
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {asistencias?.length === 0 && (
-        <p className="text-slate-500 text-sm mt-3">No hay novedades cargadas todavía.</p>
-      )}
-    </div>
-  )
+export default function AusenciasPage(){
+  const [page,setPage]=useState(1), pageSize=25, [total,setTotal]=useState(0)
+  const [state,setState]=useState<{employees:{id:string;nombre_apellido:string}[];clients:{id:string;nombre:string}[];assignments:{empleado_id:string;cliente_id:string}[];items:AttendanceItem[];exportItems:ExportRow[];codes:{codigo:string;descripcion:string}[]}|null>(null)
+  const [error,setError]=useState<string|null>(null)
+  useEffect(()=>{let live=true;(async()=>{try{const api=await createAuthenticatedBrowserApiClient();const [catalogs,attendance,codes,assignments,exportItems]=await Promise.all([api.getHrCatalogs('employees,clients'),api.listAttendance({page,pageSize}),api.listAttendanceCodes(),allAssignments(api),allAttendance(api)]);if(live){setTotal(attendance.total);setState({employees:catalogs.employees,clients:catalogs.clients,assignments:assignments.map((x:AssignmentListItem)=>({empleado_id:x.empleado_id,cliente_id:x.cliente_id})),items:attendance.items,exportItems:exportRows(exportItems),codes})}}catch(e){if(live)setError(e instanceof Error?e.message:'No se pudo cargar novedades')}})();return()=>{live=false}},[page])
+  if(error)return <div role="alert" className="max-w-4xl mx-auto px-4 py-10 text-rose-700">{error}</div>
+  if(!state)return <div className="max-w-4xl mx-auto px-4 py-10">Cargando novedades…</div>
+  const pages=Math.max(1,Math.ceil(total/pageSize))
+  return <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10"><h1 className="text-2xl font-bold text-slate-900 mb-6">Novedades</h1><div className="bg-white border border-slate-200 rounded-lg shadow-sm p-5"><AusenciaForm empleados={state.employees} clientes={state.clients} asignaciones={state.assignments} codigos={state.codes}/></div><div className="bg-white border border-slate-200 rounded-lg shadow-sm p-5 mt-8"><ReporteBejerman/><ReporteHorasExtraCliente/></div><div className="flex items-center justify-between mt-8 mb-3"><h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Listado ({total})</h2><ExportarAusencias asistencias={state.exportItems}/></div><div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto"><table className="w-full text-sm"><thead><tr className="bg-slate-50 text-left"><th className="px-4 py-3">Empleado</th><th className="px-4 py-3">Fecha</th><th className="px-4 py-3">Código</th><th className="px-4 py-3">Horas extra</th><th className="px-4 py-3">Observaciones</th><th className="px-4 py-3">Archivo</th></tr></thead><tbody>{state.items.map(a=><tr key={a.id} className="border-b"><td className="px-4 py-3">{a.empleadoNombre}</td><td className="px-4 py-3">{a.fecha}</td><td className="px-4 py-3">{a.codigo}</td><td className="px-4 py-3">{a.horasExtras||'-'}</td><td className="px-4 py-3">{a.observaciones||'-'}</td><td className="px-4 py-3">{a.archivoUrl?<a href={a.archivoUrl} target="_blank" rel="noreferrer">Ver</a>:'-'}</td></tr>)}</tbody></table></div><div className="flex items-center justify-between mt-3"><button type="button" disabled={page<=1} onClick={()=>setPage(p=>p-1)}>Anterior</button><span>Página {page} de {pages}</span><button type="button" disabled={page>=pages} onClick={()=>setPage(p=>p+1)}>Siguiente</button></div>{total===0&&<p className="text-slate-500 text-sm mt-3">No hay novedades cargadas todavía.</p>}</div>
 }

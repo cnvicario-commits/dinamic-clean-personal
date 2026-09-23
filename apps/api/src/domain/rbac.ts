@@ -74,10 +74,9 @@ const SELF_PROFILE = [
  * CONFIRMED_ALLOW / BACKEND_ENFORCED today:
  * - profile:* — every authenticated role (GET/PATCH /v1/me)
  * - profiles:read_any, users:* — admin (users routes)
- * - employees:read — admin + gerente (GET /v1/employees)
+ * - Phase 3A Core HR — admin + gerente (employees/assignments endpoints)
  *
- * All other catalog permissions intentionally unmapped → DENY until
- * Phase 3+ + functional confirmation (not UI route tables alone).
+ * All other catalog permissions intentionally unmapped → DENY until confirmed.
  */
 const ROLE_PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = Object.freeze({
   admin: Object.freeze([
@@ -89,10 +88,24 @@ const ROLE_PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = Object.f
     'users:disable',
     'users:enable',
     'employees:read',
+    'employees:create',
+    'employees:update',
+    'assignments:read',
+    'assignments:create',
+    'assignments:update',
+    'attendance:read','attendance:update',
+    'attendance:export',
   ] as const satisfies readonly Permission[]),
   gerente: Object.freeze([
     ...SELF_PROFILE,
     'employees:read',
+    'employees:create',
+    'employees:update',
+    'assignments:read',
+    'assignments:create',
+    'assignments:update',
+    'attendance:read','attendance:update',
+    'attendance:export',
   ] as const satisfies readonly Permission[]),
   compras: Object.freeze([...SELF_PROFILE] as const satisfies readonly Permission[]),
   supervisor: Object.freeze([...SELF_PROFILE] as const satisfies readonly Permission[]),

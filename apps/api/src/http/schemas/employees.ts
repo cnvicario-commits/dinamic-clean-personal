@@ -17,6 +17,8 @@ export const listEmployeesQuerySchema = z
     page: z.coerce.number().int().min(1).default(1),
     pageSize: z.coerce.number().int().min(1).max(100).default(50),
     activo: queryBoolean.optional(),
+    search: z.string().trim().min(1).max(100).optional(),
+    clienteId: z.string().uuid().optional(),
   })
   .strict()
 
@@ -36,6 +38,8 @@ export const LIST_EMPLOYEES_QUERY_OPENAPI = {
     activo: {
       oneOf: [{ type: 'boolean' }, { type: 'string', enum: ['true', 'false'] }],
     },
+    search: { type: 'string', minLength: 1, maxLength: 100 },
+    clienteId: { type: 'string', format: 'uuid' },
   },
 } as const
 
@@ -67,6 +71,29 @@ export const employeesResponseSchema = z.object({
   total: z.number().int().min(0),
 })
 
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((value) => {
+  const date = new Date(`${value}T00:00:00Z`)
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
+}, 'Invalid date')
+
+export const createEmployeeBodySchema = z
+  .object({
+    nombreApellido: z.string().trim().min(1).max(200),
+    cuil: z.string().trim().min(1).max(30),
+    legajo: z.string().trim().max(100).nullable().optional().default(null),
+    fechaIngreso: isoDate.nullable().optional().default(null),
+    horasContrato: z.union([z.literal(4), z.literal(8)]),
+    empresa: z.union([z.literal('DINAMIC'), z.literal('MORAL')]),
+  })
+  .strict()
+
+export const updateEmployeeStatusBodySchema = z.object({ activo: z.boolean() }).strict()
+export const employeeIdParamsSchema = z.object({ id: z.string().uuid() }).strict()
+export const employeeMutationResponseSchema = employeeListItemSchema.omit({ asignaciones: true })
+
 export type EmployeeAssignment = z.infer<typeof employeeAssignmentSchema>
 export type EmployeeListItem = z.infer<typeof employeeListItemSchema>
 export type EmployeesResponse = z.infer<typeof employeesResponseSchema>
+export type CreateEmployeeBody = z.infer<typeof createEmployeeBodySchema>
+export type UpdateEmployeeStatusBody = z.infer<typeof updateEmployeeStatusBodySchema>
+export type EmployeeMutationResponse = z.infer<typeof employeeMutationResponseSchema>

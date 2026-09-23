@@ -2,21 +2,30 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
+import { ApiClientError } from '@/lib/api/generated'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 
 export default function EmpleadoEstadoBoton({ id, activo }: { id: string; activo: boolean }) {
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const router = useRouter()
-  const supabase = createClient()
 
   const handleClick = async () => {
     setLoading(true)
-    await supabase.from('empleados').update({ activo: !activo }).eq('id', id)
+    setError('')
+    try {
+      const api = await createAuthenticatedBrowserApiClient()
+      await api.updateEmployeeStatus(id, { activo: !activo })
+    } catch (cause) {
+      setError(cause instanceof ApiClientError ? cause.message : 'No se pudo actualizar el estado.')
+      setLoading(false)
+      return
+    }
     setLoading(false)
     router.refresh()
   }
 
-  return (
+  return <div>
     <button
       onClick={handleClick}
       disabled={loading}
@@ -28,5 +37,6 @@ export default function EmpleadoEstadoBoton({ id, activo }: { id: string; activo
     >
       {loading ? '...' : activo ? 'Dar de baja' : 'Reactivar'}
     </button>
-  )
+    {error && <p className="text-rose-600 text-xs mt-1">{error}</p>}
+  </div>
 }

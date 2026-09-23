@@ -2,22 +2,30 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
+import { ApiClientError } from '@/lib/api/generated'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 
 export default function CerrarAsignacionBoton({ id }: { id: string }) {
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const router = useRouter()
-  const supabase = createClient()
 
   const handleClick = async () => {
-    const hoy = new Date().toISOString().split('T')[0]
     setLoading(true)
-    await supabase.from('asignaciones').update({ fecha_hasta: hoy }).eq('id', id)
+    setError('')
+    try {
+      const api = await createAuthenticatedBrowserApiClient()
+      await api.closeAssignment(id)
+    } catch (cause) {
+      setError(cause instanceof ApiClientError ? cause.message : 'No se pudo finalizar la asignación.')
+      setLoading(false)
+      return
+    }
     setLoading(false)
     router.refresh()
   }
 
-  return (
+  return <div>
     <button
       onClick={handleClick}
       disabled={loading}
@@ -25,5 +33,6 @@ export default function CerrarAsignacionBoton({ id }: { id: string }) {
     >
       {loading ? '...' : 'Finalizar'}
     </button>
-  )
+    {error && <p className="text-rose-600 text-xs mt-1">{error}</p>}
+  </div>
 }

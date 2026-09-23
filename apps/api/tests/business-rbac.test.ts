@@ -26,8 +26,21 @@ const CONFIRMED_PRODUCTIVE_GRANTS: Readonly<Record<Role, readonly Permission[]>>
     'users:disable',
     'users:enable',
     'employees:read',
+    'employees:create',
+    'employees:update',
+    'assignments:read',
+    'assignments:create',
+    'assignments:update',
+    'attendance:read', 'attendance:update',
+    'attendance:export',
   ],
-  gerente: ['profile:read_self', 'profile:update_self', 'employees:read'],
+  gerente: [
+    'profile:read_self', 'profile:update_self', 'employees:read',
+    'employees:create', 'employees:update', 'assignments:read',
+    'assignments:create', 'assignments:update',
+    'attendance:read', 'attendance:update',
+    'attendance:export',
+  ],
   compras: ['profile:read_self', 'profile:update_self'],
   supervisor: ['profile:read_self', 'profile:update_self'],
   auditoria: ['profile:read_self', 'profile:update_self'],
@@ -35,14 +48,6 @@ const CONFIRMED_PRODUCTIVE_GRANTS: Readonly<Record<Role, readonly Permission[]>>
 
 /** Catalog capabilities that must remain DENY for all roles until Phase 3+ confirms grants. */
 const CATALOG_DENY_UNTIL_CONFIRMED: readonly Permission[] = [
-  'employees:create',
-  'employees:update',
-  'assignments:read',
-  'assignments:create',
-  'assignments:update',
-  'attendance:read',
-  'attendance:update',
-  'attendance:export',
   'clients:read',
   'clients:create',
   'client_addresses:read',
@@ -178,7 +183,7 @@ describe('business RBAC catalog (Phase 2C corrections)', () => {
     { role: 'compras', permission: 'purchase_orders:read', expected: false },
     { role: 'supervisor', permission: 'purchase_requests:read', expected: false },
     { role: 'supervisor', permission: 'audits:read', expected: false },
-    { role: 'gerente', permission: 'employees:create', expected: false },
+    { role: 'gerente', permission: 'employees:create', expected: true },
     { role: 'admin', permission: 'clients:read', expected: false },
   ]
 
@@ -198,7 +203,7 @@ describe('business RBAC catalog (Phase 2C corrections)', () => {
     }
   })
 
-  it('catalog-only business permissions → DENY for every role', () => {
+  it('still-unconfirmed catalog-only business permissions → DENY for every role', () => {
     for (const permission of CATALOG_DENY_UNTIL_CONFIRMED) {
       for (const role of ROLES) {
         expect(authorize({ role }, permission)).toBe(false)

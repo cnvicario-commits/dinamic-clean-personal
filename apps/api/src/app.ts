@@ -17,10 +17,19 @@ import { authenticateRequest } from './http/plugins/auth.js'
 import { healthRoutes } from './http/routes/health.js'
 import { meRoutes } from './http/routes/v1/me.js'
 import { employeesRoutes } from './http/routes/v1/employees.js'
+import { assignmentsRoutes } from './http/routes/v1/assignments.js'
+import { hrCatalogsRoutes } from './http/routes/v1/hr-catalogs.js'
 import { usersRoutes } from './http/routes/v1/users.js'
 import { AppError, rateLimitExceeded } from './http/errors/app-error.js'
 import { buildProblemBody, isProblemBody, sendProblem, toAppError } from './http/errors/problem-details.js'
 import { openApiDocument } from './http/openapi.js'
+import { createEmployeesRepository, type EmployeesRepository } from './infrastructure/db/employees-repository.js'
+import { createAssignmentsRepository, type AssignmentsRepository } from './infrastructure/db/assignments-repository.js'
+import { createHrCatalogsRepository } from './infrastructure/db/hr-catalogs-repository.js'
+import { createAttendanceRepository } from './infrastructure/db/attendance-repository.js'
+import { createAttendanceService } from './application/attendance/attendance-service.js'
+import { createHrReportsRepository } from './infrastructure/db/hr-reports-repository.js'
+import { createHrReportsService } from './application/hr-reports/hr-reports-service.js'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -28,6 +37,13 @@ declare module 'fastify' {
     jwtVerifier: JwtVerifier
     identityAdmin: IdentityAdmin
     profilesRepo: ProfilesRepository
+    employeesRepo: EmployeesRepository
+    assignmentsRepo: AssignmentsRepository
+    hrCatalogsRepo: ReturnType<typeof createHrCatalogsRepository>
+    attendanceRepo: ReturnType<typeof createAttendanceRepository>
+    attendanceService: ReturnType<typeof createAttendanceService>
+    hrReportsRepo: ReturnType<typeof createHrReportsRepository>
+    hrReportsService: ReturnType<typeof createHrReportsService>
     /**
      * True when IdentityAdmin is wired (Auth Admin key or test inject).
      * ProfilesRepository always uses the DB pool (Phase 2D).
@@ -137,6 +153,13 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
 
   app.decorate('identityAdmin', identityAdmin ?? stubIdentityAdmin())
   app.decorate('profilesRepo', profilesRepo ?? stubProfilesRepo())
+  app.decorate('employeesRepo', createEmployeesRepository(db))
+  app.decorate('assignmentsRepo', createAssignmentsRepository(db))
+  app.decorate('hrCatalogsRepo', createHrCatalogsRepository(db))
+  app.decorate('attendanceRepo', createAttendanceRepository(db))
+  app.decorate('attendanceService', createAttendanceService(app.attendanceRepo))
+  app.decorate('hrReportsRepo', createHrReportsRepository(db))
+  app.decorate('hrReportsService', createHrReportsService(app.hrReportsRepo))
   app.decorate('db', db)
   app.decorate('jwtVerifier', jwtVerifier)
   app.decorate('usersModuleReady', usersModuleReady)
@@ -267,6 +290,10 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
   await app.register(healthRoutes)
   await app.register(meRoutes)
   await app.register(employeesRoutes)
+  await app.register(assignmentsRoutes)
+  await app.register(hrCatalogsRoutes)
+  await app.register((await import('./http/routes/v1/attendance.js')).attendanceRoutes)
+  await app.register((await import('./http/routes/v1/hr-reports.js')).hrReportsRoutes)
   await app.register(usersRoutes)
 
   app.get(
