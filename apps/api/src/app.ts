@@ -29,6 +29,7 @@ import { createHrCatalogsRepository } from './infrastructure/db/hr-catalogs-repo
 import { createAttendanceRepository } from './infrastructure/db/attendance-repository.js'
 import { createAttendanceService } from './application/attendance/attendance-service.js'
 import { createHrReportsRepository } from './infrastructure/db/hr-reports-repository.js'
+import { createHrReportsService } from './application/hr-reports/hr-reports-service.js'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -42,6 +43,7 @@ declare module 'fastify' {
     attendanceRepo: ReturnType<typeof createAttendanceRepository>
     attendanceService: ReturnType<typeof createAttendanceService>
     hrReportsRepo: ReturnType<typeof createHrReportsRepository>
+    hrReportsService: ReturnType<typeof createHrReportsService>
     /**
      * True when IdentityAdmin is wired (Auth Admin key or test inject).
      * ProfilesRepository always uses the DB pool (Phase 2D).
@@ -157,6 +159,7 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
   app.decorate('attendanceRepo', createAttendanceRepository(db))
   app.decorate('attendanceService', createAttendanceService(app.attendanceRepo))
   app.decorate('hrReportsRepo', createHrReportsRepository(db))
+  app.decorate('hrReportsService', createHrReportsService(app.hrReportsRepo))
   app.decorate('db', db)
   app.decorate('jwtVerifier', jwtVerifier)
   app.decorate('usersModuleReady', usersModuleReady)
