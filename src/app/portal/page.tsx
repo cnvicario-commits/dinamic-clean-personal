@@ -1,15 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Plus_Jakarta_Sans } from 'next/font/google'
 import { createClient } from '@/utils/supabase/server'
 import LogoutButton from '@/components/LogoutButton'
-
-// Tipografía de marca del portal, acotada a esta página (el resto de la app
-// sigue con Arial/Geist tal cual está en globals.css/layout.tsx).
-const jakarta = Plus_Jakarta_Sans({
-  subsets: ['latin'],
-  weight: ['500', '600', '700', '800'],
-})
 
 const svgProps = {
   viewBox: '0 0 24 24',
@@ -146,7 +138,7 @@ export default async function PortalPage() {
   const email = session.user.email ?? 'usuario'
 
   return (
-    <div className={`${jakarta.className} min-h-screen bg-[#0f172b] flex flex-col`}>
+    <div className="font-sans min-h-screen bg-[#0f172b] flex flex-col">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-5 sm:px-10 pt-7 pb-2">
         <div>
           <p className="text-xl font-extrabold tracking-wide">
