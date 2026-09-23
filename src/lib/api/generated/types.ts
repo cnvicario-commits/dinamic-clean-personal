@@ -237,10 +237,12 @@ export type HrCatalogsResponse = {
 }
 export type HrCatalogInclude = 'employees' | 'clients' | 'employees,clients'
 export type AttendanceQuery = { page?: number; pageSize?: number; empleadoId?: string; desde?: string; hasta?: string }
-export type AttendanceCode = { codigo:string; descripcion:string; codigoBejerman:string|null; cuentaComoAusencia:boolean }
+export type AttendanceCode = { codigo: string; descripcion: string; codigoBejerman: string | null; cuentaComoAusencia: boolean }
 export type AttendanceItem = { id:string; empleadoId:string; fecha:string; codigo:string; horasExtras:number; cargadoPor:string|null; createdAt:string; observaciones:string|null; archivoUrl:string|null; clienteDestinoId:string|null; clienteHorasExtraId:string|null; empleadoNombre:string|null }
-export type AttendanceResponse = { items:AttendanceItem[]; page:number; pageSize:number; total:number }
+export type AttendanceResponse = { items: AttendanceItem[]; page:number; pageSize:number; total:number }
 export type AttendanceUpsert = { empleadoId:string; fecha:string; codigo:string; horasExtras?:number; observaciones?:string|null; archivoUrl?:string|null; clienteDestinoId?:string|null; clienteHorasExtraId?:string|null }
+export type BejermanReportData = { employees: {id:string;nombre_apellido:string;legajo:string|null;empresa:string|null}[]; assignments:{empleado_id:string;cliente_id:string}[]; clients:{id:string;nombre:string;codigo_costos:string|null}[]; attendance:{empleado_id:string;fecha:string;codigo:string}[] }
+export type OvertimeReportData = { attendance:{empleado_id:string;horas_extras:number;cliente_destino_id:string|null;cliente_horas_extra_id:string|null;nombre_apellido:string}[]; assignments:{empleado_id:string;cliente_id:string}[]; clients:{id:string;nombre:string}[] }
 
 /** RFC 7807-ish problem body returned by the API when available */
 export type ProblemDetails = {

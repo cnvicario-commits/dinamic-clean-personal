@@ -208,6 +208,13 @@ export type HrCatalogsResponse = {
   clients: { id: string; nombre: string }[]
 }
 export type HrCatalogInclude = 'employees' | 'clients' | 'employees,clients'
+export type AttendanceQuery = { page?: number; pageSize?: number; empleadoId?: string; desde?: string; hasta?: string }
+export type AttendanceCode = { codigo: string; descripcion: string; codigoBejerman: string | null; cuentaComoAusencia: boolean }
+export type AttendanceItem = { id:string; empleadoId:string; fecha:string; codigo:string; horasExtras:number; cargadoPor:string|null; createdAt:string; observaciones:string|null; archivoUrl:string|null; clienteDestinoId:string|null; clienteHorasExtraId:string|null; empleadoNombre:string|null }
+export type AttendanceResponse = { items: AttendanceItem[]; page:number; pageSize:number; total:number }
+export type AttendanceUpsert = { empleadoId:string; fecha:string; codigo:string; horasExtras?:number; observaciones?:string|null; archivoUrl?:string|null; clienteDestinoId?:string|null; clienteHorasExtraId?:string|null }
+export type BejermanReportData = { employees: {id:string;nombre_apellido:string;legajo:string|null;empresa:string|null}[]; assignments:{empleado_id:string;cliente_id:string}[]; clients:{id:string;nombre:string;codigo_costos:string|null}[]; attendance:{empleado_id:string;fecha:string;codigo:string}[] }
+export type OvertimeReportData = { attendance:{empleado_id:string;horas_extras:number;cliente_destino_id:string|null;cliente_horas_extra_id:string|null;nombre_apellido:string}[]; assignments:{empleado_id:string;cliente_id:string}[]; clients:{id:string;nombre:string}[] }
 
 /** RFC 7807-ish problem body returned by the API when available */
 export type ProblemDetails = {
@@ -237,6 +244,13 @@ import type {
   AssignmentsResponse,
   HrCatalogsResponse,
   HrCatalogInclude,
+  AttendanceQuery,
+  AttendanceCode,
+  AttendanceItem,
+  AttendanceResponse,
+  AttendanceUpsert,
+  BejermanReportData,
+  OvertimeReportData,
   MeResponse,
   ProblemDetails,
   ProfileResponse,
@@ -297,6 +311,11 @@ export type DinamicApiClient = {
   createAssignment: (body: CreateAssignmentBody) => Promise<AssignmentListItem>
   closeAssignment: (id: string) => Promise<AssignmentListItem>
   getHrCatalogs: (include: HrCatalogInclude) => Promise<HrCatalogsResponse>
+  listAttendance: (query?: AttendanceQuery) => Promise<AttendanceResponse>
+  listAttendanceCodes: () => Promise<AttendanceCode[]>
+  upsertAttendance: (body: AttendanceUpsert) => Promise<AttendanceItem>
+  getBejermanReport: (from:string,to:string) => Promise<BejermanReportData>
+  getOvertimeReport: (from:string,to:string) => Promise<OvertimeReportData>
   listUsers: () => Promise<UsersListResponse>
   createUser: (body: CreateUserBody) => Promise<AdminUserResponse>
   changeUserRole: (id: string, body: ChangeUserRoleBody) => Promise<ProfileResponse>
@@ -399,6 +418,19 @@ export function createDinamicApiClient(options: DinamicApiClientOptions): Dinami
     getHrCatalogs(include) {
       return requestJson<HrCatalogsResponse>('/v1/hr/catalogs', { query: { include } })
     },
+    listAttendance(query = {}) {
+      const q: Record<string, string> = {}
+      if (query.page !== undefined) q.page = String(query.page)
+      if (query.pageSize !== undefined) q.pageSize = String(query.pageSize)
+      if (query.empleadoId !== undefined) q.empleadoId = query.empleadoId
+      if (query.desde !== undefined) q.desde = query.desde
+      if (query.hasta !== undefined) q.hasta = query.hasta
+      return requestJson<AttendanceResponse>('/v1/attendance', { query: q })
+    },
+    listAttendanceCodes() { return requestJson<AttendanceCode[]>('/v1/attendance/codes') },
+    upsertAttendance(body) { return requestJson<AttendanceItem>('/v1/attendance', { method: 'PUT', body: JSON.stringify(body) }) },
+    getBejermanReport(from,to) { return requestJson<BejermanReportData>('/v1/hr/reports/bejerman',{query:{from,to}}) },
+    getOvertimeReport(from,to) { return requestJson<OvertimeReportData>('/v1/hr/reports/overtime',{query:{from,to}}) },
     listUsers() {
       return requestJson<UsersListResponse>('/v1/users')
     },
@@ -461,6 +493,13 @@ export type {
   AssignmentListItem,
   AssignmentsResponse,
   HrCatalogsResponse,
+  AttendanceQuery,
+  AttendanceCode,
+  AttendanceItem,
+  AttendanceResponse,
+  AttendanceUpsert,
+  BejermanReportData,
+  OvertimeReportData,
   ProblemDetails,
 } from './types'
 export {

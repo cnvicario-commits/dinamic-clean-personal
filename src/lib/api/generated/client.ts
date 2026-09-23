@@ -18,7 +18,13 @@ import type {
   AssignmentsResponse,
   HrCatalogsResponse,
   HrCatalogInclude,
-  AttendanceQuery, AttendanceResponse, AttendanceCode, AttendanceUpsert,
+  AttendanceQuery,
+  AttendanceCode,
+  AttendanceItem,
+  AttendanceResponse,
+  AttendanceUpsert,
+  BejermanReportData,
+  OvertimeReportData,
   MeResponse,
   ProblemDetails,
   ProfileResponse,
@@ -81,7 +87,9 @@ export type DinamicApiClient = {
   getHrCatalogs: (include: HrCatalogInclude) => Promise<HrCatalogsResponse>
   listAttendance: (query?: AttendanceQuery) => Promise<AttendanceResponse>
   listAttendanceCodes: () => Promise<AttendanceCode[]>
-  upsertAttendance: (body: AttendanceUpsert) => Promise<import('./types').AttendanceItem>
+  upsertAttendance: (body: AttendanceUpsert) => Promise<AttendanceItem>
+  getBejermanReport: (from:string,to:string) => Promise<BejermanReportData>
+  getOvertimeReport: (from:string,to:string) => Promise<OvertimeReportData>
   listUsers: () => Promise<UsersListResponse>
   createUser: (body: CreateUserBody) => Promise<AdminUserResponse>
   changeUserRole: (id: string, body: ChangeUserRoleBody) => Promise<ProfileResponse>
@@ -185,12 +193,18 @@ export function createDinamicApiClient(options: DinamicApiClientOptions): Dinami
       return requestJson<HrCatalogsResponse>('/v1/hr/catalogs', { query: { include } })
     },
     listAttendance(query = {}) {
-      const q: Record<string,string> = {}
-      for (const key of ['page','pageSize','empleadoId','desde','hasta'] as const) if (query[key] !== undefined) q[key] = String(query[key])
-      return requestJson<AttendanceResponse>('/v1/attendance', { query:q })
+      const q: Record<string, string> = {}
+      if (query.page !== undefined) q.page = String(query.page)
+      if (query.pageSize !== undefined) q.pageSize = String(query.pageSize)
+      if (query.empleadoId !== undefined) q.empleadoId = query.empleadoId
+      if (query.desde !== undefined) q.desde = query.desde
+      if (query.hasta !== undefined) q.hasta = query.hasta
+      return requestJson<AttendanceResponse>('/v1/attendance', { query: q })
     },
     listAttendanceCodes() { return requestJson<AttendanceCode[]>('/v1/attendance/codes') },
-    upsertAttendance(body) { return requestJson<import('./types').AttendanceItem>('/v1/attendance', { method:'PUT', body:JSON.stringify(body) }) },
+    upsertAttendance(body) { return requestJson<AttendanceItem>('/v1/attendance', { method: 'PUT', body: JSON.stringify(body) }) },
+    getBejermanReport(from,to) { return requestJson<BejermanReportData>('/v1/hr/reports/bejerman',{query:{from,to}}) },
+    getOvertimeReport(from,to) { return requestJson<OvertimeReportData>('/v1/hr/reports/overtime',{query:{from,to}}) },
     listUsers() {
       return requestJson<UsersListResponse>('/v1/users')
     },

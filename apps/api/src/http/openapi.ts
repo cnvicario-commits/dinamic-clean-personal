@@ -208,6 +208,8 @@ export const openApiDocument = {
       put: { summary:'Create or update attendance', security: bearer, requestBody:{required:true,content:{'application/json':{schema:{type:'object',required:['empleadoId','fecha','codigo']}}}}, responses:{'200':{description:'Attendance'},'400':{description:'Invalid body/code'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'}} },
     },
     '/v1/attendance/codes': { get:{summary:'List attendance codes',security:bearer,responses:{'200':{description:'Codes'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'}}} },
+    '/v1/hr/reports/bejerman': { get:{summary:'Bejerman report dataset',security:bearer,parameters:[{name:'from',in:'query',required:true,schema:{type:'string',format:'date'}},{name:'to',in:'query',required:true,schema:{type:'string',format:'date'}}],responses:{'200':{description:'Report dataset'},'400':{description:'Invalid range'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'}}} },
+    '/v1/hr/reports/overtime': { get:{summary:'Overtime report dataset',security:bearer,parameters:[{name:'from',in:'query',required:true,schema:{type:'string',format:'date'}},{name:'to',in:'query',required:true,schema:{type:'string',format:'date'}}],responses:{'200':{description:'Report dataset'},'400':{description:'Invalid range'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'}}} },
     '/v1/users': {
       get: {
         summary: 'List profiles (admin)',
