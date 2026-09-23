@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import * as XLSX from 'xlsx'
-import { createClient } from '@/utils/supabase/client'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 
 const DIAS_SEMANA = ['D', 'L', 'M', 'M', 'J', 'V', 'S']
 
@@ -34,7 +34,6 @@ export default function ReporteBejerman() {
   const [mes, setMes] = useState(mesDefault)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const supabase = createClient()
 
   const handleGenerar = async () => {
     setError('')
@@ -46,25 +45,8 @@ export default function ReporteBejerman() {
       const desdeStr = formatoFecha(desde)
       const hastaStr = formatoFecha(hasta)
 
-      const { data: empleados } = await supabase
-        .from('empleados')
-        .select('id, nombre_apellido, legajo, empresa')
-        .order('nombre_apellido')
-
-      const { data: asignaciones } = await supabase
-        .from('asignaciones')
-        .select('empleado_id, cliente_id')
-        .is('fecha_hasta', null)
-
-      const { data: clientes } = await supabase
-        .from('clientes')
-        .select('id, nombre, codigo_costos')
-
-      const { data: asistencias } = await supabase
-        .from('asistencias')
-        .select('empleado_id, fecha, codigo')
-        .gte('fecha', desdeStr)
-        .lte('fecha', hastaStr)
+      const api = await createAuthenticatedBrowserApiClient()
+      const { employees: empleados, assignments: asignaciones, clients: clientes, attendance: asistencias } = await api.getBejermanReport(desdeStr, hastaStr)
 
       if (!empleados || empleados.length === 0) {
         setError('No hay empleados cargados.')
@@ -80,9 +62,9 @@ export default function ReporteBejerman() {
         cursor.setDate(cursor.getDate() + 1)
       }
 
-      const clientesPorId = new Map((clientes || []).map((c) => [c.id, c]))
+      const clientesPorId = new Map(clientes.map((c) => [c.id, c]))
       const clientesPorEmpleado = new Map<string, string[]>()
-      ;(asignaciones || []).forEach((a) => {
+      ;asignaciones.forEach((a) => {
         const lista = clientesPorEmpleado.get(a.empleado_id) || []
         lista.push(a.cliente_id)
         clientesPorEmpleado.set(a.empleado_id, lista)
@@ -100,7 +82,7 @@ export default function ReporteBejerman() {
       ]
 
       const filasDatos = empleados.map((emp) => {
-        const asistenciasEmp = (asistencias || []).filter((a) => a.empleado_id === emp.id)
+        const asistenciasEmp = asistencias.filter((a) => a.empleado_id === emp.id)
         const codigoPorFecha = new Map(asistenciasEmp.map((a) => [a.fecha, a.codigo]))
 
         const clientesEmp = (clientesPorEmpleado.get(emp.id) || [])

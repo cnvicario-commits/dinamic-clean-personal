@@ -15,6 +15,8 @@ describe('openapi contract (Phase 1)', () => {
         '/v1/employees',
         '/v1/employees/{id}/status',
         '/v1/hr/catalogs',
+        '/v1/hr/reports/bejerman',
+        '/v1/hr/reports/overtime',
         '/v1/me',
         '/v1/users',
         '/v1/users/{id}',
