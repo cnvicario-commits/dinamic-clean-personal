@@ -1,7 +1,8 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
+import { ApiClientError } from '@/lib/api/generated'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 export default function EmpleadoForm() {
   const [nombreApellido, setNombreApellido] = useState('')
   const [cuil, setCuil] = useState('')
@@ -12,24 +13,23 @@ export default function EmpleadoForm() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setLoading(true)
-    const { error } = await supabase.from('empleados').insert({
-      nombre_apellido: nombreApellido,
-      cuil: cuil,
-      legajo: legajo,
-      fecha_ingreso: fechaIngreso || null,
-      horas_contrato: parseInt(horasContrato),
-      empresa: empresa,
-    })
-    setLoading(false)
-    if (error) {
-      setError('Error al guardar: ' + error.message)
+    try {
+      const api = await createAuthenticatedBrowserApiClient()
+      await api.createEmployee({
+        nombreApellido: nombreApellido.trim(), cuil: cuil.trim(), legajo: legajo.trim() || null,
+        fechaIngreso: fechaIngreso || null, horasContrato: Number(horasContrato) as 4 | 8,
+        empresa: empresa as 'DINAMIC' | 'MORAL',
+      })
+    } catch (error) {
+      setError(error instanceof ApiClientError ? error.message : 'No se pudo guardar el empleado.')
+      setLoading(false)
       return
     }
+    setLoading(false)
     setNombreApellido('')
     setCuil('')
     setLegajo('')
@@ -47,9 +47,7 @@ export default function EmpleadoForm() {
       <input type="date" value={fechaIngreso} onChange={(e) => setFechaIngreso(e.target.value)} className={`w-44 ${inputStyle}`} />
       <select value={horasContrato} onChange={(e) => setHorasContrato(e.target.value)} className={`w-28 ${inputStyle}`}>
         <option value="4">4 hs</option>
-        <option value="6">6 hs</option>
         <option value="8">8 hs</option>
-        <option value="1">4+4 hs</option>
       </select>
       <select value={empresa} onChange={(e) => setEmpresa(e.target.value)} className={`w-32 ${inputStyle}`}>
         <option value="DINAMIC">Dinamic</option>

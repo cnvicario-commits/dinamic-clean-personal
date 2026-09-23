@@ -43,6 +43,9 @@ GRANT SELECT ON TABLE public.empleados TO dinamic_api;
 GRANT SELECT ON TABLE public.asignaciones TO dinamic_api;
 GRANT SELECT ON TABLE public.clientes TO dinamic_api;
 
+-- Phase 3A write grants are intentionally not bootstrapped here. They are
+-- applied only by migrations/forward/0002_phase3a_core_hr.sql together with RLS.
+
 -- Ensure no intermediate write grants without 2D policies
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
   ON TABLE public.perfiles FROM dinamic_api;

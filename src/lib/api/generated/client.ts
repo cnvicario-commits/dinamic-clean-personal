@@ -7,8 +7,17 @@ import type {
   AdminUserResponse,
   ChangeUserRoleBody,
   CreateUserBody,
+  CreateEmployeeBody,
+  UpdateEmployeeStatusBody,
+  EmployeeMutationResponse,
   EmployeesResponse,
   ListEmployeesQuery,
+  ListAssignmentsQuery,
+  CreateAssignmentBody,
+  AssignmentListItem,
+  AssignmentsResponse,
+  HrCatalogsResponse,
+  HrCatalogInclude,
   MeResponse,
   ProblemDetails,
   ProfileResponse,
@@ -63,6 +72,12 @@ export type DinamicApiClient = {
   getMe: () => Promise<MeResponse>
   updateMe: (body: UpdateOwnProfileBody) => Promise<ProfileResponse>
   listEmployees: (query?: ListEmployeesQuery) => Promise<EmployeesResponse>
+  createEmployee: (body: CreateEmployeeBody) => Promise<EmployeeMutationResponse>
+  updateEmployeeStatus: (id: string, body: UpdateEmployeeStatusBody) => Promise<EmployeeMutationResponse>
+  listAssignments: (query?: ListAssignmentsQuery) => Promise<AssignmentsResponse>
+  createAssignment: (body: CreateAssignmentBody) => Promise<AssignmentListItem>
+  closeAssignment: (id: string) => Promise<AssignmentListItem>
+  getHrCatalogs: (include: HrCatalogInclude) => Promise<HrCatalogsResponse>
   listUsers: () => Promise<UsersListResponse>
   createUser: (body: CreateUserBody) => Promise<AdminUserResponse>
   changeUserRole: (id: string, body: ChangeUserRoleBody) => Promise<ProfileResponse>
@@ -72,7 +87,7 @@ export type DinamicApiClient = {
 }
 
 /**
- * Typed client for Phase 1–2B endpoints.
+ * Typed client for the versioned Dinamic Clean API.
  * Throws ApiClientError with status + requestId (header or problem body) on non-2xx.
  */
 export function createDinamicApiClient(options: DinamicApiClientOptions): DinamicApiClient {
@@ -139,7 +154,31 @@ export function createDinamicApiClient(options: DinamicApiClientOptions): Dinami
       if (query.page !== undefined) q.page = String(query.page)
       if (query.pageSize !== undefined) q.pageSize = String(query.pageSize)
       if (query.activo !== undefined) q.activo = query.activo ? 'true' : 'false'
+      if (query.search !== undefined) q.search = query.search
+      if (query.clienteId !== undefined) q.clienteId = query.clienteId
       return requestJson<EmployeesResponse>('/v1/employees', { query: q })
+    },
+    createEmployee(body) {
+      return requestJson<EmployeeMutationResponse>('/v1/employees', { method: 'POST', body: JSON.stringify(body) })
+    },
+    updateEmployeeStatus(id, body) {
+      return requestJson<EmployeeMutationResponse>(`/v1/employees/${id}/status`, { method: 'PATCH', body: JSON.stringify(body) })
+    },
+    listAssignments(query = {}) {
+      const q: Record<string, string> = {}
+      if (query.page !== undefined) q.page = String(query.page)
+      if (query.pageSize !== undefined) q.pageSize = String(query.pageSize)
+      if (query.active !== undefined) q.active = query.active ? 'true' : 'false'
+      return requestJson<AssignmentsResponse>('/v1/assignments', { query: q })
+    },
+    createAssignment(body) {
+      return requestJson<AssignmentListItem>('/v1/assignments', { method: 'POST', body: JSON.stringify(body) })
+    },
+    closeAssignment(id) {
+      return requestJson<AssignmentListItem>(`/v1/assignments/${id}/close`, { method: 'PATCH' })
+    },
+    getHrCatalogs(include) {
+      return requestJson<HrCatalogsResponse>('/v1/hr/catalogs', { query: { include } })
     },
     listUsers() {
       return requestJson<UsersListResponse>('/v1/users')

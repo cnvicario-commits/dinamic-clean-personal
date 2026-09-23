@@ -185,7 +185,20 @@ export type ListEmployeesQuery = {
   page?: number
   pageSize?: number
   activo?: boolean
+  search?: string
+  clienteId?: string
 }
+
+export type CreateEmployeeBody = {
+  nombreApellido: string
+  cuil: string
+  legajo?: string | null
+  fechaIngreso?: string | null
+  horasContrato: 4 | 8
+  empresa: 'DINAMIC' | 'MORAL'
+}
+
+export type UpdateEmployeeStatusBody = { activo: boolean }
 
 export type EmployeeAssignment = {
   fecha_desde: string
@@ -209,6 +222,20 @@ export type EmployeesResponse = {
   pageSize: number
   total: number
 }
+
+export type EmployeeMutationResponse = Omit<EmployeeListItem, 'asignaciones'>
+export type ListAssignmentsQuery = { page?: number; pageSize?: number; active?: boolean }
+export type CreateAssignmentBody = { empleadoId: string; clienteId: string; fechaDesde: string }
+export type AssignmentListItem = {
+  id: string; empleado_id: string; empleado_nombre: string; cliente_id: string
+  cliente_nombre: string; fecha_desde: string; fecha_hasta: string | null
+}
+export type AssignmentsResponse = { items: AssignmentListItem[]; page: number; pageSize: number; total: number }
+export type HrCatalogsResponse = {
+  employees: { id: string; nombre_apellido: string }[]
+  clients: { id: string; nombre: string }[]
+}
+export type HrCatalogInclude = 'employees' | 'clients' | 'employees,clients'
 
 /** RFC 7807-ish problem body returned by the API when available */
 export type ProblemDetails = {

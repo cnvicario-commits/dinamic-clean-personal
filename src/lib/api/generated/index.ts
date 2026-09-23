@@ -15,9 +15,17 @@ export type {
   SetUserPasswordBody,
   UpdateOwnProfileBody,
   ListEmployeesQuery,
+  CreateEmployeeBody,
+  UpdateEmployeeStatusBody,
+  EmployeeMutationResponse,
   EmployeeAssignment,
   EmployeeListItem,
   EmployeesResponse,
+  ListAssignmentsQuery,
+  CreateAssignmentBody,
+  AssignmentListItem,
+  AssignmentsResponse,
+  HrCatalogsResponse,
   ProblemDetails,
 } from './types'
 export {
