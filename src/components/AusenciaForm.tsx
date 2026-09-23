@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 
 type Empleado = { id: string; nombre_apellido: string }
 type Cliente = { id: string; nombre: string }
@@ -143,21 +144,14 @@ export default function AusenciaForm({
         .createSignedUrl(nombreArchivo, 60 * 60 * 24 * 365)
       archivoUrl = signedData?.signedUrl || null
     }
-    const { data: userData } = await supabase.auth.getUser()
-    const { error: insertError } = await supabase.from('asistencias').upsert(
-      {
-        empleado_id: empleadoId,
-        fecha: fecha,
-        codigo: codigo,
-        horas_extras: parseFloat(horasExtras) || 0,
-        observaciones: observaciones,
-        archivo_url: archivoUrl,
-        cargado_por: userData.user?.id,
-        cliente_destino_id: trabajoElDia ? (clienteDestinoId || null) : null,
-        cliente_horas_extra_id: tieneHorasExtra ? (clienteHorasExtraId || null) : null,
-      },
-      { onConflict: 'empleado_id,fecha' }
-    )
+    const { error: insertError } = await (async () => { try {
+      const api = await createAuthenticatedBrowserApiClient()
+      await api.upsertAttendance({
+        empleadoId, fecha, codigo, horasExtras: parseFloat(horasExtras) || 0,
+        observaciones, archivoUrl, clienteDestinoId: trabajoElDia ? (clienteDestinoId || null) : null,
+        clienteHorasExtraId: tieneHorasExtra ? (clienteHorasExtraId || null) : null,
+      }); return { error:null as {message:string}|null }
+    } catch (e) { return { error: { message: e instanceof Error ? e.message : 'Error al guardar' } } } })()
     setLoading(false)
     if (insertError) {
       setError('Error al guardar: ' + insertError.message)

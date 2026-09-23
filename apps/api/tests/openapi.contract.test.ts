@@ -10,6 +10,8 @@ describe('openapi contract (Phase 1)', () => {
         '/readyz',
         '/v1/assignments',
         '/v1/assignments/{id}/close',
+        '/v1/attendance',
+        '/v1/attendance/codes',
         '/v1/employees',
         '/v1/employees/{id}/status',
         '/v1/hr/catalogs',

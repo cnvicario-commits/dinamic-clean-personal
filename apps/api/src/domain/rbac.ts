@@ -93,6 +93,7 @@ const ROLE_PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = Object.f
     'assignments:read',
     'assignments:create',
     'assignments:update',
+    'attendance:read','attendance:update',
   ] as const satisfies readonly Permission[]),
   gerente: Object.freeze([
     ...SELF_PROFILE,
@@ -102,6 +103,7 @@ const ROLE_PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = Object.f
     'assignments:read',
     'assignments:create',
     'assignments:update',
+    'attendance:read','attendance:update',
   ] as const satisfies readonly Permission[]),
   compras: Object.freeze([...SELF_PROFILE] as const satisfies readonly Permission[]),
   supervisor: Object.freeze([...SELF_PROFILE] as const satisfies readonly Permission[]),
