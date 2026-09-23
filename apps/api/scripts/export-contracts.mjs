@@ -157,7 +157,20 @@ export type ListEmployeesQuery = {
   page?: number
   pageSize?: number
   activo?: boolean
+  search?: string
+  clienteId?: string
 }
+
+export type CreateEmployeeBody = {
+  nombreApellido: string
+  cuil: string
+  legajo?: string | null
+  fechaIngreso?: string | null
+  horasContrato: 4 | 8
+  empresa: 'DINAMIC' | 'MORAL'
+}
+
+export type UpdateEmployeeStatusBody = { activo: boolean }
 
 export type EmployeeAssignment = {
   fecha_desde: string
@@ -182,6 +195,20 @@ export type EmployeesResponse = {
   total: number
 }
 
+export type EmployeeMutationResponse = Omit<EmployeeListItem, 'asignaciones'>
+export type ListAssignmentsQuery = { page?: number; pageSize?: number; active?: boolean }
+export type CreateAssignmentBody = { empleadoId: string; clienteId: string; fechaDesde: string }
+export type AssignmentListItem = {
+  id: string; empleado_id: string; empleado_nombre: string; cliente_id: string
+  cliente_nombre: string; fecha_desde: string; fecha_hasta: string | null
+}
+export type AssignmentsResponse = { items: AssignmentListItem[]; page: number; pageSize: number; total: number }
+export type HrCatalogsResponse = {
+  employees: { id: string; nombre_apellido: string }[]
+  clients: { id: string; nombre: string }[]
+}
+export type HrCatalogInclude = 'employees' | 'clients' | 'employees,clients'
+
 /** RFC 7807-ish problem body returned by the API when available */
 export type ProblemDetails = {
   type?: string
@@ -199,8 +226,17 @@ import type {
   AdminUserResponse,
   ChangeUserRoleBody,
   CreateUserBody,
+  CreateEmployeeBody,
+  UpdateEmployeeStatusBody,
+  EmployeeMutationResponse,
   EmployeesResponse,
   ListEmployeesQuery,
+  ListAssignmentsQuery,
+  CreateAssignmentBody,
+  AssignmentListItem,
+  AssignmentsResponse,
+  HrCatalogsResponse,
+  HrCatalogInclude,
   MeResponse,
   ProblemDetails,
   ProfileResponse,
@@ -255,6 +291,12 @@ export type DinamicApiClient = {
   getMe: () => Promise<MeResponse>
   updateMe: (body: UpdateOwnProfileBody) => Promise<ProfileResponse>
   listEmployees: (query?: ListEmployeesQuery) => Promise<EmployeesResponse>
+  createEmployee: (body: CreateEmployeeBody) => Promise<EmployeeMutationResponse>
+  updateEmployeeStatus: (id: string, body: UpdateEmployeeStatusBody) => Promise<EmployeeMutationResponse>
+  listAssignments: (query?: ListAssignmentsQuery) => Promise<AssignmentsResponse>
+  createAssignment: (body: CreateAssignmentBody) => Promise<AssignmentListItem>
+  closeAssignment: (id: string) => Promise<AssignmentListItem>
+  getHrCatalogs: (include: HrCatalogInclude) => Promise<HrCatalogsResponse>
   listUsers: () => Promise<UsersListResponse>
   createUser: (body: CreateUserBody) => Promise<AdminUserResponse>
   changeUserRole: (id: string, body: ChangeUserRoleBody) => Promise<ProfileResponse>
@@ -264,7 +306,7 @@ export type DinamicApiClient = {
 }
 
 /**
- * Typed client for Phase 1–2B endpoints.
+ * Typed client for the versioned Dinamic Clean API.
  * Throws ApiClientError with status + requestId (header or problem body) on non-2xx.
  */
 export function createDinamicApiClient(options: DinamicApiClientOptions): DinamicApiClient {
@@ -331,7 +373,31 @@ export function createDinamicApiClient(options: DinamicApiClientOptions): Dinami
       if (query.page !== undefined) q.page = String(query.page)
       if (query.pageSize !== undefined) q.pageSize = String(query.pageSize)
       if (query.activo !== undefined) q.activo = query.activo ? 'true' : 'false'
+      if (query.search !== undefined) q.search = query.search
+      if (query.clienteId !== undefined) q.clienteId = query.clienteId
       return requestJson<EmployeesResponse>('/v1/employees', { query: q })
+    },
+    createEmployee(body) {
+      return requestJson<EmployeeMutationResponse>('/v1/employees', { method: 'POST', body: JSON.stringify(body) })
+    },
+    updateEmployeeStatus(id, body) {
+      return requestJson<EmployeeMutationResponse>(\`/v1/employees/\${id}/status\`, { method: 'PATCH', body: JSON.stringify(body) })
+    },
+    listAssignments(query = {}) {
+      const q: Record<string, string> = {}
+      if (query.page !== undefined) q.page = String(query.page)
+      if (query.pageSize !== undefined) q.pageSize = String(query.pageSize)
+      if (query.active !== undefined) q.active = query.active ? 'true' : 'false'
+      return requestJson<AssignmentsResponse>('/v1/assignments', { query: q })
+    },
+    createAssignment(body) {
+      return requestJson<AssignmentListItem>('/v1/assignments', { method: 'POST', body: JSON.stringify(body) })
+    },
+    closeAssignment(id) {
+      return requestJson<AssignmentListItem>(\`/v1/assignments/\${id}/close\`, { method: 'PATCH' })
+    },
+    getHrCatalogs(include) {
+      return requestJson<HrCatalogsResponse>('/v1/hr/catalogs', { query: { include } })
     },
     listUsers() {
       return requestJson<UsersListResponse>('/v1/users')
@@ -384,9 +450,17 @@ export type {
   SetUserPasswordBody,
   UpdateOwnProfileBody,
   ListEmployeesQuery,
+  CreateEmployeeBody,
+  UpdateEmployeeStatusBody,
+  EmployeeMutationResponse,
   EmployeeAssignment,
   EmployeeListItem,
   EmployeesResponse,
+  ListAssignmentsQuery,
+  CreateAssignmentBody,
+  AssignmentListItem,
+  AssignmentsResponse,
+  HrCatalogsResponse,
   ProblemDetails,
 } from './types'
 export {
