@@ -203,6 +203,11 @@ export const openApiDocument = {
         },
       },
     },
+    '/v1/attendance': {
+      get: { summary:'List attendance', security: bearer, parameters:[{name:'page',in:'query',schema:{type:'integer',minimum:1}},{name:'pageSize',in:'query',schema:{type:'integer',minimum:1,maximum:100}},{name:'empleadoId',in:'query',schema:{type:'string',format:'uuid'}},{name:'desde',in:'query',schema:{type:'string',format:'date'}},{name:'hasta',in:'query',schema:{type:'string',format:'date'}}], responses:{'200':{description:'Attendance page'},'400':{description:'Invalid query'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'}} },
+      put: { summary:'Create or update attendance', security: bearer, requestBody:{required:true,content:{'application/json':{schema:{type:'object',required:['empleadoId','fecha','codigo']}}}}, responses:{'200':{description:'Attendance'},'400':{description:'Invalid body/code'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'}} },
+    },
+    '/v1/attendance/codes': { get:{summary:'List attendance codes',security:bearer,responses:{'200':{description:'Codes'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'}}} },
     '/v1/users': {
       get: {
         summary: 'List profiles (admin)',

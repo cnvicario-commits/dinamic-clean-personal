@@ -26,6 +26,8 @@ import { openApiDocument } from './http/openapi.js'
 import { createEmployeesRepository, type EmployeesRepository } from './infrastructure/db/employees-repository.js'
 import { createAssignmentsRepository, type AssignmentsRepository } from './infrastructure/db/assignments-repository.js'
 import { createHrCatalogsRepository } from './infrastructure/db/hr-catalogs-repository.js'
+import { createAttendanceRepository } from './infrastructure/db/attendance-repository.js'
+import { createAttendanceService } from './application/attendance/attendance-service.js'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -36,6 +38,8 @@ declare module 'fastify' {
     employeesRepo: EmployeesRepository
     assignmentsRepo: AssignmentsRepository
     hrCatalogsRepo: ReturnType<typeof createHrCatalogsRepository>
+    attendanceRepo: ReturnType<typeof createAttendanceRepository>
+    attendanceService: ReturnType<typeof createAttendanceService>
     /**
      * True when IdentityAdmin is wired (Auth Admin key or test inject).
      * ProfilesRepository always uses the DB pool (Phase 2D).
@@ -148,6 +152,8 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
   app.decorate('employeesRepo', createEmployeesRepository(db))
   app.decorate('assignmentsRepo', createAssignmentsRepository(db))
   app.decorate('hrCatalogsRepo', createHrCatalogsRepository(db))
+  app.decorate('attendanceRepo', createAttendanceRepository(db))
+  app.decorate('attendanceService', createAttendanceService(app.attendanceRepo))
   app.decorate('db', db)
   app.decorate('jwtVerifier', jwtVerifier)
   app.decorate('usersModuleReady', usersModuleReady)
@@ -280,6 +286,7 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
   await app.register(employeesRoutes)
   await app.register(assignmentsRoutes)
   await app.register(hrCatalogsRoutes)
+  await app.register((await import('./http/routes/v1/attendance.js')).attendanceRoutes)
   await app.register(usersRoutes)
 
   app.get(

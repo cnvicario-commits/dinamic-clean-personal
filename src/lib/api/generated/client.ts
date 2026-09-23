@@ -18,6 +18,7 @@ import type {
   AssignmentsResponse,
   HrCatalogsResponse,
   HrCatalogInclude,
+  AttendanceQuery, AttendanceResponse, AttendanceCode, AttendanceUpsert,
   MeResponse,
   ProblemDetails,
   ProfileResponse,
@@ -78,6 +79,9 @@ export type DinamicApiClient = {
   createAssignment: (body: CreateAssignmentBody) => Promise<AssignmentListItem>
   closeAssignment: (id: string) => Promise<AssignmentListItem>
   getHrCatalogs: (include: HrCatalogInclude) => Promise<HrCatalogsResponse>
+  listAttendance: (query?: AttendanceQuery) => Promise<AttendanceResponse>
+  listAttendanceCodes: () => Promise<AttendanceCode[]>
+  upsertAttendance: (body: AttendanceUpsert) => Promise<import('./types').AttendanceItem>
   listUsers: () => Promise<UsersListResponse>
   createUser: (body: CreateUserBody) => Promise<AdminUserResponse>
   changeUserRole: (id: string, body: ChangeUserRoleBody) => Promise<ProfileResponse>
@@ -180,6 +184,13 @@ export function createDinamicApiClient(options: DinamicApiClientOptions): Dinami
     getHrCatalogs(include) {
       return requestJson<HrCatalogsResponse>('/v1/hr/catalogs', { query: { include } })
     },
+    listAttendance(query = {}) {
+      const q: Record<string,string> = {}
+      for (const key of ['page','pageSize','empleadoId','desde','hasta'] as const) if (query[key] !== undefined) q[key] = String(query[key])
+      return requestJson<AttendanceResponse>('/v1/attendance', { query:q })
+    },
+    listAttendanceCodes() { return requestJson<AttendanceCode[]>('/v1/attendance/codes') },
+    upsertAttendance(body) { return requestJson<import('./types').AttendanceItem>('/v1/attendance', { method:'PUT', body:JSON.stringify(body) }) },
     listUsers() {
       return requestJson<UsersListResponse>('/v1/users')
     },

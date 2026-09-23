@@ -31,11 +31,13 @@ const CONFIRMED_PRODUCTIVE_GRANTS: Readonly<Record<Role, readonly Permission[]>>
     'assignments:read',
     'assignments:create',
     'assignments:update',
+    'attendance:read', 'attendance:update',
   ],
   gerente: [
     'profile:read_self', 'profile:update_self', 'employees:read',
     'employees:create', 'employees:update', 'assignments:read',
     'assignments:create', 'assignments:update',
+    'attendance:read', 'attendance:update',
   ],
   compras: ['profile:read_self', 'profile:update_self'],
   supervisor: ['profile:read_self', 'profile:update_self'],
@@ -44,8 +46,6 @@ const CONFIRMED_PRODUCTIVE_GRANTS: Readonly<Record<Role, readonly Permission[]>>
 
 /** Catalog capabilities that must remain DENY for all roles until Phase 3+ confirms grants. */
 const CATALOG_DENY_UNTIL_CONFIRMED: readonly Permission[] = [
-  'attendance:read',
-  'attendance:update',
   'attendance:export',
   'clients:read',
   'clients:create',

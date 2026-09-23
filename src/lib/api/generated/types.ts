@@ -236,6 +236,11 @@ export type HrCatalogsResponse = {
   clients: { id: string; nombre: string }[]
 }
 export type HrCatalogInclude = 'employees' | 'clients' | 'employees,clients'
+export type AttendanceQuery = { page?: number; pageSize?: number; empleadoId?: string; desde?: string; hasta?: string }
+export type AttendanceCode = { codigo:string; descripcion:string; codigoBejerman:string|null; cuentaComoAusencia:boolean }
+export type AttendanceItem = { id:string; empleadoId:string; fecha:string; codigo:string; horasExtras:number; cargadoPor:string|null; createdAt:string; observaciones:string|null; archivoUrl:string|null; clienteDestinoId:string|null; clienteHorasExtraId:string|null; empleadoNombre:string|null }
+export type AttendanceResponse = { items:AttendanceItem[]; page:number; pageSize:number; total:number }
+export type AttendanceUpsert = { empleadoId:string; fecha:string; codigo:string; horasExtras?:number; observaciones?:string|null; archivoUrl?:string|null; clienteDestinoId?:string|null; clienteHorasExtraId?:string|null }
 
 /** RFC 7807-ish problem body returned by the API when available */
 export type ProblemDetails = {
