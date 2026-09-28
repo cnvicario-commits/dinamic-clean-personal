@@ -192,9 +192,10 @@ export const openApiDocument = {
         responses: { '200': { description: 'Quote list', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/ClientQuote' } } } } }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Client not found' } },
       },
       post: {
-        summary: 'Upload PDF quote through backend-managed private storage', security: bearer, parameters: idParameter,
+        summary: 'Upload PDF quote through backend-managed private storage', security: bearer,
+        parameters: [...idParameter, { name: 'Idempotency-Key', in: 'header', required: true, schema: { type: 'string', minLength: 1, maxLength: 255 } }],
         requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/QuoteUploadBody' } } } },
-        responses: { '201': { description: 'Created', content: { 'application/json': { schema: { $ref: '#/components/schemas/ClientQuote' } } } }, '400': { description: 'Validation or non-PDF' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Client not found' }, '413': { description: 'PDF exceeds 15 MB' }, '502': { description: 'Storage or metadata persistence failure' } },
+        responses: { '200': { description: 'Replay of the resource created by the same Idempotency-Key', content: { 'application/json': { schema: { $ref: '#/components/schemas/ClientQuote' } } } }, '201': { description: 'Created', content: { 'application/json': { schema: { $ref: '#/components/schemas/ClientQuote' } } } }, '400': { description: 'Validation, missing Idempotency-Key or non-PDF' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Client not found' }, '409': { description: 'Idempotency key payload mismatch or upload still processing' }, '413': { description: 'PDF exceeds 15 MB' }, '502': { description: 'Storage or metadata persistence failure' } },
       },
     },
     '/v1/clients/{id}/quotes/{quoteId}/download': {

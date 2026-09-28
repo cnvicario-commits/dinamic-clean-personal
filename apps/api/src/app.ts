@@ -35,6 +35,9 @@ import { clientsRoutes } from './http/routes/v1/clients.js'
 import { createClientQuotesStorage, type ClientQuotesStorage } from './infrastructure/storage/client-quotes-storage.js'
 import { createClientQuotesService } from './application/clients/client-quotes-service.js'
 import { createClientsService } from './application/clients/clients-service.js'
+import { createCatalogRepository, type CatalogRepository } from './infrastructure/db/catalog-repository.js'
+import { createCatalogService } from './application/catalog/catalog-service.js'
+import { catalogRoutes } from './http/routes/v1/catalog.js'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -53,6 +56,8 @@ declare module 'fastify' {
     clientQuotesStorage: ClientQuotesStorage
     clientQuotesService: ReturnType<typeof createClientQuotesService>
     clientsService: ReturnType<typeof createClientsService>
+    catalogRepo: CatalogRepository
+    catalogService: ReturnType<typeof createCatalogService>
     /**
      * True when IdentityAdmin is wired (Auth Admin key or test inject).
      * ProfilesRepository always uses the DB pool (Phase 2D).
@@ -175,6 +180,8 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
   app.decorate('clientQuotesStorage', options.clientQuotesStorage ?? createClientQuotesStorage(env))
   app.decorate('clientQuotesService', createClientQuotesService(app.clientsRepo,app.clientQuotesStorage,(data,message)=>app.log.info(data,message)))
   app.decorate('clientsService',createClientsService(app.clientsRepo,(data,message)=>app.log.info(data,message)))
+  app.decorate('catalogRepo',createCatalogRepository(db))
+  app.decorate('catalogService',createCatalogService(app.catalogRepo,(data,message)=>app.log.info(data,message)))
   app.decorate('db', db)
   app.decorate('jwtVerifier', jwtVerifier)
   app.decorate('usersModuleReady', usersModuleReady)
@@ -308,6 +315,7 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
   await app.register(assignmentsRoutes)
   await app.register(hrCatalogsRoutes)
   await app.register(clientsRoutes)
+  await app.register(catalogRoutes)
   await app.register((await import('./http/routes/v1/attendance.js')).attendanceRoutes)
   await app.register((await import('./http/routes/v1/hr-reports.js')).hrReportsRoutes)
   await app.register(usersRoutes)

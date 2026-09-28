@@ -18,6 +18,7 @@ export const quoteUploadBodySchema = z.object({
   fileName:z.string().trim().min(1).max(255),
   contentBase64:z.string().min(1).max(21_000_000),
 }).strict()
+export const idempotencyKeySchema=z.string().trim().min(1).max(255)
 export type CreateClientBody=z.infer<typeof createClientBodySchema>
 export type UpdateClientBody=z.infer<typeof updateClientBodySchema>
 export type CreateAddressBody=z.infer<typeof createAddressBodySchema>

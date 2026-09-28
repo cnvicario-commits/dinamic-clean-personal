@@ -2,16 +2,15 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 
 export default function ArticuloEstadoBoton({ id, activo }: { id: string; activo: boolean }) {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   const handleClick = async () => {
     setLoading(true)
-    await supabase.from('articulos').update({ activo: !activo }).eq('id', id)
+    await (await createAuthenticatedBrowserApiClient()).updateArticleStatus(id,!activo)
     setLoading(false)
     router.refresh()
   }
