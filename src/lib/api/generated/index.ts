@@ -43,7 +43,7 @@ export type {
   UpdateClientAddressBody,
   QuoteUploadBody,
   QuoteDownload,
-  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody,
+  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow,
   ProblemDetails,
 } from './types'
 export {

@@ -1,0 +1,26 @@
+ apps/api/scripts/export-contracts.mjs              | 20 ++++++---
+ apps/api/scripts/run-integration-with-env.mjs      | 13 +++++-
+ apps/api/src/app.ts                                |  3 +-
+ .../api/src/application/catalog/catalog-service.ts |  4 +-
+ apps/api/src/http/openapi.ts                       | 17 ++++++++
+ apps/api/src/http/routes/v1/catalog.ts             |  7 +++-
+ apps/api/src/http/schemas/catalog.ts               |  3 +-
+ .../src/infrastructure/db/catalog-repository.ts    | 33 ++++++++++++---
+ apps/api/tests/business-rbac.test.ts               | 28 ++++++-------
+ apps/api/tests/openapi.contract.test.ts            |  2 +
+ src/app/articulos/[id]/page.tsx                    | 19 +++------
+ src/app/articulos/page.tsx                         | 14 +++----
+ src/app/proveedores/lista-precios/page.tsx         | 11 ++---
+ src/app/proveedores/page.tsx                       | 10 ++---
+ src/app/proveedores/pendientes/page.tsx            | 25 +++--------
+ src/components/ArticuloProveedoresTabla.tsx        |  6 +--
+ src/components/CargaListaPrecios.tsx               |  5 ++-
+ src/components/DescargarPlantillaListaPrecios.tsx  | 19 ++-------
+ src/components/ImportarArticulos.tsx               | 30 ++++---------
+ src/lib/api/generated/client.ts                    | 10 +++--
+ src/lib/api/generated/index.ts                     |  2 +-
+ src/lib/api/generated/types.ts                     |  8 +++-
+ src/utils/codigoArticulo.ts                        | 49 ----------------------
+ .../forward/20260928140000_phase4b_catalog_api.sql | 11 +++++
+ supabase/migrations/forward/README.md              |  8 ++++
+ 25 files changed, 168 insertions(+), 189 deletions(-)

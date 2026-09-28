@@ -75,6 +75,7 @@ export type BuildAppOptions = {
   profilesRepo?: ProfilesRepository
   clientsRepo?: ClientsRepository
   clientQuotesStorage?: ClientQuotesStorage
+  catalogRepo?: CatalogRepository
 }
 
 /**
@@ -180,7 +181,7 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
   app.decorate('clientQuotesStorage', options.clientQuotesStorage ?? createClientQuotesStorage(env))
   app.decorate('clientQuotesService', createClientQuotesService(app.clientsRepo,app.clientQuotesStorage,(data,message)=>app.log.info(data,message)))
   app.decorate('clientsService',createClientsService(app.clientsRepo,(data,message)=>app.log.info(data,message)))
-  app.decorate('catalogRepo',createCatalogRepository(db))
+  app.decorate('catalogRepo',options.catalogRepo??createCatalogRepository(db))
   app.decorate('catalogService',createCatalogService(app.catalogRepo,(data,message)=>app.log.info(data,message)))
   app.decorate('db', db)
   app.decorate('jwtVerifier', jwtVerifier)

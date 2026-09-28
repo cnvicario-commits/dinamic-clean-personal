@@ -36,6 +36,7 @@ const CONFIRMED_PRODUCTIVE_GRANTS: Readonly<Record<Role, readonly Permission[]>>
     'clients:read', 'clients:create', 'clients:update',
     'client_addresses:read', 'client_addresses:update',
     'client_quotes:read', 'client_quotes:create', 'client_quotes:delete',
+    'suppliers:read','suppliers:update','articles:read','articles:update','articles:import',
   ],
   gerente: [
     'profile:read_self', 'profile:update_self', 'employees:read',
@@ -46,11 +47,13 @@ const CONFIRMED_PRODUCTIVE_GRANTS: Readonly<Record<Role, readonly Permission[]>>
     'clients:read', 'clients:create', 'clients:update',
     'client_addresses:read', 'client_addresses:update',
     'client_quotes:read', 'client_quotes:create', 'client_quotes:delete',
+    'suppliers:read','suppliers:update','articles:read','articles:update','articles:import',
   ],
   compras: ['profile:read_self', 'profile:update_self',
     'clients:read', 'clients:create', 'clients:update',
     'client_addresses:read', 'client_addresses:update',
-    'client_quotes:read', 'client_quotes:create', 'client_quotes:delete'],
+    'client_quotes:read', 'client_quotes:create', 'client_quotes:delete',
+    'suppliers:read','suppliers:update','articles:read','articles:update','articles:import'],
   supervisor: ['profile:read_self', 'profile:update_self'],
   auditoria: ['profile:read_self', 'profile:update_self'],
 }
@@ -60,11 +63,6 @@ const CATALOG_DENY_UNTIL_CONFIRMED: readonly Permission[] = [
   'companies:read',
   'companies:create',
   'companies:update',
-  'suppliers:read',
-  'suppliers:update',
-  'articles:read',
-  'articles:update',
-  'articles:import',
   'purchase_requests:read',
   'purchase_requests:create',
   'purchase_requests:update',
@@ -143,22 +141,20 @@ describe('business RBAC catalog (Phase 2C corrections)', () => {
     }
   })
 
-  it('purchasing catalog present; no productive grants for any role yet', () => {
-    const purchasing: Permission[] = [
+  it('Phase 4B grants catalog operations only to admin, gerente and compras', () => {
+    const phase4b: Permission[] = [
       'suppliers:read',
       'suppliers:update',
       'articles:read',
+      'articles:update',
       'articles:import',
-      'purchase_requests:read',
-      'purchase_requests:create',
-      'purchase_orders:read',
-      'purchase_orders:create',
-      'warehouse_requests:read',
-      'warehouse_requests:update',
     ]
-    for (const permission of purchasing) {
+    for (const permission of phase4b) {
       expect(isPermission(permission)).toBe(true)
-      for (const role of ROLES) {
+      for (const role of ['admin','gerente','compras'] as Role[]) {
+        expect(authorize({ role }, permission)).toBe(true)
+      }
+      for (const role of ['supervisor','auditoria'] as Role[]) {
         expect(authorize({ role }, permission)).toBe(false)
       }
     }

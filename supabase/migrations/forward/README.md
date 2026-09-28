@@ -10,5 +10,13 @@
 
 Historical files under `supabase/migrations/` are kept for audit history only.
 
+For an existing development database, apply pending forward migrations without
+replaying the baseline:
+
+`RESTORE_TARGET_DB_URL=... ./scripts/apply-forward-migrations.sh`
+
+The runner records filename + checksum in `app_migrations.forward_history` and
+fails if an already-applied file changes.
+
 Duplicate historical names (`0002_compras_numeracion.sql` and `0002_proveedor_habitual.sql`)
 are already folded into the baseline dump — restores never re-run them.
