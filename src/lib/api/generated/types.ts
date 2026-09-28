@@ -192,6 +192,15 @@ export type CreateClientAddressBody = { alias:string; direccion?:string|null; ho
 export type UpdateClientAddressBody = Partial<CreateClientAddressBody>
 export type QuoteUploadBody = { fileName:string; contentBase64:string }
 export type QuoteDownload = { url:string; expiresIn:number; fileName:string }
+export type Supplier = { id:string; razon_social:string; cuit:string; domicilio:string|null; telefono:string|null; provincia:string|null; condicion_pago_default:string|null; activo:boolean }
+export type Article = { id:string; codigo_interno:string; nombre:string; categoria:string|null; unidad:string|null; proveedor_habitual_id:string|null; activo:boolean }
+export type SupplierArticle = { id:string; articulo_id:string; proveedor_id:string; codigo_proveedor:string|null; nombre_proveedor:string|null; precio:number; activo:boolean; fecha_actualizacion:string }
+export type CreateSupplierBody = { razonSocial:string; cuit:string; domicilio?:string|null; telefono?:string|null; provincia?:string|null; condicionPagoDefault?:string|null }
+export type CreateArticleBody = { codigoInterno?:string; nombre:string; categoria?:string|null; unidad?:string|null; proveedorHabitualId?:string|null }
+export type CreateSupplierArticleBody = { proveedorId:string; codigoProveedor?:string|null; nombreProveedor?:string|null; precio:number; activo?:boolean }
+export type ArticleImportBody = { rows:Array<{fila:number;codigoInterno?:string;nombre:string;categoria?:string|null;unidad?:string|null}> }
+export type PriceListBody = { proveedorId:string; archivoOrigen:string; rows:Array<{fila:number;codigoProveedor?:string;codigoInterno?:string;nombreProveedor?:string;precio:number}> }
+export type SupplierArticlePending = { id:string; proveedor_id:string; codigo_proveedor:string|null; nombre_proveedor:string|null; precio:number|null; archivo_origen:string|null; motivo:string|null; sugerencias:unknown; created_at:string; razon_social:string }
 
 /** GET /v1/employees query (optional fields omitted when unset) */
 export type ListEmployeesQuery = {

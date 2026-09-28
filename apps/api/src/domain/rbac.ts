@@ -97,6 +97,7 @@ const ROLE_PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = Object.f
     'attendance:export',
     'clients:read', 'clients:create', 'clients:update', 'client_addresses:read', 'client_addresses:update',
     'client_quotes:read', 'client_quotes:create', 'client_quotes:delete',
+    'suppliers:read','suppliers:update','articles:read','articles:update','articles:import',
   ] as const satisfies readonly Permission[]),
   gerente: Object.freeze([
     ...SELF_PROFILE,
@@ -110,11 +111,13 @@ const ROLE_PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = Object.f
     'attendance:export',
     'clients:read', 'clients:create', 'clients:update', 'client_addresses:read', 'client_addresses:update',
     'client_quotes:read', 'client_quotes:create', 'client_quotes:delete',
+    'suppliers:read','suppliers:update','articles:read','articles:update','articles:import',
   ] as const satisfies readonly Permission[]),
   compras: Object.freeze([
     ...SELF_PROFILE,
     'clients:read', 'clients:create', 'clients:update', 'client_addresses:read', 'client_addresses:update',
     'client_quotes:read', 'client_quotes:create', 'client_quotes:delete',
+    'suppliers:read','suppliers:update','articles:read','articles:update','articles:import',
   ] as const satisfies readonly Permission[]),
   supervisor: Object.freeze([...SELF_PROFILE] as const satisfies readonly Permission[]),
   auditoria: Object.freeze([...SELF_PROFILE] as const satisfies readonly Permission[]),

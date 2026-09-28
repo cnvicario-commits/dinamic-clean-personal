@@ -40,6 +40,7 @@ import type {
   UpdateClientAddressBody,
   QuoteUploadBody,
   QuoteDownload,
+  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, SupplierArticlePending,
   UsersListResponse,
 } from './types'
 
@@ -116,7 +117,24 @@ export type DinamicApiClient = {
   updateClientAddressStatus: (clientId:string,addressId:string,activo:boolean) => Promise<ClientAddress>
   setClientAddressPrincipal: (clientId:string,addressId:string) => Promise<ClientAddress>
   listClientQuotes: (clientId:string) => Promise<ClientQuote[]>
-  uploadClientQuote: (clientId:string,body:QuoteUploadBody) => Promise<ClientQuote>
+  uploadClientQuote: (clientId:string,body:QuoteUploadBody,idempotencyKey:string) => Promise<ClientQuote>
+  listSuppliers: () => Promise<Supplier[]>
+  getSupplier: (id:string) => Promise<Supplier>
+  createSupplier: (body:CreateSupplierBody) => Promise<Supplier>
+  updateSupplier: (id:string,body:Partial<CreateSupplierBody>) => Promise<Supplier>
+  updateSupplierStatus: (id:string,activo:boolean) => Promise<Supplier>
+  listArticles: () => Promise<Article[]>
+  getArticle: (id:string) => Promise<Article>
+  createArticle: (body:CreateArticleBody) => Promise<Article>
+  updateArticle: (id:string,body:Partial<CreateArticleBody>) => Promise<Article>
+  updateArticleStatus: (id:string,activo:boolean) => Promise<Article>
+  listArticleSuppliers: (id:string) => Promise<SupplierArticle[]>
+  createArticleSupplier: (id:string,body:CreateSupplierArticleBody) => Promise<SupplierArticle>
+  updateArticleSupplier: (id:string,relationId:string,body:Partial<Omit<CreateSupplierArticleBody,'proveedorId'>>) => Promise<SupplierArticle>
+  importArticles: (body:ArticleImportBody,idempotencyKey:string) => Promise<{replayed:boolean;response:{creados:number;actualizados:number}}>
+  applyPriceList: (body:PriceListBody,idempotencyKey:string) => Promise<{replayed:boolean;response:{actualizados:number;vinculadosPorCodigoInterno:number;pendientesNuevas:number}}>
+  listSupplierArticlePending: () => Promise<SupplierArticlePending[]>
+  resolveSupplierArticlePending: (id:string,articuloId:string) => Promise<SupplierArticle>
   getClientQuoteDownload: (clientId:string,quoteId:string) => Promise<QuoteDownload>
   deleteClientQuote: (clientId:string,quoteId:string) => Promise<void>
 }
@@ -272,8 +290,11 @@ export function createDinamicApiClient(options: DinamicApiClientOptions): Dinami
     updateClientAddressStatus(clientId,addressId,activo){ return requestJson<ClientAddress>(`/v1/clients/${clientId}/addresses/${addressId}/status`,{method:'PATCH',body:JSON.stringify({activo})}) },
     setClientAddressPrincipal(clientId,addressId){ return requestJson<ClientAddress>(`/v1/clients/${clientId}/addresses/${addressId}/principal`,{method:'POST'}) },
     listClientQuotes(clientId){ return requestJson<ClientQuote[]>(`/v1/clients/${clientId}/quotes`) },
-    uploadClientQuote(clientId,body){ return requestJson<ClientQuote>(`/v1/clients/${clientId}/quotes`,{method:'POST',body:JSON.stringify(body)}) },
+    uploadClientQuote(clientId,body,idempotencyKey){ return requestJson<ClientQuote>(`/v1/clients/${clientId}/quotes`,{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':idempotencyKey}}) },
     getClientQuoteDownload(clientId,quoteId){ return requestJson<QuoteDownload>(`/v1/clients/${clientId}/quotes/${quoteId}/download`) },
     deleteClientQuote(clientId,quoteId){ return requestJson<void>(`/v1/clients/${clientId}/quotes/${quoteId}`,{method:'DELETE',emptyResponse:true}) },
+    listSuppliers(){ return requestJson<Supplier[]>('/v1/suppliers') }, getSupplier(id){ return requestJson<Supplier>(`/v1/suppliers/${id}`) }, createSupplier(body){return requestJson<Supplier>('/v1/suppliers',{method:'POST',body:JSON.stringify(body)})},updateSupplier(id,body){return requestJson<Supplier>(`/v1/suppliers/${id}`,{method:'PATCH',body:JSON.stringify(body)})},updateSupplierStatus(id,activo){return requestJson<Supplier>(`/v1/suppliers/${id}/status`,{method:'PATCH',body:JSON.stringify({activo})})},
+    listArticles(){return requestJson<Article[]>('/v1/articles')},getArticle(id){return requestJson<Article>(`/v1/articles/${id}`)},createArticle(body){return requestJson<Article>('/v1/articles',{method:'POST',body:JSON.stringify(body)})},updateArticle(id,body){return requestJson<Article>(`/v1/articles/${id}`,{method:'PATCH',body:JSON.stringify(body)})},updateArticleStatus(id,activo){return requestJson<Article>(`/v1/articles/${id}/status`,{method:'PATCH',body:JSON.stringify({activo})},)},listArticleSuppliers(id){return requestJson<SupplierArticle[]>(`/v1/articles/${id}/suppliers`)},createArticleSupplier(id,body){return requestJson<SupplierArticle>(`/v1/articles/${id}/suppliers`,{method:'POST',body:JSON.stringify(body)})},updateArticleSupplier(id,relationId,body){return requestJson<SupplierArticle>(`/v1/articles/${id}/suppliers/${relationId}`,{method:'PATCH',body:JSON.stringify(body)})},importArticles(body,idempotencyKey){return requestJson('/v1/articles/import',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':idempotencyKey}})},applyPriceList(body,idempotencyKey){return requestJson('/v1/price-lists/apply',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':idempotencyKey}})},
+    listSupplierArticlePending(){return requestJson<SupplierArticlePending[]>('/v1/supplier-article-pending')},resolveSupplierArticlePending(id,articuloId){return requestJson<SupplierArticle>(`/v1/supplier-article-pending/${id}/resolve`,{method:'POST',body:JSON.stringify({articuloId})})},
   }
 }

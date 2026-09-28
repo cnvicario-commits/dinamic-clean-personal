@@ -24,6 +24,7 @@ export default function ClientePresupuestosPanel({
   presupuestos: ClientePresupuesto[]
 }) {
   const [archivo, setArchivo] = useState<File | null>(null)
+  const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null)
   const [subiendo, setSubiendo] = useState(false)
   const [error, setError] = useState('')
   const [verificandoId, setVerificandoId] = useState<string | null>(null)
@@ -51,7 +52,9 @@ export default function ClientePresupuestosPanel({
       const bytes=new Uint8Array(await archivo.arrayBuffer())
       let binary=''; for(let i=0;i<bytes.length;i+=0x8000)binary+=String.fromCharCode(...bytes.subarray(i,i+0x8000))
       const api=await createAuthenticatedBrowserApiClient()
-      await api.uploadClientQuote(clienteId,{fileName:archivo.name,contentBase64:btoa(binary)})
+      const key=idempotencyKey??crypto.randomUUID()
+      setIdempotencyKey(key)
+      await api.uploadClientQuote(clienteId,{fileName:archivo.name,contentBase64:btoa(binary)},key)
     } catch(cause) {
       setError('Error al subir el archivo: '+(cause instanceof Error?cause.message:'desconocido'))
       setSubiendo(false)
@@ -59,6 +62,7 @@ export default function ClientePresupuestosPanel({
     }
 
     setArchivo(null)
+    setIdempotencyKey(null)
     setSubiendo(false)
     router.refresh()
   }
@@ -89,7 +93,7 @@ export default function ClientePresupuestosPanel({
         <input
           type="file"
           accept="application/pdf,.pdf"
-          onChange={(e) => setArchivo(e.target.files?.[0] || null)}
+          onChange={(e) => { setArchivo(e.target.files?.[0] || null); setIdempotencyKey(e.target.files?.[0] ? crypto.randomUUID() : null) }}
           className="text-sm text-slate-700"
         />
         <button

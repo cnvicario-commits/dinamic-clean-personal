@@ -1,29 +1,52 @@
 import { describe, expect, it, vi } from 'vitest'
+import { AppError, notFound } from '../src/http/errors/app-error.js'
 import { createClientQuotesService, decodePdf, MAX_QUOTE_BYTES } from '../src/application/clients/client-quotes-service.js'
 import type { ClientsRepository } from '../src/infrastructure/db/clients-repository.js'
 import type { ClientQuotesStorage } from '../src/infrastructure/storage/client-quotes-storage.js'
-import { notFound } from '../src/http/errors/app-error.js'
 
 const PDF=Buffer.from('%PDF-1.7\n%%EOF').toString('base64')
-function setup(overrides:{insertFails?:boolean;uploadFails?:boolean;removeFails?:boolean;foreignQuote?:boolean}={}){
+type Options={insertFails?:boolean;uploadFails?:boolean;removeFails?:boolean;failClaimFails?:boolean;restoreFails?:boolean;foreignQuote?:boolean;holdUpload?:boolean}
+function setup(options:Options={}){
+  const claims=new Map<string,{hash:string;status:'PROCESSING'|'COMPLETED'|'FAILED';quoteId?:string;storagePath:string}>()
+  const quotes=new Map<string,{id:string;cliente_id:string;storage_path:string;nombre_archivo:string;subido_por:string;created_at:string}>()
+  const objects=new Set<string>()
+  let sequence=0
+  let releaseUpload:(()=>void)|undefined
+  let uploadStarted:(()=>void)|undefined
+  const uploadGate=options.holdUpload?new Promise<void>(resolve=>{releaseUpload=resolve}):null
+  const uploadStartedGate=options.holdUpload?new Promise<void>(resolve=>{uploadStarted=resolve}):null
+  const claimKey=(input:{clientId:string;actorId:string;idempotencyKey:string})=>`${input.clientId}:${input.actorId}:${input.idempotencyKey}`
   const repo={
-    get:vi.fn(async()=>({id:'c'}),), listQuotes:vi.fn(async()=>[]),
-    insertQuote:vi.fn(async()=>{if(overrides.insertFails)throw new Error('db');return{id:'q'}}),
-    getQuote:vi.fn(async()=>{if(overrides.foreignQuote)throw notFound('Client quote not found');return{id:'q',storage_path:'c/x.pdf',nombre_archivo:'x.pdf',subido_por:'u'}}),
-    deleteQuote:vi.fn(async()=>({id:'q',storage_path:'c/x.pdf',nombre_archivo:'x.pdf',subido_por:'u',created_at:'2026-01-01T00:00:00Z'})),
-    restoreQuote:vi.fn(async()=>undefined),
+    get:vi.fn(async()=>({id:'c'})), listQuotes:vi.fn(async()=>[...quotes.values()]),
+    claimQuoteUpload:vi.fn(async(input:{clientId:string;actorId:string;idempotencyKey:string;payloadHash:string;storagePath:string})=>{const key=claimKey(input),current=claims.get(key);if(!current){claims.set(key,{hash:input.payloadHash,status:'PROCESSING',storagePath:input.storagePath});return{state:'owner' as const,storagePath:input.storagePath}}if(current.hash!==input.payloadHash)throw new AppError(409,'idempotency_key_payload_mismatch','Idempotency-Key was already used with a different upload');if(current.status==='COMPLETED')return{state:'completed' as const,quoteId:current.quoteId!};if(current.status==='FAILED'){current.status='PROCESSING';current.storagePath=input.storagePath;return{state:'owner' as const,storagePath:input.storagePath}}return{state:'processing' as const}}),
+    insertQuoteAndCompleteUpload:vi.fn(async(input:{clientId:string;storagePath:string;fileName:string;actorId:string;idempotencyKey:string;payloadHash:string})=>{if(options.insertFails)throw new Error('db insert failed');const id=`q-${++sequence}`,record={id,cliente_id:input.clientId,storage_path:input.storagePath,nombre_archivo:input.fileName,subido_por:input.actorId,created_at:'2026-01-01T00:00:00Z'};quotes.set(id,record);const claim=claims.get(claimKey(input));if(!claim)throw new Error('missing claim');claim.status='COMPLETED';claim.quoteId=id;return record}),
+    failQuoteUpload:vi.fn(async(input:{clientId:string;actorId:string;idempotencyKey:string;payloadHash:string;storagePath:string})=>{if(options.failClaimFails)throw new Error('idempotency update failed');const claim=claims.get(claimKey(input));if(claim&&claim.hash===input.payloadHash&&claim.storagePath===input.storagePath)claim.status='FAILED'}),
+    getQuote:vi.fn(async(clientId:string,quoteId:string)=>{if(options.foreignQuote)throw notFound('Client quote not found');const quote=quotes.get(quoteId);if(!quote||quote.cliente_id!==clientId)throw notFound('Client quote not found');return quote}),
+    deleteQuote:vi.fn(async(clientId:string,quoteId:string)=>{const quote=quotes.get(quoteId)??{id:quoteId,cliente_id:clientId,storage_path:'c/x.pdf',nombre_archivo:'x.pdf',subido_por:'u',created_at:'2026-01-01T00:00:00Z'};if(quote.cliente_id!==clientId)throw notFound('Client quote not found');quotes.delete(quote.id);return quote}),
+    restoreQuote:vi.fn(async(input:{id:string;clientId:string;storagePath:string;fileName:string;actorId:string;createdAt:string})=>{if(options.restoreFails)throw new Error('metadata restore failed');quotes.set(input.id,{id:input.id,cliente_id:input.clientId,storage_path:input.storagePath,nombre_archivo:input.fileName,subido_por:input.actorId,created_at:input.createdAt})}),
   } as unknown as ClientsRepository
-  const storage:ClientQuotesStorage={upload:vi.fn(async()=>{if(overrides.uploadFails)throw new Error('storage upload')}),remove:vi.fn(async()=>{if(overrides.removeFails)throw new Error('storage')}),signedUrl:vi.fn(async()=> 'https://signed.example/x')}
+  const storage:ClientQuotesStorage={
+    upload:vi.fn(async(path)=>{uploadStarted?.();if(uploadGate)await uploadGate;if(options.uploadFails)throw new Error('storage upload failed');objects.add(path)}),
+    remove:vi.fn(async(path)=>{if(options.removeFails)throw new Error('storage delete failed');objects.delete(path)}),
+    signedUrl:vi.fn(async()=> 'https://signed.example/x'),
+  }
   const log=vi.fn()
-  return {repo,storage,log,service:createClientQuotesService(repo,storage,log)}
+  return {repo,storage,log,claims,quotes,objects,service:createClientQuotesService(repo,storage,log),releaseUpload,uploadStarted:uploadStartedGate}
 }
+const input=(key='key-1',overrides:Partial<{fileName:string;contentBase64:string}>={})=>({clientId:'c',fileName:'x.pdf',contentBase64:PDF,actorId:'u',requestId:'r',idempotencyKey:key,...overrides})
 
-describe('client quote lifecycle',()=>{
+describe('client quote lifecycle and durable idempotency',()=>{
   it('validates PDF magic and size',()=>{expect(decodePdf({fileName:'x.pdf',contentBase64:PDF}).bytes.length).toBeGreaterThan(0);expect(()=>decodePdf({fileName:'x.pdf',contentBase64:Buffer.from('no').toString('base64')})).toThrow('not a PDF');expect(()=>decodePdf({fileName:'x.txt',contentBase64:PDF})).toThrow('Only PDF');const oversized=Buffer.concat([Buffer.from('%PDF-'),Buffer.alloc(MAX_QUOTE_BYTES)]).toString('base64');expect(()=>decodePdf({fileName:'x.pdf',contentBase64:oversized})).toThrow('exceeds 15 MB')})
-  it('uploads storage before metadata',async()=>{const x=setup();await x.service.upload({clientId:'c',fileName:'x.pdf',contentBase64:PDF,actorId:'u',requestId:'r'});expect(x.storage.upload).toHaveBeenCalledOnce();expect((x.repo as never as {insertQuote:ReturnType<typeof vi.fn>}).insertQuote).toHaveBeenCalledOnce()})
-  it('does not create metadata when storage upload fails',async()=>{const x=setup({uploadFails:true});await expect(x.service.upload({clientId:'c',fileName:'x.pdf',contentBase64:PDF,actorId:'u',requestId:'r'})).rejects.toThrow('storage upload');expect((x.repo as never as {insertQuote:ReturnType<typeof vi.fn>}).insertQuote).not.toHaveBeenCalled()})
-  it('removes object when metadata insert fails',async()=>{const x=setup({insertFails:true});await expect(x.service.upload({clientId:'c',fileName:'x.pdf',contentBase64:PDF,actorId:'u',requestId:'r'})).rejects.toThrow('db');expect(x.storage.remove).toHaveBeenCalledOnce()})
-  it('returns short-lived signed download',async()=>{const x=setup();await expect(x.service.download('c','q')).resolves.toMatchObject({url:'https://signed.example/x',expiresIn:60})})
-  it('does not sign a quote outside the requested client',async()=>{const x=setup({foreignQuote:true});await expect(x.service.download('other-client','q')).rejects.toThrow('Client quote not found');expect(x.storage.signedUrl).not.toHaveBeenCalled()})
-  it('restores metadata when storage delete fails',async()=>{const x=setup({removeFails:true});await expect(x.service.remove({clientId:'c',quoteId:'q',actorId:'u',requestId:'r'})).rejects.toThrow('storage');expect((x.repo as never as {restoreQuote:ReturnType<typeof vi.fn>}).restoreQuote).toHaveBeenCalledOnce()})
+  it('persists one quote and one object for the first request',async()=>{const x=setup();const result=await x.service.upload(input());expect(result.replayed).toBe(false);expect(x.quotes.size).toBe(1);expect(x.objects.size).toBe(1);expect(x.storage.upload).toHaveBeenCalledOnce()})
+  it('replays the original resource after a lost response without new effects',async()=>{const x=setup();const first=await x.service.upload(input());const retry=await x.service.upload(input());expect(retry).toMatchObject({replayed:true,record:{id:first.record.id}});expect(x.quotes.size).toBe(1);expect(x.objects.size).toBe(1);expect(x.storage.upload).toHaveBeenCalledOnce()})
+  it('serializes concurrent requests with the same key into one persisted effect',async()=>{const x=setup({holdUpload:true});const first=x.service.upload(input());await x.uploadStarted;const second=x.service.upload(input());x.releaseUpload?.();const [a,b]=await Promise.all([first,second]);expect(a.record.id).toBe(b.record.id);expect(x.quotes.size).toBe(1);expect(x.objects.size).toBe(1);expect(x.storage.upload).toHaveBeenCalledOnce()})
+  it('rejects a reused key with a different logical payload deterministically',async()=>{const x=setup();await x.service.upload(input());await expect(x.service.upload(input('key-1',{fileName:'other.pdf'}))).rejects.toMatchObject({status:409,code:'idempotency_key_payload_mismatch'});expect(x.quotes.size).toBe(1);expect(x.objects.size).toBe(1)})
+  it('allows distinct keys for legitimate multiple quotes',async()=>{const x=setup();await x.service.upload(input('key-1'));await x.service.upload(input('key-2'));expect(x.quotes.size).toBe(2);expect(x.objects.size).toBe(2);expect(x.storage.upload).toHaveBeenCalledTimes(2)})
+  it('records failed state after storage failure so the key is retryable',async()=>{const x=setup({uploadFails:true});await expect(x.service.upload(input())).rejects.toThrow('storage upload failed');expect(x.quotes.size).toBe(0);expect(x.objects.size).toBe(0);expect([...x.claims.values()][0]?.status).toBe('FAILED')})
+  it('reclaims a failed key and persists exactly one quote on a later retry',async()=>{const x=setup();vi.mocked(x.storage.upload).mockImplementationOnce(async()=>{throw new Error('temporary storage failure')});await expect(x.service.upload(input())).rejects.toThrow('temporary storage failure');const retry=await x.service.upload(input());expect(retry.replayed).toBe(false);expect(x.quotes.size).toBe(1);expect(x.objects.size).toBe(1);expect(x.storage.upload).toHaveBeenCalledTimes(2)})
+  it('compensates storage when metadata persistence fails',async()=>{const x=setup({insertFails:true});await expect(x.service.upload(input())).rejects.toThrow('db insert failed');expect(x.quotes.size).toBe(0);expect(x.objects.size).toBe(0);expect(x.storage.remove).toHaveBeenCalledOnce();expect([...x.claims.values()][0]?.status).toBe('FAILED')})
+  it('logs structured reconciliation data when upload compensation also fails',async()=>{const x=setup({insertFails:true,removeFails:true,failClaimFails:true});await expect(x.service.upload(input())).rejects.toThrow('db insert failed');const event=x.log.mock.calls.find(([data])=>(data as {stage?:string}).stage==='metadata_insert.storage_delete_compensation')?.[0] as Record<string,unknown>;expect(event).toMatchObject({requestId:'r',operation:'client_quote.upload',clientId:'c',storagePath:expect.any(String),stage:'metadata_insert.storage_delete_compensation',result:'error'});expect(event).not.toHaveProperty('contentBase64');expect(JSON.stringify(event)).not.toContain(PDF);expect(x.log.mock.calls.some(([data])=>(data as {stage?:string}).stage==='metadata_insert.idempotency_mark_failed')).toBe(true)})
+  it('returns short-lived signed download and rejects a quote outside the client',async()=>{const x=setup();const quote=(await x.service.upload(input())).record;await expect(x.service.download('c',quote.id)).resolves.toMatchObject({url:'https://signed.example/x',expiresIn:60});const foreign=setup({foreignQuote:true});await expect(foreign.service.download('other-client','q')).rejects.toThrow('Client quote not found');expect(foreign.storage.signedUrl).not.toHaveBeenCalled()})
+  it('restores metadata when storage delete fails',async()=>{const x=setup({removeFails:true});const quote=(await x.service.upload(input())).record;await expect(x.service.remove({clientId:'c',quoteId:quote.id,actorId:'u',requestId:'r'})).rejects.toThrow('storage delete failed');expect(x.quotes.has(quote.id)).toBe(true)})
+  it('logs structured reconciliation data when metadata restore also fails',async()=>{const x=setup({removeFails:true,restoreFails:true});const quote=(await x.service.upload(input())).record;await expect(x.service.remove({clientId:'c',quoteId:quote.id,actorId:'u',requestId:'r'})).rejects.toThrow('storage delete failed');const event=x.log.mock.calls.find(([data])=>(data as {stage?:string}).stage==='storage_delete.metadata_restore_compensation')?.[0] as Record<string,unknown>;expect(event).toMatchObject({requestId:'r',operation:'client_quote.delete',clientId:'c',quoteId:quote.id,storagePath:expect.any(String),stage:'storage_delete.metadata_restore_compensation',result:'error'});expect(JSON.stringify(event)).not.toContain(PDF)})
 })

@@ -84,6 +84,7 @@ describe('openapi contract (Phase 1)', () => {
     expect(openApiDocument.paths['/v1/clients/{id}'].patch.responses['404']).toBeTruthy()
     expect(openApiDocument.paths['/v1/clients/{id}/addresses/{addressId}/principal'].post).toBeTruthy()
     expect(openApiDocument.paths['/v1/clients/{id}/quotes'].post.responses['413']).toBeTruthy()
+    expect(openApiDocument.paths['/v1/clients/{id}/quotes'].post.parameters).toContainEqual(expect.objectContaining({ name:'Idempotency-Key',in:'header',required:true }))
     expect(openApiDocument.paths['/v1/clients/{id}/quotes/{quoteId}/download'].get).toBeTruthy()
     expect(openApiDocument.paths['/v1/clients/{id}/quotes/{quoteId}'].delete.responses['502']).toBeTruthy()
     expect(openApiDocument.components.schemas.ClientDetail).toBeTruthy()
