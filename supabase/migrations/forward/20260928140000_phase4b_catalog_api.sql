@@ -35,3 +35,14 @@ revoke all on public.catalog_operation_idempotency from authenticated;
 grant select,insert,update,delete on public.catalog_operation_idempotency to dinamic_api;
 grant usage, select on sequence public.articulos_codigo_seq to dinamic_api;
 grant select, insert, update, delete on public.proveedores, public.articulos, public.articulos_proveedor, public.articulos_proveedor_pendientes to dinamic_api;
+
+drop policy if exists proveedores_dinamic_api_all on public.proveedores;
+create policy proveedores_dinamic_api_all on public.proveedores for all to dinamic_api using (true) with check (true);
+drop policy if exists articulos_dinamic_api_all on public.articulos;
+create policy articulos_dinamic_api_all on public.articulos for all to dinamic_api using (true) with check (true);
+drop policy if exists articulos_proveedor_dinamic_api_all on public.articulos_proveedor;
+create policy articulos_proveedor_dinamic_api_all on public.articulos_proveedor for all to dinamic_api using (true) with check (true);
+drop policy if exists articulos_proveedor_pendientes_dinamic_api_all on public.articulos_proveedor_pendientes;
+create policy articulos_proveedor_pendientes_dinamic_api_all on public.articulos_proveedor_pendientes for all to dinamic_api using (true) with check (true);
+drop policy if exists catalog_operation_idempotency_dinamic_api_all on public.catalog_operation_idempotency;
+create policy catalog_operation_idempotency_dinamic_api_all on public.catalog_operation_idempotency for all to dinamic_api using (true) with check (true);

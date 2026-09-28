@@ -1,0 +1,9 @@
+# Validación efectiva PostgreSQL/PostgREST
+
+Migraciones aplicadas mediante `scripts/apply-forward-migrations.sh` y registradas en `app_migrations.forward_history`:
+- 20260928140000_phase4b_catalog_api.sql
+- 20260928141000_phase4b_catalog_security_correction.sql
+
+Catálogo efectivo local: existen `public.catalog_operation_idempotency`, `public.articulos_codigo_seq`, `public.set_codigo_interno_articulo()` y `trg_articulos_codigo_interno` (BEFORE INSERT sobre `public.articulos`). Idempotencia tiene PK actor/operation/key, FK a auth.users, checks de status/longitud y RLS.
+
+RLS está habilitado en las cinco tablas del dominio. `authenticated` conserva SELECT únicamente; `dinamic_api` tiene privilegios efectivos SELECT/INSERT/UPDATE/DELETE y policies ALL, incluida idempotencia. PostgREST local rechaza mutaciones directas para JWT admin, gerente, compras y anon. Backend probado contra PostgreSQL local con `options=-c role=dinamic_api`; no se registran secretos.

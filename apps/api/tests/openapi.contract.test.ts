@@ -8,6 +8,7 @@ describe('openapi contract (Phase 1)', () => {
       [
         '/healthz',
         '/readyz',
+        '/v1/articles','/v1/articles/import','/v1/articles/import/preview','/v1/articles/{id}','/v1/articles/{id}/status','/v1/articles/{id}/suppliers','/v1/articles/{id}/suppliers/{relationId}',
         '/v1/assignments',
         '/v1/assignments/{id}/close',
         '/v1/attendance',
@@ -27,6 +28,7 @@ describe('openapi contract (Phase 1)', () => {
         '/v1/hr/reports/bejerman',
         '/v1/hr/reports/overtime',
         '/v1/me',
+        '/v1/price-lists/apply','/v1/price-lists/preview','/v1/supplier-article-pending','/v1/supplier-article-pending/{id}/resolve','/v1/suppliers','/v1/suppliers/{id}','/v1/suppliers/{id}/articles','/v1/suppliers/{id}/status',
         '/v1/users',
         '/v1/users/{id}',
         '/v1/users/{id}/disable',

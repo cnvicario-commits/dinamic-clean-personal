@@ -33,6 +33,7 @@ import {
   updateAddressBodySchema,
   updateClientBodySchema,
 } from './schemas/clients.js'
+import { articleCreate,articleImportBody,articleUpdate,priceListBody,relationCreate,relationUpdate,supplierCreate,supplierUpdate } from './schemas/catalog.js'
 
 /** Derive JSON Schema fragments from Zod response schemas. */
 function zodJsonSchema(schema: z.ZodType): Record<string, unknown> {
@@ -210,6 +211,21 @@ export const openApiDocument = {
         responses: { '204': { description: 'Deleted' }, '400': { description: 'Invalid id' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Quote not found for client' }, '502': { description: 'Storage deletion failure; metadata restore attempted' } },
       },
     },
+    '/v1/suppliers': { get:{summary:'List suppliers',security:bearer,responses:{'200':{description:'Supplier list'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'}}},post:{summary:'Create supplier',security:bearer,requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/CreateSupplierBody'}}}},responses:{'201':{description:'Created'},'400':{description:'Validation'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'},'409':{description:'Duplicate CUIT'}}}},
+    '/v1/suppliers/{id}': { get:{summary:'Supplier detail',security:bearer,parameters:idParameter,responses:{'200':{description:'Supplier'},'404':{description:'Not found'}}},patch:{summary:'Update supplier',security:bearer,parameters:idParameter,requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/UpdateSupplierBody'}}}},responses:{'200':{description:'Updated'},'404':{description:'Not found'}}}},
+    '/v1/suppliers/{id}/status': { patch:{summary:'Set supplier status',security:bearer,parameters:idParameter,responses:{'200':{description:'Updated'}}}},
+    '/v1/suppliers/{id}/articles': { get:{summary:'List supplier catalog rows',security:bearer,parameters:idParameter,responses:{'200':{description:'Supplier catalog'}}}},
+    '/v1/articles': { get:{summary:'List articles',security:bearer,responses:{'200':{description:'Article list'}}},post:{summary:'Create article',security:bearer,requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/CreateArticleBody'}}}},responses:{'201':{description:'Created'}}}},
+    '/v1/articles/{id}': { get:{summary:'Article detail',security:bearer,parameters:idParameter,responses:{'200':{description:'Article'},'404':{description:'Not found'}}},patch:{summary:'Update article',security:bearer,parameters:idParameter,requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/UpdateArticleBody'}}}},responses:{'200':{description:'Updated'}}}},
+    '/v1/articles/{id}/status': { patch:{summary:'Set article status',security:bearer,parameters:idParameter,responses:{'200':{description:'Updated'}}}},
+    '/v1/articles/{id}/suppliers': { get:{summary:'List article supplier relations',security:bearer,parameters:idParameter,responses:{'200':{description:'Relations'}}},post:{summary:'Create article supplier relation',security:bearer,parameters:idParameter,requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/CreateSupplierArticleBody'}}}},responses:{'201':{description:'Created'}}}},
+    '/v1/articles/{id}/suppliers/{relationId}': { patch:{summary:'Update article supplier relation',security:bearer,responses:{'200':{description:'Updated'}}}},
+    '/v1/articles/import/preview': { post:{summary:'Preview article import without writes',security:bearer,requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/ArticleImportBody'}}}},responses:{'200':{description:'Preview'}}}},
+    '/v1/articles/import': { post:{summary:'Apply article import transactionally',security:bearer,parameters:[{name:'Idempotency-Key',in:'header',required:true,schema:{type:'string'}}],requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/ArticleImportBody'}}}},responses:{'200':{description:'Applied or replayed'},'409':{description:'Idempotency conflict'}}}},
+    '/v1/price-lists/preview': { post:{summary:'Preview price list without writes',security:bearer,requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/PriceListBody'}}}},responses:{'200':{description:'Preview'}}}},
+    '/v1/price-lists/apply': { post:{summary:'Apply price list transactionally',security:bearer,parameters:[{name:'Idempotency-Key',in:'header',required:true,schema:{type:'string'}}],requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/PriceListBody'}}}},responses:{'200':{description:'Applied or replayed'},'409':{description:'Idempotency conflict'}}}},
+    '/v1/supplier-article-pending': { get:{summary:'List unresolved supplier article rows',security:bearer,responses:{'200':{description:'Pending rows'}}}},
+    '/v1/supplier-article-pending/{id}/resolve': { post:{summary:'Resolve pending row transactionally',security:bearer,parameters:idParameter,responses:{'200':{description:'Resolved'},'404':{description:'Not found'}}}},
     '/v1/employees': {
       get: {
         summary: 'List employees (paginated and filtered)',
@@ -495,6 +511,7 @@ export const openApiDocument = {
       UpdateClientAddressBody: zodJsonSchema(updateAddressBodySchema),
       ClientAddressStatusBody: zodJsonSchema(statusBodySchema),
       QuoteUploadBody: zodJsonSchema(quoteUploadBodySchema),
+      CreateSupplierBody:zodJsonSchema(supplierCreate),UpdateSupplierBody:zodJsonSchema(supplierUpdate),CreateArticleBody:zodJsonSchema(articleCreate),UpdateArticleBody:zodJsonSchema(articleUpdate),CreateSupplierArticleBody:zodJsonSchema(relationCreate),UpdateSupplierArticleBody:zodJsonSchema(relationUpdate),ArticleImportBody:zodJsonSchema(articleImportBody),PriceListBody:zodJsonSchema(priceListBody),
       ClientRecord: { type:'object',required:['id','nombre','cuit','persona_contacto','codigo_costos','presupuesto_4hs','presupuesto_8hs','domicilio','lleva_insumos','activo','created_at'],properties:{id:{type:'string',format:'uuid'},nombre:{type:'string'},cuit:{type:['string','null']},persona_contacto:{type:['string','null']},codigo_costos:{type:['string','null']},presupuesto_4hs:{type:'integer'},presupuesto_8hs:{type:'integer'},domicilio:{type:['string','null']},lleva_insumos:{type:['boolean','null']},activo:{type:'boolean'},created_at:{type:'string'}} },
       ClientAddress: { type:'object',required:['id','cliente_id','alias','direccion','es_principal','activo','horario_atencion','supervisor_id','created_at'],properties:{id:{type:'string',format:'uuid'},cliente_id:{type:'string',format:'uuid'},alias:{type:'string'},direccion:{type:['string','null']},es_principal:{type:'boolean'},activo:{type:'boolean'},horario_atencion:{type:['string','null']},supervisor_id:{type:['string','null'],format:'uuid'},created_at:{type:'string'}} },
       ClientQuote: { type:'object',required:['id','cliente_id','nombre_archivo','subido_por','created_at'],properties:{id:{type:'string',format:'uuid'},cliente_id:{type:'string',format:'uuid'},nombre_archivo:{type:'string'},subido_por:{type:['string','null'],format:'uuid'},subido_por_nombre:{type:['string','null']},created_at:{type:'string'}} },
