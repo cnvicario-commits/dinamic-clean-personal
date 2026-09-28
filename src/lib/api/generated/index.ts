@@ -33,6 +33,16 @@ export type {
   AttendanceUpsert,
   BejermanReportData,
   OvertimeReportData,
+  ClientRecord,
+  ClientDetail,
+  ClientAddress,
+  ClientQuote,
+  CreateClientBody,
+  UpdateClientBody,
+  CreateClientAddressBody,
+  UpdateClientAddressBody,
+  QuoteUploadBody,
+  QuoteDownload,
   ProblemDetails,
 } from './types'
 export {

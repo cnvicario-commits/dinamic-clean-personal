@@ -30,6 +30,16 @@ import type {
   ProfileResponse,
   SetUserPasswordBody,
   UpdateOwnProfileBody,
+  ClientRecord,
+  ClientDetail,
+  ClientAddress,
+  ClientQuote,
+  CreateClientBody,
+  UpdateClientBody,
+  CreateClientAddressBody,
+  UpdateClientAddressBody,
+  QuoteUploadBody,
+  QuoteDownload,
   UsersListResponse,
 } from './types'
 
@@ -96,6 +106,19 @@ export type DinamicApiClient = {
   setUserPassword: (id: string, body: SetUserPasswordBody) => Promise<void>
   disableUser: (id: string) => Promise<void>
   enableUser: (id: string) => Promise<void>
+  listClients: () => Promise<ClientRecord[]>
+  getClient: (id:string) => Promise<ClientDetail>
+  createClient: (body:CreateClientBody) => Promise<ClientRecord>
+  updateClient: (id:string,body:UpdateClientBody) => Promise<ClientRecord>
+  listClientAddresses: (clientId:string) => Promise<ClientAddress[]>
+  createClientAddress: (clientId:string,body:CreateClientAddressBody) => Promise<ClientAddress>
+  updateClientAddress: (clientId:string,addressId:string,body:UpdateClientAddressBody) => Promise<ClientAddress>
+  updateClientAddressStatus: (clientId:string,addressId:string,activo:boolean) => Promise<ClientAddress>
+  setClientAddressPrincipal: (clientId:string,addressId:string) => Promise<ClientAddress>
+  listClientQuotes: (clientId:string) => Promise<ClientQuote[]>
+  uploadClientQuote: (clientId:string,body:QuoteUploadBody) => Promise<ClientQuote>
+  getClientQuoteDownload: (clientId:string,quoteId:string) => Promise<QuoteDownload>
+  deleteClientQuote: (clientId:string,quoteId:string) => Promise<void>
 }
 
 /**
@@ -239,5 +262,18 @@ export function createDinamicApiClient(options: DinamicApiClientOptions): Dinami
         emptyResponse: true,
       })
     },
+    listClients(){ return requestJson<ClientRecord[]>('/v1/clients') },
+    getClient(id){ return requestJson<ClientDetail>(`/v1/clients/${id}`) },
+    createClient(body){ return requestJson<ClientRecord>('/v1/clients',{method:'POST',body:JSON.stringify(body)}) },
+    updateClient(id,body){ return requestJson<ClientRecord>(`/v1/clients/${id}`,{method:'PATCH',body:JSON.stringify(body)}) },
+    listClientAddresses(clientId){ return requestJson<ClientAddress[]>(`/v1/clients/${clientId}/addresses`) },
+    createClientAddress(clientId,body){ return requestJson<ClientAddress>(`/v1/clients/${clientId}/addresses`,{method:'POST',body:JSON.stringify(body)}) },
+    updateClientAddress(clientId,addressId,body){ return requestJson<ClientAddress>(`/v1/clients/${clientId}/addresses/${addressId}`,{method:'PATCH',body:JSON.stringify(body)}) },
+    updateClientAddressStatus(clientId,addressId,activo){ return requestJson<ClientAddress>(`/v1/clients/${clientId}/addresses/${addressId}/status`,{method:'PATCH',body:JSON.stringify({activo})}) },
+    setClientAddressPrincipal(clientId,addressId){ return requestJson<ClientAddress>(`/v1/clients/${clientId}/addresses/${addressId}/principal`,{method:'POST'}) },
+    listClientQuotes(clientId){ return requestJson<ClientQuote[]>(`/v1/clients/${clientId}/quotes`) },
+    uploadClientQuote(clientId,body){ return requestJson<ClientQuote>(`/v1/clients/${clientId}/quotes`,{method:'POST',body:JSON.stringify(body)}) },
+    getClientQuoteDownload(clientId,quoteId){ return requestJson<QuoteDownload>(`/v1/clients/${clientId}/quotes/${quoteId}/download`) },
+    deleteClientQuote(clientId,quoteId){ return requestJson<void>(`/v1/clients/${clientId}/quotes/${quoteId}`,{method:'DELETE',emptyResponse:true}) },
   }
 }

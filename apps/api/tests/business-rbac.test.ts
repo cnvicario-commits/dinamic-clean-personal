@@ -33,6 +33,9 @@ const CONFIRMED_PRODUCTIVE_GRANTS: Readonly<Record<Role, readonly Permission[]>>
     'assignments:update',
     'attendance:read', 'attendance:update',
     'attendance:export',
+    'clients:read', 'clients:create', 'clients:update',
+    'client_addresses:read', 'client_addresses:update',
+    'client_quotes:read', 'client_quotes:create', 'client_quotes:delete',
   ],
   gerente: [
     'profile:read_self', 'profile:update_self', 'employees:read',
@@ -40,21 +43,20 @@ const CONFIRMED_PRODUCTIVE_GRANTS: Readonly<Record<Role, readonly Permission[]>>
     'assignments:create', 'assignments:update',
     'attendance:read', 'attendance:update',
     'attendance:export',
+    'clients:read', 'clients:create', 'clients:update',
+    'client_addresses:read', 'client_addresses:update',
+    'client_quotes:read', 'client_quotes:create', 'client_quotes:delete',
   ],
-  compras: ['profile:read_self', 'profile:update_self'],
+  compras: ['profile:read_self', 'profile:update_self',
+    'clients:read', 'clients:create', 'clients:update',
+    'client_addresses:read', 'client_addresses:update',
+    'client_quotes:read', 'client_quotes:create', 'client_quotes:delete'],
   supervisor: ['profile:read_self', 'profile:update_self'],
   auditoria: ['profile:read_self', 'profile:update_self'],
 }
 
 /** Catalog capabilities that must remain DENY for all roles until Phase 3+ confirms grants. */
 const CATALOG_DENY_UNTIL_CONFIRMED: readonly Permission[] = [
-  'clients:read',
-  'clients:create',
-  'client_addresses:read',
-  'client_addresses:update',
-  'client_quotes:read',
-  'client_quotes:create',
-  'client_quotes:delete',
   'companies:read',
   'companies:create',
   'companies:update',
@@ -184,7 +186,7 @@ describe('business RBAC catalog (Phase 2C corrections)', () => {
     { role: 'supervisor', permission: 'purchase_requests:read', expected: false },
     { role: 'supervisor', permission: 'audits:read', expected: false },
     { role: 'gerente', permission: 'employees:create', expected: true },
-    { role: 'admin', permission: 'clients:read', expected: false },
+    { role: 'admin', permission: 'clients:read', expected: true },
   ]
 
   it.each(roleDiffCases)(

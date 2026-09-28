@@ -12,6 +12,15 @@ describe('openapi contract (Phase 1)', () => {
         '/v1/assignments/{id}/close',
         '/v1/attendance',
         '/v1/attendance/codes',
+        '/v1/clients',
+        '/v1/clients/{id}',
+        '/v1/clients/{id}/addresses',
+        '/v1/clients/{id}/addresses/{addressId}',
+        '/v1/clients/{id}/addresses/{addressId}/principal',
+        '/v1/clients/{id}/addresses/{addressId}/status',
+        '/v1/clients/{id}/quotes',
+        '/v1/clients/{id}/quotes/{quoteId}',
+        '/v1/clients/{id}/quotes/{quoteId}/download',
         '/v1/employees',
         '/v1/employees/{id}/status',
         '/v1/hr/catalogs',
@@ -68,5 +77,16 @@ describe('openapi contract (Phase 1)', () => {
     expect(openApiDocument.components.schemas.CreateEmployeeBody).toBeTruthy()
     expect(openApiDocument.components.schemas.AssignmentsResponse).toBeTruthy()
     expect(openApiDocument.components.schemas.HrCatalogsResponse).toBeTruthy()
+  })
+
+  it('documents the complete Phase 4A client surface', () => {
+    expect(openApiDocument.paths['/v1/clients'].post.security).toEqual([{ bearerAuth: [] }])
+    expect(openApiDocument.paths['/v1/clients/{id}'].patch.responses['404']).toBeTruthy()
+    expect(openApiDocument.paths['/v1/clients/{id}/addresses/{addressId}/principal'].post).toBeTruthy()
+    expect(openApiDocument.paths['/v1/clients/{id}/quotes'].post.responses['413']).toBeTruthy()
+    expect(openApiDocument.paths['/v1/clients/{id}/quotes/{quoteId}/download'].get).toBeTruthy()
+    expect(openApiDocument.paths['/v1/clients/{id}/quotes/{quoteId}'].delete.responses['502']).toBeTruthy()
+    expect(openApiDocument.components.schemas.ClientDetail).toBeTruthy()
+    expect(openApiDocument.components.schemas.QuoteDownload).toBeTruthy()
   })
 })

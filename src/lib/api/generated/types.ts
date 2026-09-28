@@ -32,6 +32,7 @@ export type Permission =
   | 'attendance:export'
   | 'clients:read'
   | 'clients:create'
+  | 'clients:update'
   | 'client_addresses:read'
   | 'client_addresses:update'
   | 'client_quotes:read'
@@ -94,6 +95,7 @@ export const GENERATED_PERMISSIONS = [
   'attendance:export',
   'clients:read',
   'clients:create',
+  'clients:update',
   'client_addresses:read',
   'client_addresses:update',
   'client_quotes:read',
@@ -179,6 +181,17 @@ export type SetUserPasswordBody = {
 export type UpdateOwnProfileBody = {
   nombreCompleto: string
 }
+
+export type ClientRecord = { id:string; nombre:string; cuit:string|null; persona_contacto:string|null; codigo_costos:string|null; presupuesto_4hs:number; presupuesto_8hs:number; domicilio:string|null; lleva_insumos:boolean|null; activo:boolean; created_at:string }
+export type ClientAddress = { id:string; cliente_id:string; alias:string; direccion:string|null; es_principal:boolean; activo:boolean; horario_atencion:string|null; supervisor_id:string|null; created_at:string }
+export type ClientQuote = { id:string; cliente_id:string; nombre_archivo:string; subido_por:string|null; created_at:string; subido_por_nombre?:string|null }
+export type ClientDetail = { client:ClientRecord; addresses:ClientAddress[]; quotes:ClientQuote[] }
+export type CreateClientBody = { nombre:string; cuit?:string|null; personaContacto?:string|null; codigoCostos?:string|null; presupuesto4hs?:number; presupuesto8hs?:number; domicilio?:string|null; llevaInsumos?:boolean|null }
+export type UpdateClientBody = Partial<CreateClientBody> & { activo?:boolean }
+export type CreateClientAddressBody = { alias:string; direccion?:string|null; horarioAtencion?:string|null; esPrincipal?:boolean }
+export type UpdateClientAddressBody = Partial<CreateClientAddressBody>
+export type QuoteUploadBody = { fileName:string; contentBase64:string }
+export type QuoteDownload = { url:string; expiresIn:number; fileName:string }
 
 /** GET /v1/employees query (optional fields omitted when unset) */
 export type ListEmployeesQuery = {
