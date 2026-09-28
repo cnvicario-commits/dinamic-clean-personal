@@ -44,7 +44,7 @@ export default function ClienteDomiciliosTabla({
                 )}
               </td>
               <td className="px-4 py-3">
-                <ClienteDomicilioEstadoBoton id={d.id} activo={d.activo} />
+                <ClienteDomicilioEstadoBoton id={d.id} clienteId={d.cliente_id} activo={d.activo} />
               </td>
               <td className="px-4 py-3">
                 <button onClick={() => onEditar(d)} className="text-teal-600 hover:underline text-sm">

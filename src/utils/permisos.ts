@@ -1,8 +1,7 @@
-// Control de acceso por rol, a nivel de app (no toca RLS/permisos de Supabase,
-// que siguen permisivos para cualquier autenticado — ver plan de "Crear
-// usuarios desde la app + roles por módulo"). Se usa tanto en src/proxy.ts
-// (bloquea la navegación a rutas no permitidas) como en NavBar.tsx (oculta
-// los links que no correspondan).
+// Control de navegación por rol, a nivel de app. No es una frontera de
+// autorización: cada dominio debe aplicar RBAC backend y RLS/grants propios.
+// Se usa tanto en src/proxy.ts (bloquea navegación) como en NavBar.tsx
+// (oculta los links que no correspondan).
 
 export type Rol = 'admin' | 'gerente' | 'compras' | 'supervisor' | 'auditoria'
 

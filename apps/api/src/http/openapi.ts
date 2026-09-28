@@ -25,6 +25,14 @@ import {
   updateOwnProfileBodySchema,
   usersListResponseSchema,
 } from './schemas/users.js'
+import {
+  createAddressBodySchema,
+  createClientBodySchema,
+  quoteUploadBodySchema,
+  statusBodySchema,
+  updateAddressBodySchema,
+  updateClientBodySchema,
+} from './schemas/clients.js'
 
 /** Derive JSON Schema fragments from Zod response schemas. */
 function zodJsonSchema(schema: z.ZodType): Record<string, unknown> {
@@ -51,6 +59,14 @@ function assignmentQueryParameter(name: keyof typeof LIST_ASSIGNMENTS_QUERY_OPEN
 }
 
 const idParameter = [{ name: 'id', in: 'path' as const, required: true, schema: { type: 'string', format: 'uuid' } }]
+const clientAddressParameters = [
+  { name: 'id', in: 'path' as const, required: true, schema: { type: 'string', format: 'uuid' } },
+  { name: 'addressId', in: 'path' as const, required: true, schema: { type: 'string', format: 'uuid' } },
+]
+const clientQuoteParameters = [
+  { name: 'id', in: 'path' as const, required: true, schema: { type: 'string', format: 'uuid' } },
+  { name: 'quoteId', in: 'path' as const, required: true, schema: { type: 'string', format: 'uuid' } },
+]
 
 const bearer = [{ bearerAuth: [] }]
 
@@ -115,6 +131,82 @@ export const openApiDocument = {
           '401': { description: 'Unauthorized' },
           '403': { description: 'Forbidden' },
         },
+      },
+    },
+    '/v1/clients': {
+      get: {
+        summary: 'List clients', security: bearer,
+        responses: { '200': { description: 'Client list', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/ClientRecord' } } } } }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' } },
+      },
+      post: {
+        summary: 'Create client and optional initial address', security: bearer,
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/CreateClientBody' } } } },
+        responses: { '201': { description: 'Created', content: { 'application/json': { schema: { $ref: '#/components/schemas/ClientRecord' } } } }, '400': { description: 'Validation' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '409': { description: 'Conflict' } },
+      },
+    },
+    '/v1/clients/{id}': {
+      get: {
+        summary: 'Get client detail with addresses and quotes', security: bearer, parameters: idParameter,
+        responses: { '200': { description: 'Client detail', content: { 'application/json': { schema: { $ref: '#/components/schemas/ClientDetail' } } } }, '400': { description: 'Invalid id' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Not found' } },
+      },
+      patch: {
+        summary: 'Update allowlisted client fields', security: bearer, parameters: idParameter,
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/UpdateClientBody' } } } },
+        responses: { '200': { description: 'Updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/ClientRecord' } } } }, '400': { description: 'Validation' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Not found' }, '409': { description: 'Conflict' } },
+      },
+    },
+    '/v1/clients/{id}/addresses': {
+      get: {
+        summary: 'List client addresses', security: bearer, parameters: idParameter,
+        responses: { '200': { description: 'Address list', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/ClientAddress' } } } } }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Client not found' } },
+      },
+      post: {
+        summary: 'Create client address', security: bearer, parameters: idParameter,
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/CreateClientAddressBody' } } } },
+        responses: { '201': { description: 'Created', content: { 'application/json': { schema: { $ref: '#/components/schemas/ClientAddress' } } } }, '400': { description: 'Validation' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Client not found' }, '409': { description: 'Conflict' } },
+      },
+    },
+    '/v1/clients/{id}/addresses/{addressId}': {
+      patch: {
+        summary: 'Update allowlisted address fields', security: bearer, parameters: clientAddressParameters,
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/UpdateClientAddressBody' } } } },
+        responses: { '200': { description: 'Updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/ClientAddress' } } } }, '400': { description: 'Validation' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Not found' }, '409': { description: 'Conflict' } },
+      },
+    },
+    '/v1/clients/{id}/addresses/{addressId}/status': {
+      patch: {
+        summary: 'Activate or deactivate client address', security: bearer, parameters: clientAddressParameters,
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/ClientAddressStatusBody' } } } },
+        responses: { '200': { description: 'Updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/ClientAddress' } } } }, '400': { description: 'Validation' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Not found' } },
+      },
+    },
+    '/v1/clients/{id}/addresses/{addressId}/principal': {
+      post: {
+        summary: 'Set the active address as the only principal address', security: bearer, parameters: clientAddressParameters,
+        responses: { '200': { description: 'Updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/ClientAddress' } } } }, '400': { description: 'Invalid id' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Active address not found' } },
+      },
+    },
+    '/v1/clients/{id}/quotes': {
+      get: {
+        summary: 'List client quote metadata', security: bearer, parameters: idParameter,
+        responses: { '200': { description: 'Quote list', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/ClientQuote' } } } } }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Client not found' } },
+      },
+      post: {
+        summary: 'Upload PDF quote through backend-managed private storage', security: bearer, parameters: idParameter,
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/QuoteUploadBody' } } } },
+        responses: { '201': { description: 'Created', content: { 'application/json': { schema: { $ref: '#/components/schemas/ClientQuote' } } } }, '400': { description: 'Validation or non-PDF' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Client not found' }, '413': { description: 'PDF exceeds 15 MB' }, '502': { description: 'Storage or metadata persistence failure' } },
+      },
+    },
+    '/v1/clients/{id}/quotes/{quoteId}/download': {
+      get: {
+        summary: 'Create a short-lived signed URL for a client quote', security: bearer, parameters: clientQuoteParameters,
+        responses: { '200': { description: 'Signed download', content: { 'application/json': { schema: { $ref: '#/components/schemas/QuoteDownload' } } } }, '400': { description: 'Invalid id' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Quote not found for client' }, '502': { description: 'Storage signing failure' } },
+      },
+    },
+    '/v1/clients/{id}/quotes/{quoteId}': {
+      delete: {
+        summary: 'Delete quote metadata and private object with compensation', security: bearer, parameters: clientQuoteParameters,
+        responses: { '204': { description: 'Deleted' }, '400': { description: 'Invalid id' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Quote not found for client' }, '502': { description: 'Storage deletion failure; metadata restore attempted' } },
       },
     },
     '/v1/employees': {
@@ -396,6 +488,17 @@ export const openApiDocument = {
       CreateUserBody: zodJsonSchema(createUserBodySchema),
       ChangeUserRoleBody: zodJsonSchema(changeUserRoleBodySchema),
       SetUserPasswordBody: zodJsonSchema(setUserPasswordBodySchema),
+      CreateClientBody: zodJsonSchema(createClientBodySchema),
+      UpdateClientBody: zodJsonSchema(updateClientBodySchema),
+      CreateClientAddressBody: zodJsonSchema(createAddressBodySchema),
+      UpdateClientAddressBody: zodJsonSchema(updateAddressBodySchema),
+      ClientAddressStatusBody: zodJsonSchema(statusBodySchema),
+      QuoteUploadBody: zodJsonSchema(quoteUploadBodySchema),
+      ClientRecord: { type:'object',required:['id','nombre','cuit','persona_contacto','codigo_costos','presupuesto_4hs','presupuesto_8hs','domicilio','lleva_insumos','activo','created_at'],properties:{id:{type:'string',format:'uuid'},nombre:{type:'string'},cuit:{type:['string','null']},persona_contacto:{type:['string','null']},codigo_costos:{type:['string','null']},presupuesto_4hs:{type:'integer'},presupuesto_8hs:{type:'integer'},domicilio:{type:['string','null']},lleva_insumos:{type:['boolean','null']},activo:{type:'boolean'},created_at:{type:'string'}} },
+      ClientAddress: { type:'object',required:['id','cliente_id','alias','direccion','es_principal','activo','horario_atencion','supervisor_id','created_at'],properties:{id:{type:'string',format:'uuid'},cliente_id:{type:'string',format:'uuid'},alias:{type:'string'},direccion:{type:['string','null']},es_principal:{type:'boolean'},activo:{type:'boolean'},horario_atencion:{type:['string','null']},supervisor_id:{type:['string','null'],format:'uuid'},created_at:{type:'string'}} },
+      ClientQuote: { type:'object',required:['id','cliente_id','nombre_archivo','subido_por','created_at'],properties:{id:{type:'string',format:'uuid'},cliente_id:{type:'string',format:'uuid'},nombre_archivo:{type:'string'},subido_por:{type:['string','null'],format:'uuid'},subido_por_nombre:{type:['string','null']},created_at:{type:'string'}} },
+      ClientDetail: { type:'object',required:['client','addresses','quotes'],properties:{client:{$ref:'#/components/schemas/ClientRecord'},addresses:{type:'array',items:{$ref:'#/components/schemas/ClientAddress'}},quotes:{type:'array',items:{$ref:'#/components/schemas/ClientQuote'}}} },
+      QuoteDownload: { type:'object',required:['url','expiresIn','fileName'],properties:{url:{type:'string'},expiresIn:{type:'integer'},fileName:{type:'string'}} },
       BejermanReportData: { type:'object',required:['employees','assignments','clients','attendance'],properties:{employees:{type:'array',items:{type:'object',required:['id','nombre_apellido','legajo','empresa'],properties:{id:{type:'string'},nombre_apellido:{type:'string'},legajo:{type:['string','null']},empresa:{type:['string','null']}}}},assignments:{type:'array',items:{type:'object',required:['empleado_id','cliente_id'],properties:{empleado_id:{type:'string'},cliente_id:{type:'string'}}}},clients:{type:'array',items:{type:'object',required:['id','nombre','codigo_costos'],properties:{id:{type:'string'},nombre:{type:'string'},codigo_costos:{type:['string','null']}}}},attendance:{type:'array',items:{type:'object',required:['empleado_id','fecha','codigo'],properties:{empleado_id:{type:'string'},fecha:{type:'string',format:'date'},codigo:{type:'string'}}}}}},
       OvertimeReportData: { type:'object',required:['attendance','assignments','clients'],properties:{attendance:{type:'array',items:{type:'object',required:['empleado_id','horas_extras','cliente_destino_id','cliente_horas_extra_id','nombre_apellido'],properties:{empleado_id:{type:'string'},horas_extras:{type:'number'},cliente_destino_id:{type:['string','null']},cliente_horas_extra_id:{type:['string','null']},nombre_apellido:{type:'string'}}}},assignments:{type:'array',items:{type:'object',required:['empleado_id','cliente_id'],properties:{empleado_id:{type:'string'},cliente_id:{type:'string'}}}},clients:{type:'array',items:{type:'object',required:['id','nombre'],properties:{id:{type:'string'},nombre:{type:'string'}}}}}},
     },

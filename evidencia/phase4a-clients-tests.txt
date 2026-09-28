@@ -1,0 +1,86 @@
+FASE 4A — EVIDENCIA DE VALIDACIÓN EJECUTADA
+Fecha: 2026-09-28
+
+1. Backend typecheck
+command: npm run typecheck --prefix apps/api
+exit_code=0
+result=PASS
+
+2. Backend build
+command: npm run build --prefix apps/api
+exit_code=0
+result=PASS
+
+3. Frontend typecheck
+command: npx tsc --noEmit
+exit_code=0
+result=PASS
+
+4. Backend lint
+command: npm run lint --prefix apps/api
+exit_code=0
+result=PASS
+
+5. Frontend lint
+command: npm run lint
+exit_code=0
+result=PASS
+
+6. Suite completa API
+command: npm test --prefix apps/api
+exit_code=0
+result=PASS
+Test Files: 33 passed | 5 skipped (38)
+Tests: 212 passed | 32 skipped (244)
+Nota: los skips son integraciones opt-in no habilitadas en la corrida general.
+
+7. Seguridad real PostgREST + Storage (opt-in, Supabase local)
+command: RUN_SUPABASE_INTEGRATION=1 ... npm test -- postgrest-phase4a-rls.negative.test.ts
+exit_code=0
+result=PASS
+Test Files: 1 passed (1)
+Tests: 11 passed (11)
+Cobertura real: INSERT/PATCH/DELETE en clientes, cliente_domicilios y
+cliente_presupuestos; upload, read y delete en presupuestos-clientes con JWT
+authenticated. El objeto de prueba Storage fue creado y limpiado con service-role.
+
+8. Contratos generados
+command: npm run export:contracts --prefix apps/api; comparar SHA antes/después
+exit_code=0
+result=PASS
+Resultado: segunda generación determinística, sin diferencias de checksum.
+Catálogo: 5 roles, 52 permisos.
+
+9. Migración local
+command: psql -v ON_ERROR_STOP=1 < 20260928120000_phase4a_clients.sql
+exit_code=0
+result=PASS
+Resultado: COMMIT; reaplicación idempotente validada.
+
+10. Esquema efectivo
+result=PASS
+- Bucket presupuestos-clientes: public=false.
+- Policies browser de escritura para el bucket: 0.
+- Policies efectivas tablas: dinamic_api writer; authenticated sólo SELECT legacy
+  en clientes/domicilios; sin policy authenticated para cliente_presupuestos.
+- Índice parcial único cliente_domicilios_un_principal confirmado.
+- FKs cliente→domicilios/presupuestos confirmadas y preservadas.
+
+11. Frontend production build (webpack)
+command: npx next build --webpack
+exit_code=0
+result=PASS
+Resultado: compilación, TypeScript, page data y 41 páginas completados.
+
+12. Frontend standard build (Turbopack)
+command: npm run build
+exit_code=1
+result=ENVIRONMENT_LIMITATION
+Detalle: Turbopack/PostCSS intenta crear un proceso y bindear un puerto; macOS
+devuelve Operation not permitted (os error 1), incluso fuera del sandbox.
+El build webpack del mismo Next 16.3.5 y mismo árbol finaliza correctamente.
+
+13. Higiene del diff
+command: git diff --check
+exit_code=0
+result=PASS

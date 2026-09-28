@@ -1,0 +1,2492 @@
+diff --git a/apps/api/scripts/export-contracts.mjs b/apps/api/scripts/export-contracts.mjs
+index 40639e0..9d7c40a 100644
+--- a/apps/api/scripts/export-contracts.mjs
++++ b/apps/api/scripts/export-contracts.mjs
+@@ -135,40 +135,51 @@ export type UsersListResponse = {
+ 
+ export type CreateUserBody = {
+   email: string
+   password: string
+   nombreCompleto: string
+   rol: Role
+ }
+ 
+ export type ChangeUserRoleBody = {
+   rol: Role
+ }
+ 
+ export type SetUserPasswordBody = {
+   password: string
+ }
+ 
+ export type UpdateOwnProfileBody = {
+   nombreCompleto: string
+ }
+ 
++export type ClientRecord = { id:string; nombre:string; cuit:string|null; persona_contacto:string|null; codigo_costos:string|null; presupuesto_4hs:number; presupuesto_8hs:number; domicilio:string|null; lleva_insumos:boolean|null; activo:boolean; created_at:string }
++export type ClientAddress = { id:string; cliente_id:string; alias:string; direccion:string|null; es_principal:boolean; activo:boolean; horario_atencion:string|null; supervisor_id:string|null; created_at:string }
++export type ClientQuote = { id:string; cliente_id:string; nombre_archivo:string; subido_por:string|null; created_at:string; subido_por_nombre?:string|null }
++export type ClientDetail = { client:ClientRecord; addresses:ClientAddress[]; quotes:ClientQuote[] }
++export type CreateClientBody = { nombre:string; cuit?:string|null; personaContacto?:string|null; codigoCostos?:string|null; presupuesto4hs?:number; presupuesto8hs?:number; domicilio?:string|null; llevaInsumos?:boolean|null }
++export type UpdateClientBody = Partial<CreateClientBody> & { activo?:boolean }
++export type CreateClientAddressBody = { alias:string; direccion?:string|null; horarioAtencion?:string|null; esPrincipal?:boolean }
++export type UpdateClientAddressBody = Partial<CreateClientAddressBody>
++export type QuoteUploadBody = { fileName:string; contentBase64:string }
++export type QuoteDownload = { url:string; expiresIn:number; fileName:string }
++
+ /** GET /v1/employees query (optional fields omitted when unset) */
+ export type ListEmployeesQuery = {
+   page?: number
+   pageSize?: number
+   activo?: boolean
+   search?: string
+   clienteId?: string
+ }
+ 
+ export type CreateEmployeeBody = {
+   nombreApellido: string
+   cuil: string
+   legajo?: string | null
+   fechaIngreso?: string | null
+   horasContrato: 4 | 8
+   empresa: 'DINAMIC' | 'MORAL'
+ }
+ 
+ export type UpdateEmployeeStatusBody = { activo: boolean }
+ 
+@@ -239,40 +250,50 @@ import type {
+   EmployeesResponse,
+   ListEmployeesQuery,
+   ListAssignmentsQuery,
+   CreateAssignmentBody,
+   AssignmentListItem,
+   AssignmentsResponse,
+   HrCatalogsResponse,
+   HrCatalogInclude,
+   AttendanceQuery,
+   AttendanceCode,
+   AttendanceItem,
+   AttendanceResponse,
+   AttendanceUpsert,
+   BejermanReportData,
+   OvertimeReportData,
+   MeResponse,
+   ProblemDetails,
+   ProfileResponse,
+   SetUserPasswordBody,
+   UpdateOwnProfileBody,
++  ClientRecord,
++  ClientDetail,
++  ClientAddress,
++  ClientQuote,
++  CreateClientBody,
++  UpdateClientBody,
++  CreateClientAddressBody,
++  UpdateClientAddressBody,
++  QuoteUploadBody,
++  QuoteDownload,
+   UsersListResponse,
+ } from './types'
+ 
+ export type DinamicApiClientOptions = {
+   baseUrl: string
+   accessToken: string
+   /** Override for tests; defaults to global fetch */
+   fetch?: typeof fetch
+ }
+ 
+ export class ApiClientError extends Error {
+   readonly status: number
+   readonly requestId: string | null
+   readonly problem: ProblemDetails | null
+ 
+   constructor(
+     message: string,
+     status: number,
+     requestId: string | null,
+     problem: ProblemDetails | null = null,
+@@ -305,40 +326,53 @@ export type DinamicApiClient = {
+   getMe: () => Promise<MeResponse>
+   updateMe: (body: UpdateOwnProfileBody) => Promise<ProfileResponse>
+   listEmployees: (query?: ListEmployeesQuery) => Promise<EmployeesResponse>
+   createEmployee: (body: CreateEmployeeBody) => Promise<EmployeeMutationResponse>
+   updateEmployeeStatus: (id: string, body: UpdateEmployeeStatusBody) => Promise<EmployeeMutationResponse>
+   listAssignments: (query?: ListAssignmentsQuery) => Promise<AssignmentsResponse>
+   createAssignment: (body: CreateAssignmentBody) => Promise<AssignmentListItem>
+   closeAssignment: (id: string) => Promise<AssignmentListItem>
+   getHrCatalogs: (include: HrCatalogInclude) => Promise<HrCatalogsResponse>
+   listAttendance: (query?: AttendanceQuery) => Promise<AttendanceResponse>
+   listAttendanceCodes: () => Promise<AttendanceCode[]>
+   upsertAttendance: (body: AttendanceUpsert) => Promise<AttendanceItem>
+   getBejermanReport: (from:string,to:string) => Promise<BejermanReportData>
+   getOvertimeReport: (from:string,to:string) => Promise<OvertimeReportData>
+   listUsers: () => Promise<UsersListResponse>
+   createUser: (body: CreateUserBody) => Promise<AdminUserResponse>
+   changeUserRole: (id: string, body: ChangeUserRoleBody) => Promise<ProfileResponse>
+   setUserPassword: (id: string, body: SetUserPasswordBody) => Promise<void>
+   disableUser: (id: string) => Promise<void>
+   enableUser: (id: string) => Promise<void>
++  listClients: () => Promise<ClientRecord[]>
++  getClient: (id:string) => Promise<ClientDetail>
++  createClient: (body:CreateClientBody) => Promise<ClientRecord>
++  updateClient: (id:string,body:UpdateClientBody) => Promise<ClientRecord>
++  listClientAddresses: (clientId:string) => Promise<ClientAddress[]>
++  createClientAddress: (clientId:string,body:CreateClientAddressBody) => Promise<ClientAddress>
++  updateClientAddress: (clientId:string,addressId:string,body:UpdateClientAddressBody) => Promise<ClientAddress>
++  updateClientAddressStatus: (clientId:string,addressId:string,activo:boolean) => Promise<ClientAddress>
++  setClientAddressPrincipal: (clientId:string,addressId:string) => Promise<ClientAddress>
++  listClientQuotes: (clientId:string) => Promise<ClientQuote[]>
++  uploadClientQuote: (clientId:string,body:QuoteUploadBody) => Promise<ClientQuote>
++  getClientQuoteDownload: (clientId:string,quoteId:string) => Promise<QuoteDownload>
++  deleteClientQuote: (clientId:string,quoteId:string) => Promise<void>
+ }
+ 
+ /**
+  * Typed client for the versioned Dinamic Clean API.
+  * Throws ApiClientError with status + requestId (header or problem body) on non-2xx.
+  */
+ export function createDinamicApiClient(options: DinamicApiClientOptions): DinamicApiClient {
+   const fetchImpl = options.fetch ?? fetch
+   const token = options.accessToken
+ 
+   async function requestJson<T>(
+     path: string,
+     init?: RequestInit & { query?: Record<string, string>; emptyResponse?: boolean },
+   ): Promise<T> {
+     const url = joinUrl(options.baseUrl, path)
+     const { query, emptyResponse, ...rest } = init ?? {}
+     if (query) {
+       for (const [k, v] of Object.entries(query)) {
+         url.searchParams.set(k, v)
+       }
+@@ -448,75 +482,98 @@ export function createDinamicApiClient(options: DinamicApiClientOptions): Dinami
+     },
+     setUserPassword(id, body) {
+       return requestJson<void>(\`/v1/users/\${id}/password\`, {
+         method: 'POST',
+         body: JSON.stringify(body),
+         emptyResponse: true,
+       })
+     },
+     disableUser(id) {
+       return requestJson<void>(\`/v1/users/\${id}/disable\`, {
+         method: 'POST',
+         emptyResponse: true,
+       })
+     },
+     enableUser(id) {
+       return requestJson<void>(\`/v1/users/\${id}/enable\`, {
+         method: 'POST',
+         emptyResponse: true,
+       })
+     },
++    listClients(){ return requestJson<ClientRecord[]>('/v1/clients') },
++    getClient(id){ return requestJson<ClientDetail>(\`/v1/clients/\${id}\`) },
++    createClient(body){ return requestJson<ClientRecord>('/v1/clients',{method:'POST',body:JSON.stringify(body)}) },
++    updateClient(id,body){ return requestJson<ClientRecord>(\`/v1/clients/\${id}\`,{method:'PATCH',body:JSON.stringify(body)}) },
++    listClientAddresses(clientId){ return requestJson<ClientAddress[]>(\`/v1/clients/\${clientId}/addresses\`) },
++    createClientAddress(clientId,body){ return requestJson<ClientAddress>(\`/v1/clients/\${clientId}/addresses\`,{method:'POST',body:JSON.stringify(body)}) },
++    updateClientAddress(clientId,addressId,body){ return requestJson<ClientAddress>(\`/v1/clients/\${clientId}/addresses/\${addressId}\`,{method:'PATCH',body:JSON.stringify(body)}) },
++    updateClientAddressStatus(clientId,addressId,activo){ return requestJson<ClientAddress>(\`/v1/clients/\${clientId}/addresses/\${addressId}/status\`,{method:'PATCH',body:JSON.stringify({activo})}) },
++    setClientAddressPrincipal(clientId,addressId){ return requestJson<ClientAddress>(\`/v1/clients/\${clientId}/addresses/\${addressId}/principal\`,{method:'POST'}) },
++    listClientQuotes(clientId){ return requestJson<ClientQuote[]>(\`/v1/clients/\${clientId}/quotes\`) },
++    uploadClientQuote(clientId,body){ return requestJson<ClientQuote>(\`/v1/clients/\${clientId}/quotes\`,{method:'POST',body:JSON.stringify(body)}) },
++    getClientQuoteDownload(clientId,quoteId){ return requestJson<QuoteDownload>(\`/v1/clients/\${clientId}/quotes/\${quoteId}/download\`) },
++    deleteClientQuote(clientId,quoteId){ return requestJson<void>(\`/v1/clients/\${clientId}/quotes/\${quoteId}\`,{method:'DELETE',emptyResponse:true}) },
+   }
+ }
+ `
+ 
+   const indexTs = `${HEADER}
+ export type {
+   Role,
+   Permission,
+   MeResponse,
+   ProfileResponse,
+   AdminUserResponse,
+   UsersListResponse,
+   CreateUserBody,
+   ChangeUserRoleBody,
+   SetUserPasswordBody,
+   UpdateOwnProfileBody,
+   ListEmployeesQuery,
+   CreateEmployeeBody,
+   UpdateEmployeeStatusBody,
+   EmployeeMutationResponse,
+   EmployeeAssignment,
+   EmployeeListItem,
+   EmployeesResponse,
+   ListAssignmentsQuery,
+   CreateAssignmentBody,
+   AssignmentListItem,
+   AssignmentsResponse,
+   HrCatalogsResponse,
+   AttendanceQuery,
+   AttendanceCode,
+   AttendanceItem,
+   AttendanceResponse,
+   AttendanceUpsert,
+   BejermanReportData,
+   OvertimeReportData,
++  ClientRecord,
++  ClientDetail,
++  ClientAddress,
++  ClientQuote,
++  CreateClientBody,
++  UpdateClientBody,
++  CreateClientAddressBody,
++  UpdateClientAddressBody,
++  QuoteUploadBody,
++  QuoteDownload,
+   ProblemDetails,
+ } from './types'
+ export {
+   GENERATED_ROLES,
+   GENERATED_PERMISSIONS,
+ } from './types'
+ export {
+   ApiClientError,
+   createDinamicApiClient,
+   type DinamicApiClient,
+   type DinamicApiClientOptions,
+ } from './client'
+ `
+ 
+   const contractsCompat = `${HEADER}
+ /** @deprecated Prefer @/lib/api/generated — kept for existing imports */
+ export type {
+   EmployeeAssignment,
+   EmployeeListItem,
+   EmployeesResponse,
+diff --git a/apps/api/src/app.ts b/apps/api/src/app.ts
+index 95757a1..3cadeaf 100644
+--- a/apps/api/src/app.ts
++++ b/apps/api/src/app.ts
+@@ -13,69 +13,80 @@ import {
+   createProfilesRepository,
+   type ProfilesRepository,
+ } from './infrastructure/db/profiles-repository.js'
+ import { authenticateRequest } from './http/plugins/auth.js'
+ import { healthRoutes } from './http/routes/health.js'
+ import { meRoutes } from './http/routes/v1/me.js'
+ import { employeesRoutes } from './http/routes/v1/employees.js'
+ import { assignmentsRoutes } from './http/routes/v1/assignments.js'
+ import { hrCatalogsRoutes } from './http/routes/v1/hr-catalogs.js'
+ import { usersRoutes } from './http/routes/v1/users.js'
+ import { AppError, rateLimitExceeded } from './http/errors/app-error.js'
+ import { buildProblemBody, isProblemBody, sendProblem, toAppError } from './http/errors/problem-details.js'
+ import { openApiDocument } from './http/openapi.js'
+ import { createEmployeesRepository, type EmployeesRepository } from './infrastructure/db/employees-repository.js'
+ import { createAssignmentsRepository, type AssignmentsRepository } from './infrastructure/db/assignments-repository.js'
+ import { createHrCatalogsRepository } from './infrastructure/db/hr-catalogs-repository.js'
+ import { createAttendanceRepository } from './infrastructure/db/attendance-repository.js'
+ import { createAttendanceService } from './application/attendance/attendance-service.js'
+ import { createHrReportsRepository } from './infrastructure/db/hr-reports-repository.js'
+ import { createHrReportsService } from './application/hr-reports/hr-reports-service.js'
++import { createClientsRepository, type ClientsRepository } from './infrastructure/db/clients-repository.js'
++import { clientsRoutes } from './http/routes/v1/clients.js'
++import { createClientQuotesStorage, type ClientQuotesStorage } from './infrastructure/storage/client-quotes-storage.js'
++import { createClientQuotesService } from './application/clients/client-quotes-service.js'
++import { createClientsService } from './application/clients/clients-service.js'
+ 
+ declare module 'fastify' {
+   interface FastifyInstance {
+     db: Db
+     jwtVerifier: JwtVerifier
+     identityAdmin: IdentityAdmin
+     profilesRepo: ProfilesRepository
+     employeesRepo: EmployeesRepository
+     assignmentsRepo: AssignmentsRepository
+     hrCatalogsRepo: ReturnType<typeof createHrCatalogsRepository>
+     attendanceRepo: ReturnType<typeof createAttendanceRepository>
+     attendanceService: ReturnType<typeof createAttendanceService>
+     hrReportsRepo: ReturnType<typeof createHrReportsRepository>
+     hrReportsService: ReturnType<typeof createHrReportsService>
++    clientsRepo: ClientsRepository
++    clientQuotesStorage: ClientQuotesStorage
++    clientQuotesService: ReturnType<typeof createClientQuotesService>
++    clientsService: ReturnType<typeof createClientsService>
+     /**
+      * True when IdentityAdmin is wired (Auth Admin key or test inject).
+      * ProfilesRepository always uses the DB pool (Phase 2D).
+      */
+     usersModuleReady: boolean
+     config: Env
+   }
+ }
+ 
+ export type BuildAppOptions = {
+   db?: Db
+   jwtVerifier?: JwtVerifier
+   /** Test inject — when both identity + profiles are provided, module is ready. */
+   identityAdmin?: IdentityAdmin
+   profilesRepo?: ProfilesRepository
++  clientsRepo?: ClientsRepository
++  clientQuotesStorage?: ClientQuotesStorage
+ }
+ 
+ /**
+  * Production must not start without SERVICE_ROLE_KEY (users module dependency).
+  */
+ export function assertUsersModuleConfig(env: Env, options: BuildAppOptions): void {
+   if (
+     env.NODE_ENV === 'production' &&
+     !(options.identityAdmin && options.profilesRepo) &&
+     !env.SUPABASE_SERVICE_ROLE_KEY
+   ) {
+     throw new Error(
+       'Invalid configuration: SUPABASE_SERVICE_ROLE_KEY is required in production for the users module',
+     )
+   }
+ }
+ 
+ function stubIdentityAdmin(): IdentityAdmin {
+   const unavailable = () => {
+     throw new AppError(503, 'service_unavailable', 'Identity dependency unavailable')
+@@ -143,40 +154,44 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
+   const jwtVerifier = options.jwtVerifier ?? createJwtVerifier(env)
+ 
+   const hasKey = Boolean(env.SUPABASE_SERVICE_ROLE_KEY)
+   const identityAdmin =
+     options.identityAdmin ?? (hasKey ? createIdentityAdmin(env) : null)
+   // Profiles use the DB pool only (Phase 2D) — no service-role table client.
+   const profilesRepo = options.profilesRepo ?? createProfilesRepository(db)
+ 
+   // Ready iff Auth Admin is wired (key or inject) and profiles repo is present.
+   const usersModuleReady = identityAdmin != null
+ 
+   app.decorate('identityAdmin', identityAdmin ?? stubIdentityAdmin())
+   app.decorate('profilesRepo', profilesRepo ?? stubProfilesRepo())
+   app.decorate('employeesRepo', createEmployeesRepository(db))
+   app.decorate('assignmentsRepo', createAssignmentsRepository(db))
+   app.decorate('hrCatalogsRepo', createHrCatalogsRepository(db))
+   app.decorate('attendanceRepo', createAttendanceRepository(db))
+   app.decorate('attendanceService', createAttendanceService(app.attendanceRepo))
+   app.decorate('hrReportsRepo', createHrReportsRepository(db))
+   app.decorate('hrReportsService', createHrReportsService(app.hrReportsRepo))
++  app.decorate('clientsRepo', options.clientsRepo ?? createClientsRepository(db))
++  app.decorate('clientQuotesStorage', options.clientQuotesStorage ?? createClientQuotesStorage(env))
++  app.decorate('clientQuotesService', createClientQuotesService(app.clientsRepo,app.clientQuotesStorage,(data,message)=>app.log.info(data,message)))
++  app.decorate('clientsService',createClientsService(app.clientsRepo,(data,message)=>app.log.info(data,message)))
+   app.decorate('db', db)
+   app.decorate('jwtVerifier', jwtVerifier)
+   app.decorate('usersModuleReady', usersModuleReady)
+   app.decorate('config', env)
+ 
+   // Explicit origin allowlist + credentials. Never wildcard+credentials.
+   const origins = env.CORS_ORIGIN.split(',')
+     .map((s) => s.trim())
+     .filter(Boolean)
+   await app.register(cors, {
+     origin: origins,
+     credentials: true,
+   })
+ 
+   // Helmet after CORS. CSP is a browser/document concern (Next/FE); JSON API disables it.
+   await app.register(helmet, {
+     contentSecurityPolicy: false,
+     crossOriginEmbedderPolicy: false,
+     frameguard: { action: 'deny' },
+     referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+@@ -275,36 +290,37 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
+   app.addHook('preHandler', async (request, reply) => {
+     try {
+       await authenticateRequest(request, {
+         db: app.db,
+         jwtVerifier: app.jwtVerifier,
+         identityAdmin: app.usersModuleReady ? app.identityAdmin : null,
+       })
+     } catch (err) {
+       if (err instanceof AppError) {
+         return sendProblem(reply, request, err)
+       }
+       throw err
+     }
+   })
+ 
+   await app.register(healthRoutes)
+   await app.register(meRoutes)
+   await app.register(employeesRoutes)
+   await app.register(assignmentsRoutes)
+   await app.register(hrCatalogsRoutes)
++  await app.register(clientsRoutes)
+   await app.register((await import('./http/routes/v1/attendance.js')).attendanceRoutes)
+   await app.register((await import('./http/routes/v1/hr-reports.js')).hrReportsRoutes)
+   await app.register(usersRoutes)
+ 
+   app.get(
+     '/openapi.json',
+     { config: { rateLimit: false } },
+     async () => openApiDocument,
+   )
+ 
+   app.addHook('onClose', async () => {
+     await db.close()
+   })
+ 
+   return app
+ }
+diff --git a/apps/api/src/config/env.ts b/apps/api/src/config/env.ts
+index 67e36ab..54a1844 100644
+--- a/apps/api/src/config/env.ts
++++ b/apps/api/src/config/env.ts
+@@ -24,41 +24,42 @@ function isValidProxyCidrEntry(entry: string): boolean {
+ 
+ function parseTrustProxyCidrs(raw: string | undefined): string[] {
+   if (raw == null || raw.trim() === '') return []
+   return raw
+     .split(',')
+     .map((s) => s.trim())
+     .filter(Boolean)
+ }
+ 
+ const envSchema = z
+   .object({
+     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+     HOST: z.string().default('0.0.0.0'),
+     PORT: z.coerce.number().int().positive().default(3001),
+     LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+     CORS_ORIGIN: z.string().min(1),
+     DATABASE_URL: z.string().min(1),
+     SUPABASE_URL: z.string().url(),
+     /**
+      * Service role key — server only. Used for Supabase Auth Admin
+-     * (create/delete user, set password, list auth users). Never for perfiles table writes
++     * (create/delete user, set password, list auth users) and private Storage operations.
++     * Never for perfiles table writes
+      * (Phase 2D: ProfilesRepository uses DATABASE_URL / dinamic_api). Never expose via NEXT_PUBLIC_*.
+      */
+     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
+     /**
+      * Optional HS256 fallback when JWKS verification fails (e.g. local/tests, legacy projects).
+      * Prefer JWKS in production; set only when needed. Never expose via NEXT_PUBLIC_*.
+      */
+     SUPABASE_JWT_SECRET: z.string().min(1).optional(),
+     /** Graceful shutdown budget before forced exit(1). */
+     SHUTDOWN_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
+     /**
+      * Comma-separated IPs/CIDRs of trusted reverse proxies for X-Forwarded-* / req.ip.
+      * Empty/unset → trustProxy false (Compose publishes :3001 directly).
+      * Never set to "*", "true", or unbounded trustProxy: true.
+      */
+     TRUST_PROXY_CIDRS: z.string().optional().default(''),
+     /**
+      * When false, skip registering global + sensitive rate limiters.
+      * Default: true in development/production, false in test (avoids flaky suites).
+      */
+diff --git a/apps/api/src/domain/rbac-catalog.ts b/apps/api/src/domain/rbac-catalog.ts
+index 33af63c..cb9e119 100644
+--- a/apps/api/src/domain/rbac-catalog.ts
++++ b/apps/api/src/domain/rbac-catalog.ts
+@@ -28,40 +28,41 @@ export const PERMISSIONS = Object.freeze([
+   'profile:update_self',
+   'profiles:read_any',
+   'users:create',
+   'users:change_role',
+   'users:set_password',
+   'users:disable',
+   'users:enable',
+   // HR — employees:read enforced on GET /v1/employees; others catalog-only until Phase 3
+   'employees:read',
+   'employees:create',
+   'employees:update',
+   'assignments:read',
+   'assignments:create',
+   'assignments:update',
+   'attendance:read',
+   'attendance:update',
+   'attendance:export',
+   // Clients + nested
+   'clients:read',
+   'clients:create',
++  'clients:update',
+   'client_addresses:read',
+   'client_addresses:update',
+   'client_quotes:read',
+   'client_quotes:create',
+   'client_quotes:delete',
+   // Companies
+   'companies:read',
+   'companies:create',
+   'companies:update',
+   // Purchasing (distinct resources)
+   'suppliers:read',
+   'suppliers:update',
+   'articles:read',
+   'articles:update',
+   'articles:import',
+   'purchase_requests:read',
+   'purchase_requests:create',
+   'purchase_requests:update',
+   'purchase_orders:read',
+   'purchase_orders:create',
+diff --git a/apps/api/src/domain/rbac.ts b/apps/api/src/domain/rbac.ts
+index 6073393..e2769b7 100644
+--- a/apps/api/src/domain/rbac.ts
++++ b/apps/api/src/domain/rbac.ts
+@@ -78,53 +78,61 @@ const SELF_PROFILE = [
+  *
+  * All other catalog permissions intentionally unmapped → DENY until confirmed.
+  */
+ const ROLE_PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = Object.freeze({
+   admin: Object.freeze([
+     ...SELF_PROFILE,
+     'profiles:read_any',
+     'users:create',
+     'users:change_role',
+     'users:set_password',
+     'users:disable',
+     'users:enable',
+     'employees:read',
+     'employees:create',
+     'employees:update',
+     'assignments:read',
+     'assignments:create',
+     'assignments:update',
+     'attendance:read','attendance:update',
+     'attendance:export',
++    'clients:read', 'clients:create', 'clients:update', 'client_addresses:read', 'client_addresses:update',
++    'client_quotes:read', 'client_quotes:create', 'client_quotes:delete',
+   ] as const satisfies readonly Permission[]),
+   gerente: Object.freeze([
+     ...SELF_PROFILE,
+     'employees:read',
+     'employees:create',
+     'employees:update',
+     'assignments:read',
+     'assignments:create',
+     'assignments:update',
+     'attendance:read','attendance:update',
+     'attendance:export',
++    'clients:read', 'clients:create', 'clients:update', 'client_addresses:read', 'client_addresses:update',
++    'client_quotes:read', 'client_quotes:create', 'client_quotes:delete',
++  ] as const satisfies readonly Permission[]),
++  compras: Object.freeze([
++    ...SELF_PROFILE,
++    'clients:read', 'clients:create', 'clients:update', 'client_addresses:read', 'client_addresses:update',
++    'client_quotes:read', 'client_quotes:create', 'client_quotes:delete',
+   ] as const satisfies readonly Permission[]),
+-  compras: Object.freeze([...SELF_PROFILE] as const satisfies readonly Permission[]),
+   supervisor: Object.freeze([...SELF_PROFILE] as const satisfies readonly Permission[]),
+   auditoria: Object.freeze([...SELF_PROFILE] as const satisfies readonly Permission[]),
+ })
+ 
+ /** Read-only grant list for responses (e.g. GET /v1/me). Not an enforcement API. */
+ export function permissionsFor(role: Role): readonly Permission[] {
+   return ROLE_PERMISSIONS[role] ?? []
+ }
+ 
+ /**
+  * Internal role×permission check. Unknown role / permission ⇒ DENY.
+  * Not exported: callers must go through authorize().
+  */
+ function roleHasPermission(role: unknown, permission: unknown): boolean {
+   if (!isRole(role)) return false
+   if (!isPermission(permission)) return false
+   return permissionsFor(role).includes(permission)
+ }
+ 
+ /** Minimal auth slice for authorize() — avoids coupling to Fastify request types */
+diff --git a/apps/api/src/http/openapi.ts b/apps/api/src/http/openapi.ts
+index a76e558..310fd02 100644
+--- a/apps/api/src/http/openapi.ts
++++ b/apps/api/src/http/openapi.ts
+@@ -8,66 +8,82 @@ import {
+   updateEmployeeStatusBodySchema,
+   LIST_EMPLOYEES_QUERY_OPENAPI,
+ } from './schemas/employees.js'
+ import {
+   assignmentListItemSchema,
+   assignmentsResponseSchema,
+   createAssignmentBodySchema,
+   LIST_ASSIGNMENTS_QUERY_OPENAPI,
+ } from './schemas/assignments.js'
+ import { hrCatalogsResponseSchema } from './schemas/hr-catalogs.js'
+ import {
+   adminUserResponseSchema,
+   changeUserRoleBodySchema,
+   createUserBodySchema,
+   meResponseSchema,
+   profileResponseSchema,
+   setUserPasswordBodySchema,
+   updateOwnProfileBodySchema,
+   usersListResponseSchema,
+ } from './schemas/users.js'
++import {
++  createAddressBodySchema,
++  createClientBodySchema,
++  quoteUploadBodySchema,
++  statusBodySchema,
++  updateAddressBodySchema,
++  updateClientBodySchema,
++} from './schemas/clients.js'
+ 
+ /** Derive JSON Schema fragments from Zod response schemas. */
+ function zodJsonSchema(schema: z.ZodType): Record<string, unknown> {
+   const json = z.toJSONSchema(schema, { target: 'draft-2020-12' }) as Record<string, unknown>
+   const rest = { ...json }
+   delete rest.$schema
+   return rest
+ }
+ 
+ function queryParameter(
+   name: keyof typeof LIST_EMPLOYEES_QUERY_OPENAPI.properties,
+   required = false,
+ ) {
+   return {
+     name,
+     in: 'query' as const,
+     required,
+     schema: LIST_EMPLOYEES_QUERY_OPENAPI.properties[name],
+   }
+ }
+ 
+ function assignmentQueryParameter(name: keyof typeof LIST_ASSIGNMENTS_QUERY_OPENAPI.properties) {
+   return { name, in: 'query' as const, required: false, schema: LIST_ASSIGNMENTS_QUERY_OPENAPI.properties[name] }
+ }
+ 
+ const idParameter = [{ name: 'id', in: 'path' as const, required: true, schema: { type: 'string', format: 'uuid' } }]
++const clientAddressParameters = [
++  { name: 'id', in: 'path' as const, required: true, schema: { type: 'string', format: 'uuid' } },
++  { name: 'addressId', in: 'path' as const, required: true, schema: { type: 'string', format: 'uuid' } },
++]
++const clientQuoteParameters = [
++  { name: 'id', in: 'path' as const, required: true, schema: { type: 'string', format: 'uuid' } },
++  { name: 'quoteId', in: 'path' as const, required: true, schema: { type: 'string', format: 'uuid' } },
++]
+ 
+ const bearer = [{ bearerAuth: [] }]
+ 
+ export const openApiDocument = {
+   openapi: '3.1.0',
+   info: {
+     title: 'Dinamic Clean API',
+     version: '0.2.0',
+     description:
+       'Enterprise application backend. General IP rate limiting may return 429 on any route (except health/OpenAPI when excluded).',
+   },
+   paths: {
+     '/healthz': {
+       get: {
+         summary: 'Liveness',
+         responses: { '200': { description: 'OK' } },
+       },
+     },
+     '/readyz': {
+       get: {
+@@ -100,40 +116,116 @@ export const openApiDocument = {
+           required: true,
+           content: {
+             'application/json': {
+               schema: { $ref: '#/components/schemas/UpdateOwnProfileBody' },
+             },
+           },
+         },
+         responses: {
+           '200': {
+             description: 'Updated profile',
+             content: {
+               'application/json': { schema: { $ref: '#/components/schemas/ProfileResponse' } },
+             },
+           },
+           '400': { description: 'Validation / privileged field rejected' },
+           '401': { description: 'Unauthorized' },
+           '403': { description: 'Forbidden' },
+         },
+       },
+     },
++    '/v1/clients': {
++      get: {
++        summary: 'List clients', security: bearer,
++        responses: { '200': { description: 'Client list', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/ClientRecord' } } } } }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' } },
++      },
++      post: {
++        summary: 'Create client and optional initial address', security: bearer,
++        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/CreateClientBody' } } } },
++        responses: { '201': { description: 'Created', content: { 'application/json': { schema: { $ref: '#/components/schemas/ClientRecord' } } } }, '400': { description: 'Validation' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '409': { description: 'Conflict' } },
++      },
++    },
++    '/v1/clients/{id}': {
++      get: {
++        summary: 'Get client detail with addresses and quotes', security: bearer, parameters: idParameter,
++        responses: { '200': { description: 'Client detail', content: { 'application/json': { schema: { $ref: '#/components/schemas/ClientDetail' } } } }, '400': { description: 'Invalid id' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Not found' } },
++      },
++      patch: {
++        summary: 'Update allowlisted client fields', security: bearer, parameters: idParameter,
++        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/UpdateClientBody' } } } },
++        responses: { '200': { description: 'Updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/ClientRecord' } } } }, '400': { description: 'Validation' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Not found' }, '409': { description: 'Conflict' } },
++      },
++    },
++    '/v1/clients/{id}/addresses': {
++      get: {
++        summary: 'List client addresses', security: bearer, parameters: idParameter,
++        responses: { '200': { description: 'Address list', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/ClientAddress' } } } } }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Client not found' } },
++      },
++      post: {
++        summary: 'Create client address', security: bearer, parameters: idParameter,
++        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/CreateClientAddressBody' } } } },
++        responses: { '201': { description: 'Created', content: { 'application/json': { schema: { $ref: '#/components/schemas/ClientAddress' } } } }, '400': { description: 'Validation' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Client not found' }, '409': { description: 'Conflict' } },
++      },
++    },
++    '/v1/clients/{id}/addresses/{addressId}': {
++      patch: {
++        summary: 'Update allowlisted address fields', security: bearer, parameters: clientAddressParameters,
++        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/UpdateClientAddressBody' } } } },
++        responses: { '200': { description: 'Updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/ClientAddress' } } } }, '400': { description: 'Validation' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Not found' }, '409': { description: 'Conflict' } },
++      },
++    },
++    '/v1/clients/{id}/addresses/{addressId}/status': {
++      patch: {
++        summary: 'Activate or deactivate client address', security: bearer, parameters: clientAddressParameters,
++        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/ClientAddressStatusBody' } } } },
++        responses: { '200': { description: 'Updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/ClientAddress' } } } }, '400': { description: 'Validation' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Not found' } },
++      },
++    },
++    '/v1/clients/{id}/addresses/{addressId}/principal': {
++      post: {
++        summary: 'Set the active address as the only principal address', security: bearer, parameters: clientAddressParameters,
++        responses: { '200': { description: 'Updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/ClientAddress' } } } }, '400': { description: 'Invalid id' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Active address not found' } },
++      },
++    },
++    '/v1/clients/{id}/quotes': {
++      get: {
++        summary: 'List client quote metadata', security: bearer, parameters: idParameter,
++        responses: { '200': { description: 'Quote list', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/ClientQuote' } } } } }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Client not found' } },
++      },
++      post: {
++        summary: 'Upload PDF quote through backend-managed private storage', security: bearer, parameters: idParameter,
++        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/QuoteUploadBody' } } } },
++        responses: { '201': { description: 'Created', content: { 'application/json': { schema: { $ref: '#/components/schemas/ClientQuote' } } } }, '400': { description: 'Validation or non-PDF' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Client not found' }, '413': { description: 'PDF exceeds 15 MB' }, '502': { description: 'Storage or metadata persistence failure' } },
++      },
++    },
++    '/v1/clients/{id}/quotes/{quoteId}/download': {
++      get: {
++        summary: 'Create a short-lived signed URL for a client quote', security: bearer, parameters: clientQuoteParameters,
++        responses: { '200': { description: 'Signed download', content: { 'application/json': { schema: { $ref: '#/components/schemas/QuoteDownload' } } } }, '400': { description: 'Invalid id' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Quote not found for client' }, '502': { description: 'Storage signing failure' } },
++      },
++    },
++    '/v1/clients/{id}/quotes/{quoteId}': {
++      delete: {
++        summary: 'Delete quote metadata and private object with compensation', security: bearer, parameters: clientQuoteParameters,
++        responses: { '204': { description: 'Deleted' }, '400': { description: 'Invalid id' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Quote not found for client' }, '502': { description: 'Storage deletion failure; metadata restore attempted' } },
++      },
++    },
+     '/v1/employees': {
+       get: {
+         summary: 'List employees (paginated and filtered)',
+         security: bearer,
+         parameters: [
+           queryParameter('page'),
+           queryParameter('pageSize'),
+           queryParameter('activo'),
+           queryParameter('search'),
+           queryParameter('clienteId'),
+         ],
+         responses: {
+           '200': {
+             description: 'Employee list',
+             content: {
+               'application/json': {
+                 schema: { $ref: '#/components/schemas/EmployeesResponse' },
+               },
+             },
+           },
+@@ -379,25 +471,36 @@ export const openApiDocument = {
+       EmployeeAssignment: zodJsonSchema(employeeAssignmentSchema),
+       EmployeeListItem: zodJsonSchema(employeeListItemSchema),
+       EmployeesResponse: zodJsonSchema(employeesResponseSchema),
+       ListEmployeesQuery: LIST_EMPLOYEES_QUERY_OPENAPI,
+       CreateEmployeeBody: zodJsonSchema(createEmployeeBodySchema),
+       UpdateEmployeeStatusBody: zodJsonSchema(updateEmployeeStatusBodySchema),
+       EmployeeMutationResponse: zodJsonSchema(employeeMutationResponseSchema),
+       AssignmentListItem: zodJsonSchema(assignmentListItemSchema),
+       AssignmentsResponse: zodJsonSchema(assignmentsResponseSchema),
+       ListAssignmentsQuery: LIST_ASSIGNMENTS_QUERY_OPENAPI,
+       CreateAssignmentBody: zodJsonSchema(createAssignmentBodySchema),
+       HrCatalogsResponse: zodJsonSchema(hrCatalogsResponseSchema),
+       MeResponse: zodJsonSchema(meResponseSchema),
+       ProfileResponse: zodJsonSchema(profileResponseSchema),
+       AdminUserResponse: zodJsonSchema(adminUserResponseSchema),
+       UsersListResponse: zodJsonSchema(usersListResponseSchema),
+       UpdateOwnProfileBody: zodJsonSchema(updateOwnProfileBodySchema),
+       CreateUserBody: zodJsonSchema(createUserBodySchema),
+       ChangeUserRoleBody: zodJsonSchema(changeUserRoleBodySchema),
+       SetUserPasswordBody: zodJsonSchema(setUserPasswordBodySchema),
++      CreateClientBody: zodJsonSchema(createClientBodySchema),
++      UpdateClientBody: zodJsonSchema(updateClientBodySchema),
++      CreateClientAddressBody: zodJsonSchema(createAddressBodySchema),
++      UpdateClientAddressBody: zodJsonSchema(updateAddressBodySchema),
++      ClientAddressStatusBody: zodJsonSchema(statusBodySchema),
++      QuoteUploadBody: zodJsonSchema(quoteUploadBodySchema),
++      ClientRecord: { type:'object',required:['id','nombre','cuit','persona_contacto','codigo_costos','presupuesto_4hs','presupuesto_8hs','domicilio','lleva_insumos','activo','created_at'],properties:{id:{type:'string',format:'uuid'},nombre:{type:'string'},cuit:{type:['string','null']},persona_contacto:{type:['string','null']},codigo_costos:{type:['string','null']},presupuesto_4hs:{type:'integer'},presupuesto_8hs:{type:'integer'},domicilio:{type:['string','null']},lleva_insumos:{type:['boolean','null']},activo:{type:'boolean'},created_at:{type:'string'}} },
++      ClientAddress: { type:'object',required:['id','cliente_id','alias','direccion','es_principal','activo','horario_atencion','supervisor_id','created_at'],properties:{id:{type:'string',format:'uuid'},cliente_id:{type:'string',format:'uuid'},alias:{type:'string'},direccion:{type:['string','null']},es_principal:{type:'boolean'},activo:{type:'boolean'},horario_atencion:{type:['string','null']},supervisor_id:{type:['string','null'],format:'uuid'},created_at:{type:'string'}} },
++      ClientQuote: { type:'object',required:['id','cliente_id','nombre_archivo','subido_por','created_at'],properties:{id:{type:'string',format:'uuid'},cliente_id:{type:'string',format:'uuid'},nombre_archivo:{type:'string'},subido_por:{type:['string','null'],format:'uuid'},subido_por_nombre:{type:['string','null']},created_at:{type:'string'}} },
++      ClientDetail: { type:'object',required:['client','addresses','quotes'],properties:{client:{$ref:'#/components/schemas/ClientRecord'},addresses:{type:'array',items:{$ref:'#/components/schemas/ClientAddress'}},quotes:{type:'array',items:{$ref:'#/components/schemas/ClientQuote'}}} },
++      QuoteDownload: { type:'object',required:['url','expiresIn','fileName'],properties:{url:{type:'string'},expiresIn:{type:'integer'},fileName:{type:'string'}} },
+       BejermanReportData: { type:'object',required:['employees','assignments','clients','attendance'],properties:{employees:{type:'array',items:{type:'object',required:['id','nombre_apellido','legajo','empresa'],properties:{id:{type:'string'},nombre_apellido:{type:'string'},legajo:{type:['string','null']},empresa:{type:['string','null']}}}},assignments:{type:'array',items:{type:'object',required:['empleado_id','cliente_id'],properties:{empleado_id:{type:'string'},cliente_id:{type:'string'}}}},clients:{type:'array',items:{type:'object',required:['id','nombre','codigo_costos'],properties:{id:{type:'string'},nombre:{type:'string'},codigo_costos:{type:['string','null']}}}},attendance:{type:'array',items:{type:'object',required:['empleado_id','fecha','codigo'],properties:{empleado_id:{type:'string'},fecha:{type:'string',format:'date'},codigo:{type:'string'}}}}}},
+       OvertimeReportData: { type:'object',required:['attendance','assignments','clients'],properties:{attendance:{type:'array',items:{type:'object',required:['empleado_id','horas_extras','cliente_destino_id','cliente_horas_extra_id','nombre_apellido'],properties:{empleado_id:{type:'string'},horas_extras:{type:'number'},cliente_destino_id:{type:['string','null']},cliente_horas_extra_id:{type:['string','null']},nombre_apellido:{type:'string'}}}},assignments:{type:'array',items:{type:'object',required:['empleado_id','cliente_id'],properties:{empleado_id:{type:'string'},cliente_id:{type:'string'}}}},clients:{type:'array',items:{type:'object',required:['id','nombre'],properties:{id:{type:'string'},nombre:{type:'string'}}}}}},
+     },
+   },
+ } as const
+diff --git a/apps/api/tests/business-rbac.test.ts b/apps/api/tests/business-rbac.test.ts
+index c26d074..a98ae59 100644
+--- a/apps/api/tests/business-rbac.test.ts
++++ b/apps/api/tests/business-rbac.test.ts
+@@ -16,62 +16,64 @@ import {
+  * Adding a sensitive business ALLOW without updating this + evidence MUST fail CI.
+  */
+ const CONFIRMED_PRODUCTIVE_GRANTS: Readonly<Record<Role, readonly Permission[]>> = {
+   admin: [
+     'profile:read_self',
+     'profile:update_self',
+     'profiles:read_any',
+     'users:create',
+     'users:change_role',
+     'users:set_password',
+     'users:disable',
+     'users:enable',
+     'employees:read',
+     'employees:create',
+     'employees:update',
+     'assignments:read',
+     'assignments:create',
+     'assignments:update',
+     'attendance:read', 'attendance:update',
+     'attendance:export',
++    'clients:read', 'clients:create', 'clients:update',
++    'client_addresses:read', 'client_addresses:update',
++    'client_quotes:read', 'client_quotes:create', 'client_quotes:delete',
+   ],
+   gerente: [
+     'profile:read_self', 'profile:update_self', 'employees:read',
+     'employees:create', 'employees:update', 'assignments:read',
+     'assignments:create', 'assignments:update',
+     'attendance:read', 'attendance:update',
+     'attendance:export',
++    'clients:read', 'clients:create', 'clients:update',
++    'client_addresses:read', 'client_addresses:update',
++    'client_quotes:read', 'client_quotes:create', 'client_quotes:delete',
+   ],
+-  compras: ['profile:read_self', 'profile:update_self'],
++  compras: ['profile:read_self', 'profile:update_self',
++    'clients:read', 'clients:create', 'clients:update',
++    'client_addresses:read', 'client_addresses:update',
++    'client_quotes:read', 'client_quotes:create', 'client_quotes:delete'],
+   supervisor: ['profile:read_self', 'profile:update_self'],
+   auditoria: ['profile:read_self', 'profile:update_self'],
+ }
+ 
+ /** Catalog capabilities that must remain DENY for all roles until Phase 3+ confirms grants. */
+ const CATALOG_DENY_UNTIL_CONFIRMED: readonly Permission[] = [
+-  'clients:read',
+-  'clients:create',
+-  'client_addresses:read',
+-  'client_addresses:update',
+-  'client_quotes:read',
+-  'client_quotes:create',
+-  'client_quotes:delete',
+   'companies:read',
+   'companies:create',
+   'companies:update',
+   'suppliers:read',
+   'suppliers:update',
+   'articles:read',
+   'articles:update',
+   'articles:import',
+   'purchase_requests:read',
+   'purchase_requests:create',
+   'purchase_requests:update',
+   'purchase_orders:read',
+   'purchase_orders:create',
+   'purchase_orders:update',
+   'warehouse_requests:read',
+   'warehouse_requests:create',
+   'warehouse_requests:update',
+   'economic_results:read',
+   'economic_results:import',
+   'crm:read',
+@@ -167,41 +169,41 @@ describe('business RBAC catalog (Phase 2C corrections)', () => {
+       expect(authorize({ role }, 'audits:read')).toBe(false)
+       expect(authorize({ role }, 'audits:create')).toBe(false)
+       expect(authorize({ role }, 'audit_checklists:manage')).toBe(false)
+     }
+   })
+ 
+   const roleDiffCases: Array<{
+     role: Role
+     permission: Permission
+     expected: boolean
+   }> = [
+     { role: 'admin', permission: 'employees:read', expected: true },
+     { role: 'gerente', permission: 'employees:read', expected: true },
+     { role: 'compras', permission: 'employees:read', expected: false },
+     { role: 'admin', permission: 'users:change_role', expected: true },
+     { role: 'gerente', permission: 'users:create', expected: false },
+     { role: 'compras', permission: 'purchase_orders:read', expected: false },
+     { role: 'supervisor', permission: 'purchase_requests:read', expected: false },
+     { role: 'supervisor', permission: 'audits:read', expected: false },
+     { role: 'gerente', permission: 'employees:create', expected: true },
+-    { role: 'admin', permission: 'clients:read', expected: false },
++    { role: 'admin', permission: 'clients:read', expected: true },
+   ]
+ 
+   it.each(roleDiffCases)(
+     '$role × $permission → $expected',
+     ({ role, permission, expected }) => {
+       expect(authorize({ role }, permission)).toBe(expected)
+     },
+   )
+ 
+   it('identity permissions unchanged for non-admin roles', () => {
+     for (const role of ['gerente', 'compras', 'supervisor', 'auditoria'] as Role[]) {
+       expect(authorize({ role }, 'profiles:read_any')).toBe(false)
+       expect(authorize({ role }, 'users:create')).toBe(false)
+       expect(authorize({ role }, 'users:change_role')).toBe(false)
+       expect(authorize({ role }, 'users:set_password')).toBe(false)
+     }
+   })
+ 
+   it('still-unconfirmed catalog-only business permissions → DENY for every role', () => {
+     for (const permission of CATALOG_DENY_UNTIL_CONFIRMED) {
+diff --git a/apps/api/tests/openapi.contract.test.ts b/apps/api/tests/openapi.contract.test.ts
+index d345d95..1df4e2e 100644
+--- a/apps/api/tests/openapi.contract.test.ts
++++ b/apps/api/tests/openapi.contract.test.ts
+@@ -1,34 +1,43 @@
+ import { describe, expect, it } from 'vitest'
+ import { openApiDocument } from '../src/http/openapi.js'
+ 
+ describe('openapi contract (Phase 1)', () => {
+   it('exposes required paths', () => {
+     const paths = Object.keys(openApiDocument.paths).sort()
+     expect(paths).toEqual(
+       [
+         '/healthz',
+         '/readyz',
+         '/v1/assignments',
+         '/v1/assignments/{id}/close',
+         '/v1/attendance',
+         '/v1/attendance/codes',
++        '/v1/clients',
++        '/v1/clients/{id}',
++        '/v1/clients/{id}/addresses',
++        '/v1/clients/{id}/addresses/{addressId}',
++        '/v1/clients/{id}/addresses/{addressId}/principal',
++        '/v1/clients/{id}/addresses/{addressId}/status',
++        '/v1/clients/{id}/quotes',
++        '/v1/clients/{id}/quotes/{quoteId}',
++        '/v1/clients/{id}/quotes/{quoteId}/download',
+         '/v1/employees',
+         '/v1/employees/{id}/status',
+         '/v1/hr/catalogs',
+         '/v1/hr/reports/bejerman',
+         '/v1/hr/reports/overtime',
+         '/v1/me',
+         '/v1/users',
+         '/v1/users/{id}',
+         '/v1/users/{id}/disable',
+         '/v1/users/{id}/enable',
+         '/v1/users/{id}/password',
+         '/v1/users/{id}/role',
+       ].sort(),
+     )
+   })
+ 
+   it('declares bearerAuth security scheme', () => {
+     const scheme = openApiDocument.components.securitySchemes.bearerAuth
+     expect(scheme).toEqual({
+       type: 'http',
+@@ -52,21 +61,32 @@ describe('openapi contract (Phase 1)', () => {
+   })
+ 
+   it('documents EmployeesResponse schema component', () => {
+     expect(openApiDocument.components.schemas.EmployeesResponse).toBeTruthy()
+     expect(openApiDocument.components.schemas.ListEmployeesQuery).toBeTruthy()
+   })
+ 
+   it('documents Phase 3A mutations, assignments and catalogs with auth/errors', () => {
+     const employees = openApiDocument.paths['/v1/employees']
+     expect(employees.post.security).toEqual([{ bearerAuth: [] }])
+     expect(employees.post.responses['409']).toBeTruthy()
+     expect(openApiDocument.paths['/v1/employees/{id}/status'].patch.responses['404']).toBeTruthy()
+     expect(openApiDocument.paths['/v1/assignments'].get.security).toEqual([{ bearerAuth: [] }])
+     expect(openApiDocument.paths['/v1/assignments'].post.responses['404']).toBeTruthy()
+     expect(openApiDocument.paths['/v1/assignments/{id}/close'].patch.responses['409']).toBeTruthy()
+     expect(openApiDocument.paths['/v1/hr/catalogs'].get.security).toEqual([{ bearerAuth: [] }])
+     expect(openApiDocument.components.schemas.CreateEmployeeBody).toBeTruthy()
+     expect(openApiDocument.components.schemas.AssignmentsResponse).toBeTruthy()
+     expect(openApiDocument.components.schemas.HrCatalogsResponse).toBeTruthy()
+   })
++
++  it('documents the complete Phase 4A client surface', () => {
++    expect(openApiDocument.paths['/v1/clients'].post.security).toEqual([{ bearerAuth: [] }])
++    expect(openApiDocument.paths['/v1/clients/{id}'].patch.responses['404']).toBeTruthy()
++    expect(openApiDocument.paths['/v1/clients/{id}/addresses/{addressId}/principal'].post).toBeTruthy()
++    expect(openApiDocument.paths['/v1/clients/{id}/quotes'].post.responses['413']).toBeTruthy()
++    expect(openApiDocument.paths['/v1/clients/{id}/quotes/{quoteId}/download'].get).toBeTruthy()
++    expect(openApiDocument.paths['/v1/clients/{id}/quotes/{quoteId}'].delete.responses['502']).toBeTruthy()
++    expect(openApiDocument.components.schemas.ClientDetail).toBeTruthy()
++    expect(openApiDocument.components.schemas.QuoteDownload).toBeTruthy()
++  })
+ })
+diff --git a/src/app/clientes/[id]/page.tsx b/src/app/clientes/[id]/page.tsx
+index 2607c68..f66a5ef 100644
+--- a/src/app/clientes/[id]/page.tsx
++++ b/src/app/clientes/[id]/page.tsx
+@@ -1,70 +1,60 @@
+ import { createClient } from '@/utils/supabase/server'
++import { createDinamicApiClient } from '@/lib/api/generated'
+ import Link from 'next/link'
+ import ClienteDomiciliosPanel from '@/components/ClienteDomiciliosPanel'
+ import ClientePresupuestosPanel, { type ClientePresupuesto } from '@/components/ClientePresupuestosPanel'
+ 
+ export default async function ClienteDetallePage({
+   params,
+ }: {
+   params: Promise<{ id: string }>
+ }) {
+   const { id } = await params
+   const supabase = await createClient()
+ 
+-  const { data: cliente } = await supabase
+-    .from('clientes')
+-    .select('*')
+-    .eq('id', id)
+-    .single()
++  const {data:{session}}=await supabase.auth.getSession()
++  const baseUrl=process.env.API_URL??process.env.NEXT_PUBLIC_API_URL
++  const detail=session?.access_token&&baseUrl?await createDinamicApiClient({baseUrl,accessToken:session.access_token}).getClient(id).catch(()=>null):null
++  const cliente=detail?.client
+ 
+   if (!cliente) {
+     return (
+       <div className="max-w-4xl mx-auto px-6 py-10">
+         <p className="text-slate-500 mb-4">Cliente no encontrado.</p>
+         <Link href="/clientes" className="text-teal-600 hover:underline text-sm">
+           ← Volver a clientes
+         </Link>
+       </div>
+     )
+   }
+ 
+-  const { data: domicilios } = await supabase
+-    .from('cliente_domicilios')
+-    .select('*')
+-    .eq('cliente_id', id)
+-    .order('es_principal', { ascending: false })
+-    .order('alias')
+-
+-  const { data: presupuestos } = await supabase
+-    .from('cliente_presupuestos')
+-    .select('id, nombre_archivo, storage_path, created_at, perfiles(nombre_completo)')
+-    .eq('cliente_id', id)
+-    .order('created_at', { ascending: false })
++  const domicilios=detail.addresses
++  const presupuestos=detail.quotes
+ 
+   return (
+     <div className="max-w-4xl mx-auto px-6 py-10">
+       <Link href="/clientes" className="text-teal-600 hover:underline text-sm mb-4 inline-block">
+         ← Volver a clientes
+       </Link>
+       <h1 className="text-2xl font-bold text-slate-900 mb-1">{cliente.nombre}</h1>
+       <div className="text-sm text-slate-500 mb-6 space-y-0.5">
+         {cliente.domicilio && <p>Domicilio principal (ficha del cliente): {cliente.domicilio}</p>}
+         {cliente.cuit && <p>CUIT: {cliente.cuit}</p>}
+         {cliente.persona_contacto && <p>Persona de contacto: {cliente.persona_contacto}</p>}
+       </div>
+ 
+       <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
+         Domicilios de entrega
+       </h2>
+       <ClienteDomiciliosPanel clienteId={cliente.id} domicilios={domicilios ?? []} />
+ 
+       <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3 mt-8">
+         Presupuestos enviados
+       </h2>
+       <ClientePresupuestosPanel
+         clienteId={cliente.id}
+-        presupuestos={(presupuestos ?? []) as unknown as ClientePresupuesto[]}
++        presupuestos={presupuestos as ClientePresupuesto[]}
+       />
+     </div>
+   )
+ }
+diff --git a/src/app/clientes/page.tsx b/src/app/clientes/page.tsx
+index 0929138..f0017b0 100644
+--- a/src/app/clientes/page.tsx
++++ b/src/app/clientes/page.tsx
+@@ -1,23 +1,24 @@
+ import { createClient } from '@/utils/supabase/server'
++import { createDinamicApiClient, type ClientRecord } from '@/lib/api/generated'
+ import ClienteForm from '@/components/ClienteForm'
+ import ClientesTabla from '@/components/ClientesTabla'
+ 
+ export default async function ClientesPage() {
+   const supabase = await createClient()
+-  const { data: clientes } = await supabase
+-    .from('clientes')
+-    .select('id, nombre, domicilio, presupuesto_4hs, presupuesto_8hs, lleva_insumos, codigo_costos, cuit')
+-    .order('nombre')
++  const {data:{session}}=await supabase.auth.getSession()
++  const baseUrl=process.env.API_URL??process.env.NEXT_PUBLIC_API_URL
++  let clientes:ClientRecord[]=[]
++  if(session?.access_token&&baseUrl)clientes=await createDinamicApiClient({baseUrl,accessToken:session.access_token}).listClients()
+ 
+   return (
+     <div className="max-w-4xl mx-auto px-6 py-10">
+       <h1 className="text-2xl font-bold text-slate-900 mb-6">Clientes</h1>
+ 
+       <ClienteForm />
+ 
+       <div className="mt-8">
+-        <ClientesTabla clientes={clientes ?? []} />
++        <ClientesTabla clientes={clientes} />
+       </div>
+     </div>
+   )
+ }
+diff --git a/src/components/ClienteDomicilioEstadoBoton.tsx b/src/components/ClienteDomicilioEstadoBoton.tsx
+index 8528bdb..e00ae0a 100644
+--- a/src/components/ClienteDomicilioEstadoBoton.tsx
++++ b/src/components/ClienteDomicilioEstadoBoton.tsx
+@@ -1,32 +1,37 @@
+ 'use client'
+ 
+ import { useState } from 'react'
+ import { useRouter } from 'next/navigation'
+-import { createClient } from '@/utils/supabase/client'
++import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
+ 
+-export default function ClienteDomicilioEstadoBoton({ id, activo }: { id: string; activo: boolean }) {
++export default function ClienteDomicilioEstadoBoton({ id, clienteId, activo }: { id: string; clienteId:string; activo: boolean }) {
+   const [loading, setLoading] = useState(false)
+   const router = useRouter()
+-  const supabase = createClient()
+ 
+   const handleClick = async () => {
+     setLoading(true)
+-    await supabase.from('cliente_domicilios').update({ activo: !activo }).eq('id', id)
+-    setLoading(false)
+-    router.refresh()
++    try {
++      const api=await createAuthenticatedBrowserApiClient()
++      await api.updateClientAddressStatus(clienteId,id,!activo)
++      router.refresh()
++    } catch (cause) {
++      alert('Error al actualizar el domicilio: '+(cause instanceof Error?cause.message:'desconocido'))
++    } finally {
++      setLoading(false)
++    }
+   }
+ 
+   return (
+     <button
+       onClick={handleClick}
+       disabled={loading}
+       className={`px-3 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-50 ${
+         activo
+           ? 'bg-rose-100 text-rose-700 hover:bg-rose-200'
+           : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+       }`}
+     >
+       {loading ? '...' : activo ? 'Dar de baja' : 'Reactivar'}
+     </button>
+   )
+ }
+diff --git a/src/components/ClienteDomicilioForm.tsx b/src/components/ClienteDomicilioForm.tsx
+index 08ae3ba..a27394d 100644
+--- a/src/components/ClienteDomicilioForm.tsx
++++ b/src/components/ClienteDomicilioForm.tsx
+@@ -1,78 +1,51 @@
+ 'use client'
+ import { useState } from 'react'
+ import { useRouter } from 'next/navigation'
+-import { createClient } from '@/utils/supabase/client'
++import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
+ import type { ClienteDomicilio } from '@/types/compras'
+ 
+ export default function ClienteDomicilioForm({
+   clienteId,
+   domicilio,
+   onGuardado,
+ }: {
+   clienteId: string
+   domicilio?: ClienteDomicilio
+   onGuardado?: () => void
+ }) {
+   const [alias, setAlias] = useState(domicilio?.alias ?? '')
+   const [direccion, setDireccion] = useState(domicilio?.direccion ?? '')
+   const [esPrincipal, setEsPrincipal] = useState(domicilio?.es_principal ?? false)
+   const [horarioAtencion, setHorarioAtencion] = useState(domicilio?.horario_atencion ?? '')
+   const [error, setError] = useState('')
+   const [loading, setLoading] = useState(false)
+   const router = useRouter()
+-  const supabase = createClient()
+ 
+   const handleSubmit = async (e: React.FormEvent) => {
+     e.preventDefault()
+     setError('')
+     setLoading(true)
+ 
+-    // Solo puede haber un domicilio principal por cliente: si se marca este,
+-    // primero se desmarcan los demás (hay un índice único parcial en la base
+-    // que lo garantiza de todos modos).
+-    if (esPrincipal) {
+-      const { error: errClear } = await supabase
+-        .from('cliente_domicilios')
+-        .update({ es_principal: false })
+-        .eq('cliente_id', clienteId)
+-      if (errClear) {
+-        setLoading(false)
+-        setError('Error al guardar: ' + errClear.message)
+-        return
+-      }
+-    }
+-
+-    const payload = { alias, direccion, es_principal: esPrincipal, horario_atencion: horarioAtencion || null }
+-    const { error: errGuardar } = domicilio
+-      ? await supabase.from('cliente_domicilios').update(payload).eq('id', domicilio.id)
+-      : await supabase.from('cliente_domicilios').insert({ ...payload, cliente_id: clienteId, activo: true })
+-
++    try { const api=await createAuthenticatedBrowserApiClient(); const payload={alias,direccion:direccion||null,esPrincipal,horarioAtencion:horarioAtencion||null}; if(domicilio)await api.updateClientAddress(clienteId,domicilio.id,payload);else await api.createClientAddress(clienteId,payload) }
++    catch(cause){setLoading(false);setError('Error al guardar: '+(cause instanceof Error?cause.message:'desconocido'));return}
+     setLoading(false)
+-    if (errGuardar) {
+-      setError(
+-        errGuardar.code === '23505'
+-          ? 'Ya existe un domicilio activo con ese alias. Los alias tienen que ser únicos (se usan para matchear en la importación de pedidos).'
+-          : 'Error al guardar: ' + errGuardar.message
+-      )
+-      return
+-    }
+     if (domicilio) {
+       onGuardado?.()
+     } else {
+       setAlias('')
+       setDireccion('')
+       setEsPrincipal(false)
+       setHorarioAtencion('')
+     }
+     router.refresh()
+   }
+ 
+   const inputStyle = "px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+ 
+   return (
+     <form onSubmit={handleSubmit} className="flex flex-wrap gap-2 items-start">
+       <input type="text" placeholder="Alias (ej: Planta Norte)" value={alias} onChange={(e) => setAlias(e.target.value)} required className={`w-52 ${inputStyle}`} />
+       <input type="text" placeholder="Dirección" value={direccion} onChange={(e) => setDireccion(e.target.value)} required className={`flex-1 min-w-[220px] ${inputStyle}`} />
+       <input type="text" placeholder="Horario de atención (opcional)" value={horarioAtencion} onChange={(e) => setHorarioAtencion(e.target.value)} className={`flex-1 min-w-[200px] ${inputStyle}`} />
+       <label className="flex items-center gap-2 text-sm text-slate-600 px-3 py-2">
+         <input type="checkbox" checked={esPrincipal} onChange={(e) => setEsPrincipal(e.target.checked)} />
+diff --git a/src/components/ClienteDomiciliosTabla.tsx b/src/components/ClienteDomiciliosTabla.tsx
+index 9a055e2..3db1880 100644
+--- a/src/components/ClienteDomiciliosTabla.tsx
++++ b/src/components/ClienteDomiciliosTabla.tsx
+@@ -27,34 +27,34 @@ export default function ClienteDomiciliosTabla({
+             <th className="px-4 py-3 font-medium"></th>
+           </tr>
+         </thead>
+         <tbody>
+           {domicilios.map((d) => (
+             <tr key={d.id} className={`border-b border-slate-100 last:border-0 ${!d.activo ? 'opacity-50' : ''}`}>
+               <td className="px-4 py-3 text-slate-800">{d.alias}</td>
+               <td className="px-4 py-3 text-slate-600">{d.direccion}</td>
+               <td className="px-4 py-3">
+                 {d.es_principal ? (
+                   <span className="inline-block px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
+                     Principal
+                   </span>
+                 ) : d.activo ? (
+                   <MarcarPrincipalBoton id={d.id} clienteId={d.cliente_id} />
+                 ) : (
+                   '-'
+                 )}
+               </td>
+               <td className="px-4 py-3">
+-                <ClienteDomicilioEstadoBoton id={d.id} activo={d.activo} />
++                <ClienteDomicilioEstadoBoton id={d.id} clienteId={d.cliente_id} activo={d.activo} />
+               </td>
+               <td className="px-4 py-3">
+                 <button onClick={() => onEditar(d)} className="text-teal-600 hover:underline text-sm">
+                   Editar
+                 </button>
+               </td>
+             </tr>
+           ))}
+         </tbody>
+       </table>
+     </div>
+   )
+ }
+diff --git a/src/components/ClienteForm.tsx b/src/components/ClienteForm.tsx
+index 50c7956..06c707d 100644
+--- a/src/components/ClienteForm.tsx
++++ b/src/components/ClienteForm.tsx
+@@ -1,86 +1,58 @@
+ 'use client'
+ import { useState } from 'react'
+ import { useRouter } from 'next/navigation'
+-import { createClient } from '@/utils/supabase/client'
++import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
+ export default function ClienteForm() {
+   const [nombre, setNombre] = useState('')
+   const [cuit, setCuit] = useState('')
+   const [personaContacto, setPersonaContacto] = useState('')
+   const [codigoCostos, setCodigoCostos] = useState('')
+   const [presupuesto4hs, setPresupuesto4hs] = useState('0')
+   const [presupuesto8hs, setPresupuesto8hs] = useState('0')
+   const [domicilio, setDomicilio] = useState('')
+   const [llevaInsumos, setLlevaInsumos] = useState(false)
+   const [error, setError] = useState('')
+   const [loading, setLoading] = useState(false)
+   const router = useRouter()
+-  const supabase = createClient()
+   const handleSubmit = async (e: React.FormEvent) => {
+     e.preventDefault()
+     setError('')
+     setLoading(true)
+-    const { data, error } = await supabase
+-      .from('clientes')
+-      .insert({
+-        nombre,
+-        cuit: cuit || null,
+-        persona_contacto: personaContacto || null,
+-        codigo_costos: codigoCostos || null,
+-        presupuesto_4hs: parseInt(presupuesto4hs) || 0,
+-        presupuesto_8hs: parseInt(presupuesto8hs) || 0,
+-        domicilio: domicilio || null,
+-        lleva_insumos: llevaInsumos,
+-      })
+-      .select('id')
+-      .single()
+-    if (error || !data) {
++    try {
++      const api=await createAuthenticatedBrowserApiClient()
++      const data=await api.createClient({nombre,cuit:cuit||null,personaContacto:personaContacto||null,codigoCostos:codigoCostos||null,presupuesto4hs:parseInt(presupuesto4hs)||0,presupuesto8hs:parseInt(presupuesto8hs)||0,domicilio:domicilio||null,llevaInsumos})
+       setLoading(false)
+-      setError('Error al guardar: ' + (error?.message ?? 'desconocido'))
++      router.push(`/clientes/${data.id}`)
++    } catch (cause) {
++      setLoading(false)
++      setError('Error al guardar: '+(cause instanceof Error?cause.message:'desconocido'))
+       return
+     }
+-
+-    // Si cargó un domicilio en el alta, lo replicamos como su domicilio de
+-    // entrega "Principal" (no bloqueante: si esto falla, el cliente ya quedó
+-    // creado igual, solo no se autocompletó el domicilio de entrega).
+-    if (domicilio) {
+-      await supabase.from('cliente_domicilios').insert({
+-        cliente_id: data.id,
+-        alias: 'Principal',
+-        direccion: domicilio,
+-        es_principal: true,
+-        activo: true,
+-      })
+-    }
+-
+-    setLoading(false)
+-    // Vamos directo a la ficha del cliente para poder revisar/agregar más
+-    // domicilios de entrega, en vez de dejarlo en el listado a buscarlo.
+-    router.push(`/clientes/${data.id}`)
+   }
+   const inputStyle = "px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+   return (
+     <form onSubmit={handleSubmit} className="flex flex-wrap gap-2 items-start">
+       <input type="text" placeholder="Nombre del cliente" value={nombre} onChange={(e) => setNombre(e.target.value)} required className={`flex-1 min-w-[200px] ${inputStyle}`} />
+       <input type="text" placeholder="CUIT (opcional)" value={cuit} onChange={(e) => setCuit(e.target.value)} className={`w-40 ${inputStyle}`} />
+       <input type="text" placeholder="Persona de contacto (opcional)" value={personaContacto} onChange={(e) => setPersonaContacto(e.target.value)} className={`w-52 ${inputStyle}`} />
+       <input type="text" placeholder="Código de costos (ej: DCLI7836)" value={codigoCostos} onChange={(e) => setCodigoCostos(e.target.value)} className={`w-52 ${inputStyle}`} />
+       <input type="text" placeholder="Domicilio (opcional)" value={domicilio} onChange={(e) => setDomicilio(e.target.value)} className={`flex-1 min-w-[200px] ${inputStyle}`} />
+       <div className="flex flex-col">
+         <label className="text-xs text-slate-500 mb-1">Presup. 4hs</label>
+         <input type="number" min="0" value={presupuesto4hs} onChange={(e) => setPresupuesto4hs(e.target.value)} className={`w-24 ${inputStyle}`} />
+       </div>
+       <div className="flex flex-col">
+         <label className="text-xs text-slate-500 mb-1">Presup. 8hs</label>
+         <input type="number" min="0" value={presupuesto8hs} onChange={(e) => setPresupuesto8hs(e.target.value)} className={`w-24 ${inputStyle}`} />
+       </div>
+       <div className="flex flex-col items-center">
+         <label className="text-xs text-slate-500 mb-1">Insumos</label>
+         <input type="checkbox" checked={llevaInsumos} onChange={(e) => setLlevaInsumos(e.target.checked)} className="w-5 h-5 mt-2" />
+       </div>
+       <button type="submit" disabled={loading} className="px-4 py-2 mt-5 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50">
+         {loading ? 'Guardando...' : 'Agregar'}
+       </button>
+       {error && <p className="text-rose-600 text-sm w-full">{error}</p>}
+     </form>
+   )
+-}
+\ No newline at end of file
++}
+diff --git a/src/components/ClientePresupuestosPanel.tsx b/src/components/ClientePresupuestosPanel.tsx
+index 6c04aa2..ef688ec 100644
+--- a/src/components/ClientePresupuestosPanel.tsx
++++ b/src/components/ClientePresupuestosPanel.tsx
+@@ -1,163 +1,136 @@
+ 'use client'
+ import { useState } from 'react'
+ import { useRouter } from 'next/navigation'
+-import { createClient } from '@/utils/supabase/client'
++import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
+ 
+ export type ClientePresupuesto = {
+   id: string
+   nombre_archivo: string
+-  storage_path: string
+   created_at: string
+-  perfiles: { nombre_completo: string } | null
++  subido_por_nombre?: string | null
+ }
+ 
+-const BUCKET = 'presupuestos-clientes'
+ const TAMANIO_MAXIMO = 15 * 1024 * 1024 // 15 MB
+ 
+ function formatearFecha(fecha: string) {
+   return new Date(fecha).toLocaleDateString('es-AR')
+ }
+ 
+-// Saca tildes, espacios y caracteres raros del nombre para el path de
+-// storage — el nombre original (con tildes y todo) se guarda aparte en
+-// nombre_archivo, para mostrarlo tal cual en la pantalla.
+-function sanitizarNombre(nombre: string) {
+-  return nombre
+-    .normalize('NFD')
+-    .replace(new RegExp('[̀-ͯ]', 'g'), '') // marcas diacríticas (tildes, etc.) tras normalizar
+-    .replace(/[^a-zA-Z0-9.\-_]/g, '_')
+-}
+-
+ export default function ClientePresupuestosPanel({
+   clienteId,
+   presupuestos,
+ }: {
+   clienteId: string
+   presupuestos: ClientePresupuesto[]
+ }) {
+   const [archivo, setArchivo] = useState<File | null>(null)
+   const [subiendo, setSubiendo] = useState(false)
+   const [error, setError] = useState('')
+   const [verificandoId, setVerificandoId] = useState<string | null>(null)
+   const [eliminandoId, setEliminandoId] = useState<string | null>(null)
+ 
+   const router = useRouter()
+-  const supabase = createClient()
+ 
+   async function subir() {
+     setError('')
+     if (!archivo) {
+       setError('Elegí un archivo PDF primero.')
+       return
+     }
+     if (archivo.type !== 'application/pdf' && !archivo.name.toLowerCase().endsWith('.pdf')) {
+       setError('Solo se aceptan archivos PDF.')
+       return
+     }
+     if (archivo.size > TAMANIO_MAXIMO) {
+       setError('El archivo no puede pesar más de 15 MB.')
+       return
+     }
+ 
+     setSubiendo(true)
+-    const path = `${clienteId}/${crypto.randomUUID()}_${sanitizarNombre(archivo.name)}`
+-    const { error: errUpload } = await supabase.storage.from(BUCKET).upload(path, archivo)
+-    if (errUpload) {
+-      setError('Error al subir el archivo: ' + errUpload.message)
+-      setSubiendo(false)
+-      return
+-    }
+-
+-    const { data: userData } = await supabase.auth.getUser()
+-    const { error: errInsert } = await supabase.from('cliente_presupuestos').insert({
+-      cliente_id: clienteId,
+-      storage_path: path,
+-      nombre_archivo: archivo.name,
+-      subido_por: userData.user?.id ?? null,
+-    })
+-    if (errInsert) {
+-      setError('El archivo se subió, pero falló guardar el registro: ' + errInsert.message)
++    try {
++      const bytes=new Uint8Array(await archivo.arrayBuffer())
++      let binary=''; for(let i=0;i<bytes.length;i+=0x8000)binary+=String.fromCharCode(...bytes.subarray(i,i+0x8000))
++      const api=await createAuthenticatedBrowserApiClient()
++      await api.uploadClientQuote(clienteId,{fileName:archivo.name,contentBase64:btoa(binary)})
++    } catch(cause) {
++      setError('Error al subir el archivo: '+(cause instanceof Error?cause.message:'desconocido'))
+       setSubiendo(false)
+       return
+     }
+ 
+     setArchivo(null)
+     setSubiendo(false)
+     router.refresh()
+   }
+ 
+   async function ver(p: ClientePresupuesto) {
+     setVerificandoId(p.id)
+-    const { data, error: errUrl } = await supabase.storage.from(BUCKET).createSignedUrl(p.storage_path, 60)
++    try { const api=await createAuthenticatedBrowserApiClient(); const data=await api.getClientQuoteDownload(clienteId,p.id); window.open(data.url,'_blank','noopener,noreferrer') }
++    catch(cause){alert('Error al abrir el archivo: '+(cause instanceof Error?cause.message:'desconocido'))}
+     setVerificandoId(null)
+-    if (errUrl || !data) {
+-      alert('Error al abrir el archivo: ' + errUrl?.message)
+-      return
+-    }
+-    window.open(data.signedUrl, '_blank')
+   }
+ 
+   async function eliminar(p: ClientePresupuesto) {
+     if (!confirm(`¿Eliminar "${p.nombre_archivo}"? No se puede deshacer.`)) return
+     setEliminandoId(p.id)
+-    await supabase.storage.from(BUCKET).remove([p.storage_path])
+-    const { error: errDelete } = await supabase.from('cliente_presupuestos').delete().eq('id', p.id)
++    let errDelete:Error|null=null
++    try { const api=await createAuthenticatedBrowserApiClient(); await api.deleteClientQuote(clienteId,p.id) } catch(cause){errDelete=cause instanceof Error?cause:new Error('desconocido')}
+     setEliminandoId(null)
+     if (errDelete) {
+       alert('Error al eliminar: ' + errDelete.message)
+       return
+     }
+     router.refresh()
+   }
+ 
+   return (
+     <div>
+       <div className="flex flex-wrap items-center gap-2 mb-4">
+         <input
+           type="file"
+           accept="application/pdf,.pdf"
+           onChange={(e) => setArchivo(e.target.files?.[0] || null)}
+           className="text-sm text-slate-700"
+         />
+         <button
+           type="button"
+           onClick={subir}
+           disabled={subiendo || !archivo}
+           className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+         >
+           {subiendo ? 'Subiendo...' : 'Subir presupuesto'}
+         </button>
+       </div>
+       {error && <p className="text-rose-600 text-sm mb-3">{error}</p>}
+ 
+       {presupuestos.length === 0 ? (
+         <p className="text-slate-500 text-sm">Todavía no hay presupuestos adjuntos.</p>
+       ) : (
+         <div className="flex flex-col gap-2">
+           {presupuestos.map((p) => (
+             <div key={p.id} className="flex items-center justify-between gap-3 bg-white border border-slate-200 rounded-lg px-4 py-2.5">
+               <div>
+                 <p className="text-sm text-slate-800">{p.nombre_archivo}</p>
+                 <p className="text-xs text-slate-400">
+                   Subido el {formatearFecha(p.created_at)}
+-                  {p.perfiles?.nombre_completo ? ` por ${p.perfiles.nombre_completo}` : ''}
++                  {p.subido_por_nombre ? ` por ${p.subido_por_nombre}` : ''}
+                 </p>
+               </div>
+               <div className="flex items-center gap-3 shrink-0">
+                 <button
+                   type="button"
+                   onClick={() => ver(p)}
+                   disabled={verificandoId === p.id}
+                   className="text-sm text-teal-600 hover:underline disabled:opacity-50"
+                 >
+                   {verificandoId === p.id ? 'Abriendo...' : 'Ver'}
+                 </button>
+                 <button
+                   type="button"
+                   onClick={() => eliminar(p)}
+                   disabled={eliminandoId === p.id}
+                   className="text-sm text-rose-600 hover:underline disabled:opacity-50"
+                 >
+                   Eliminar
+                 </button>
+               </div>
+diff --git a/src/components/MarcarPrincipalBoton.tsx b/src/components/MarcarPrincipalBoton.tsx
+index 562163b..326e00c 100644
+--- a/src/components/MarcarPrincipalBoton.tsx
++++ b/src/components/MarcarPrincipalBoton.tsx
+@@ -1,31 +1,33 @@
+ 'use client'
+ 
+ import { useState } from 'react'
+ import { useRouter } from 'next/navigation'
+-import { createClient } from '@/utils/supabase/client'
++import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
+ 
+ export default function MarcarPrincipalBoton({ id, clienteId }: { id: string; clienteId: string }) {
+   const [loading, setLoading] = useState(false)
+   const router = useRouter()
+-  const supabase = createClient()
+ 
+   const handleClick = async () => {
+     setLoading(true)
+-    // Primero se desmarcan todos los del cliente, después se marca este:
+-    // así nunca queda más de uno como principal a la vez.
+-    await supabase.from('cliente_domicilios').update({ es_principal: false }).eq('cliente_id', clienteId)
+-    await supabase.from('cliente_domicilios').update({ es_principal: true }).eq('id', id)
+-    setLoading(false)
+-    router.refresh()
++    try {
++      const api=await createAuthenticatedBrowserApiClient()
++      await api.setClientAddressPrincipal(clienteId,id)
++      router.refresh()
++    } catch (cause) {
++      alert('Error al establecer el domicilio principal: '+(cause instanceof Error?cause.message:'desconocido'))
++    } finally {
++      setLoading(false)
++    }
+   }
+ 
+   return (
+     <button
+       onClick={handleClick}
+       disabled={loading}
+       className="text-teal-600 hover:underline text-sm disabled:opacity-50"
+     >
+       {loading ? 'Marcando...' : 'Marcar como principal'}
+     </button>
+   )
+ }
+diff --git a/src/lib/api/generated/client.ts b/src/lib/api/generated/client.ts
+index 6169793..9db1a71 100644
+--- a/src/lib/api/generated/client.ts
++++ b/src/lib/api/generated/client.ts
+@@ -13,40 +13,50 @@ import type {
+   EmployeesResponse,
+   ListEmployeesQuery,
+   ListAssignmentsQuery,
+   CreateAssignmentBody,
+   AssignmentListItem,
+   AssignmentsResponse,
+   HrCatalogsResponse,
+   HrCatalogInclude,
+   AttendanceQuery,
+   AttendanceCode,
+   AttendanceItem,
+   AttendanceResponse,
+   AttendanceUpsert,
+   BejermanReportData,
+   OvertimeReportData,
+   MeResponse,
+   ProblemDetails,
+   ProfileResponse,
+   SetUserPasswordBody,
+   UpdateOwnProfileBody,
++  ClientRecord,
++  ClientDetail,
++  ClientAddress,
++  ClientQuote,
++  CreateClientBody,
++  UpdateClientBody,
++  CreateClientAddressBody,
++  UpdateClientAddressBody,
++  QuoteUploadBody,
++  QuoteDownload,
+   UsersListResponse,
+ } from './types'
+ 
+ export type DinamicApiClientOptions = {
+   baseUrl: string
+   accessToken: string
+   /** Override for tests; defaults to global fetch */
+   fetch?: typeof fetch
+ }
+ 
+ export class ApiClientError extends Error {
+   readonly status: number
+   readonly requestId: string | null
+   readonly problem: ProblemDetails | null
+ 
+   constructor(
+     message: string,
+     status: number,
+     requestId: string | null,
+     problem: ProblemDetails | null = null,
+@@ -79,40 +89,53 @@ export type DinamicApiClient = {
+   getMe: () => Promise<MeResponse>
+   updateMe: (body: UpdateOwnProfileBody) => Promise<ProfileResponse>
+   listEmployees: (query?: ListEmployeesQuery) => Promise<EmployeesResponse>
+   createEmployee: (body: CreateEmployeeBody) => Promise<EmployeeMutationResponse>
+   updateEmployeeStatus: (id: string, body: UpdateEmployeeStatusBody) => Promise<EmployeeMutationResponse>
+   listAssignments: (query?: ListAssignmentsQuery) => Promise<AssignmentsResponse>
+   createAssignment: (body: CreateAssignmentBody) => Promise<AssignmentListItem>
+   closeAssignment: (id: string) => Promise<AssignmentListItem>
+   getHrCatalogs: (include: HrCatalogInclude) => Promise<HrCatalogsResponse>
+   listAttendance: (query?: AttendanceQuery) => Promise<AttendanceResponse>
+   listAttendanceCodes: () => Promise<AttendanceCode[]>
+   upsertAttendance: (body: AttendanceUpsert) => Promise<AttendanceItem>
+   getBejermanReport: (from:string,to:string) => Promise<BejermanReportData>
+   getOvertimeReport: (from:string,to:string) => Promise<OvertimeReportData>
+   listUsers: () => Promise<UsersListResponse>
+   createUser: (body: CreateUserBody) => Promise<AdminUserResponse>
+   changeUserRole: (id: string, body: ChangeUserRoleBody) => Promise<ProfileResponse>
+   setUserPassword: (id: string, body: SetUserPasswordBody) => Promise<void>
+   disableUser: (id: string) => Promise<void>
+   enableUser: (id: string) => Promise<void>
++  listClients: () => Promise<ClientRecord[]>
++  getClient: (id:string) => Promise<ClientDetail>
++  createClient: (body:CreateClientBody) => Promise<ClientRecord>
++  updateClient: (id:string,body:UpdateClientBody) => Promise<ClientRecord>
++  listClientAddresses: (clientId:string) => Promise<ClientAddress[]>
++  createClientAddress: (clientId:string,body:CreateClientAddressBody) => Promise<ClientAddress>
++  updateClientAddress: (clientId:string,addressId:string,body:UpdateClientAddressBody) => Promise<ClientAddress>
++  updateClientAddressStatus: (clientId:string,addressId:string,activo:boolean) => Promise<ClientAddress>
++  setClientAddressPrincipal: (clientId:string,addressId:string) => Promise<ClientAddress>
++  listClientQuotes: (clientId:string) => Promise<ClientQuote[]>
++  uploadClientQuote: (clientId:string,body:QuoteUploadBody) => Promise<ClientQuote>
++  getClientQuoteDownload: (clientId:string,quoteId:string) => Promise<QuoteDownload>
++  deleteClientQuote: (clientId:string,quoteId:string) => Promise<void>
+ }
+ 
+ /**
+  * Typed client for the versioned Dinamic Clean API.
+  * Throws ApiClientError with status + requestId (header or problem body) on non-2xx.
+  */
+ export function createDinamicApiClient(options: DinamicApiClientOptions): DinamicApiClient {
+   const fetchImpl = options.fetch ?? fetch
+   const token = options.accessToken
+ 
+   async function requestJson<T>(
+     path: string,
+     init?: RequestInit & { query?: Record<string, string>; emptyResponse?: boolean },
+   ): Promise<T> {
+     const url = joinUrl(options.baseUrl, path)
+     const { query, emptyResponse, ...rest } = init ?? {}
+     if (query) {
+       for (const [k, v] of Object.entries(query)) {
+         url.searchParams.set(k, v)
+       }
+@@ -222,22 +245,35 @@ export function createDinamicApiClient(options: DinamicApiClientOptions): Dinami
+     },
+     setUserPassword(id, body) {
+       return requestJson<void>(`/v1/users/${id}/password`, {
+         method: 'POST',
+         body: JSON.stringify(body),
+         emptyResponse: true,
+       })
+     },
+     disableUser(id) {
+       return requestJson<void>(`/v1/users/${id}/disable`, {
+         method: 'POST',
+         emptyResponse: true,
+       })
+     },
+     enableUser(id) {
+       return requestJson<void>(`/v1/users/${id}/enable`, {
+         method: 'POST',
+         emptyResponse: true,
+       })
+     },
++    listClients(){ return requestJson<ClientRecord[]>('/v1/clients') },
++    getClient(id){ return requestJson<ClientDetail>(`/v1/clients/${id}`) },
++    createClient(body){ return requestJson<ClientRecord>('/v1/clients',{method:'POST',body:JSON.stringify(body)}) },
++    updateClient(id,body){ return requestJson<ClientRecord>(`/v1/clients/${id}`,{method:'PATCH',body:JSON.stringify(body)}) },
++    listClientAddresses(clientId){ return requestJson<ClientAddress[]>(`/v1/clients/${clientId}/addresses`) },
++    createClientAddress(clientId,body){ return requestJson<ClientAddress>(`/v1/clients/${clientId}/addresses`,{method:'POST',body:JSON.stringify(body)}) },
++    updateClientAddress(clientId,addressId,body){ return requestJson<ClientAddress>(`/v1/clients/${clientId}/addresses/${addressId}`,{method:'PATCH',body:JSON.stringify(body)}) },
++    updateClientAddressStatus(clientId,addressId,activo){ return requestJson<ClientAddress>(`/v1/clients/${clientId}/addresses/${addressId}/status`,{method:'PATCH',body:JSON.stringify({activo})}) },
++    setClientAddressPrincipal(clientId,addressId){ return requestJson<ClientAddress>(`/v1/clients/${clientId}/addresses/${addressId}/principal`,{method:'POST'}) },
++    listClientQuotes(clientId){ return requestJson<ClientQuote[]>(`/v1/clients/${clientId}/quotes`) },
++    uploadClientQuote(clientId,body){ return requestJson<ClientQuote>(`/v1/clients/${clientId}/quotes`,{method:'POST',body:JSON.stringify(body)}) },
++    getClientQuoteDownload(clientId,quoteId){ return requestJson<QuoteDownload>(`/v1/clients/${clientId}/quotes/${quoteId}/download`) },
++    deleteClientQuote(clientId,quoteId){ return requestJson<void>(`/v1/clients/${clientId}/quotes/${quoteId}`,{method:'DELETE',emptyResponse:true}) },
+   }
+ }
+diff --git a/src/lib/api/generated/index.ts b/src/lib/api/generated/index.ts
+index 324a647..a517237 100644
+--- a/src/lib/api/generated/index.ts
++++ b/src/lib/api/generated/index.ts
+@@ -16,32 +16,42 @@ export type {
+   UpdateOwnProfileBody,
+   ListEmployeesQuery,
+   CreateEmployeeBody,
+   UpdateEmployeeStatusBody,
+   EmployeeMutationResponse,
+   EmployeeAssignment,
+   EmployeeListItem,
+   EmployeesResponse,
+   ListAssignmentsQuery,
+   CreateAssignmentBody,
+   AssignmentListItem,
+   AssignmentsResponse,
+   HrCatalogsResponse,
+   AttendanceQuery,
+   AttendanceCode,
+   AttendanceItem,
+   AttendanceResponse,
+   AttendanceUpsert,
+   BejermanReportData,
+   OvertimeReportData,
++  ClientRecord,
++  ClientDetail,
++  ClientAddress,
++  ClientQuote,
++  CreateClientBody,
++  UpdateClientBody,
++  CreateClientAddressBody,
++  UpdateClientAddressBody,
++  QuoteUploadBody,
++  QuoteDownload,
+   ProblemDetails,
+ } from './types'
+ export {
+   GENERATED_ROLES,
+   GENERATED_PERMISSIONS,
+ } from './types'
+ export {
+   ApiClientError,
+   createDinamicApiClient,
+   type DinamicApiClient,
+   type DinamicApiClientOptions,
+ } from './client'
+diff --git a/src/lib/api/generated/types.ts b/src/lib/api/generated/types.ts
+index 9efde56..fd7500b 100644
+--- a/src/lib/api/generated/types.ts
++++ b/src/lib/api/generated/types.ts
+@@ -15,40 +15,41 @@ export type Role =
+ export type Permission =
+   | 'profile:read_self'
+   | 'profile:update_self'
+   | 'profiles:read_any'
+   | 'users:create'
+   | 'users:change_role'
+   | 'users:set_password'
+   | 'users:disable'
+   | 'users:enable'
+   | 'employees:read'
+   | 'employees:create'
+   | 'employees:update'
+   | 'assignments:read'
+   | 'assignments:create'
+   | 'assignments:update'
+   | 'attendance:read'
+   | 'attendance:update'
+   | 'attendance:export'
+   | 'clients:read'
+   | 'clients:create'
++  | 'clients:update'
+   | 'client_addresses:read'
+   | 'client_addresses:update'
+   | 'client_quotes:read'
+   | 'client_quotes:create'
+   | 'client_quotes:delete'
+   | 'companies:read'
+   | 'companies:create'
+   | 'companies:update'
+   | 'suppliers:read'
+   | 'suppliers:update'
+   | 'articles:read'
+   | 'articles:update'
+   | 'articles:import'
+   | 'purchase_requests:read'
+   | 'purchase_requests:create'
+   | 'purchase_requests:update'
+   | 'purchase_orders:read'
+   | 'purchase_orders:create'
+   | 'purchase_orders:update'
+   | 'warehouse_requests:read'
+@@ -77,40 +78,41 @@ export const GENERATED_ROLES = [
+ export const GENERATED_PERMISSIONS = [
+   'profile:read_self',
+   'profile:update_self',
+   'profiles:read_any',
+   'users:create',
+   'users:change_role',
+   'users:set_password',
+   'users:disable',
+   'users:enable',
+   'employees:read',
+   'employees:create',
+   'employees:update',
+   'assignments:read',
+   'assignments:create',
+   'assignments:update',
+   'attendance:read',
+   'attendance:update',
+   'attendance:export',
+   'clients:read',
+   'clients:create',
++  'clients:update',
+   'client_addresses:read',
+   'client_addresses:update',
+   'client_quotes:read',
+   'client_quotes:create',
+   'client_quotes:delete',
+   'companies:read',
+   'companies:create',
+   'companies:update',
+   'suppliers:read',
+   'suppliers:update',
+   'articles:read',
+   'articles:update',
+   'articles:import',
+   'purchase_requests:read',
+   'purchase_requests:create',
+   'purchase_requests:update',
+   'purchase_orders:read',
+   'purchase_orders:create',
+   'purchase_orders:update',
+   'warehouse_requests:read',
+@@ -163,40 +165,51 @@ export type UsersListResponse = {
+ 
+ export type CreateUserBody = {
+   email: string
+   password: string
+   nombreCompleto: string
+   rol: Role
+ }
+ 
+ export type ChangeUserRoleBody = {
+   rol: Role
+ }
+ 
+ export type SetUserPasswordBody = {
+   password: string
+ }
+ 
+ export type UpdateOwnProfileBody = {
+   nombreCompleto: string
+ }
+ 
++export type ClientRecord = { id:string; nombre:string; cuit:string|null; persona_contacto:string|null; codigo_costos:string|null; presupuesto_4hs:number; presupuesto_8hs:number; domicilio:string|null; lleva_insumos:boolean|null; activo:boolean; created_at:string }
++export type ClientAddress = { id:string; cliente_id:string; alias:string; direccion:string|null; es_principal:boolean; activo:boolean; horario_atencion:string|null; supervisor_id:string|null; created_at:string }
++export type ClientQuote = { id:string; cliente_id:string; nombre_archivo:string; subido_por:string|null; created_at:string; subido_por_nombre?:string|null }
++export type ClientDetail = { client:ClientRecord; addresses:ClientAddress[]; quotes:ClientQuote[] }
++export type CreateClientBody = { nombre:string; cuit?:string|null; personaContacto?:string|null; codigoCostos?:string|null; presupuesto4hs?:number; presupuesto8hs?:number; domicilio?:string|null; llevaInsumos?:boolean|null }
++export type UpdateClientBody = Partial<CreateClientBody> & { activo?:boolean }
++export type CreateClientAddressBody = { alias:string; direccion?:string|null; horarioAtencion?:string|null; esPrincipal?:boolean }
++export type UpdateClientAddressBody = Partial<CreateClientAddressBody>
++export type QuoteUploadBody = { fileName:string; contentBase64:string }
++export type QuoteDownload = { url:string; expiresIn:number; fileName:string }
++
+ /** GET /v1/employees query (optional fields omitted when unset) */
+ export type ListEmployeesQuery = {
+   page?: number
+   pageSize?: number
+   activo?: boolean
+   search?: string
+   clienteId?: string
+ }
+ 
+ export type CreateEmployeeBody = {
+   nombreApellido: string
+   cuil: string
+   legajo?: string | null
+   fechaIngreso?: string | null
+   horasContrato: 4 | 8
+   empresa: 'DINAMIC' | 'MORAL'
+ }
+ 
+ export type UpdateEmployeeStatusBody = { activo: boolean }
+ 
+diff --git a/src/types/compras.ts b/src/types/compras.ts
+index 87464a3..2d695b0 100644
+--- a/src/types/compras.ts
++++ b/src/types/compras.ts
+@@ -12,41 +12,41 @@ export type EstadoPedidoDeposito = 'borrador' | 'enviada' | 'recepcionada'
+ export type Empresa = {
+   id: string
+   nombre: string
+   cuit: string
+   domicilio: string | null
+   activo: boolean
+ }
+ 
+ // Recortes livianos de tablas que ya existen en otros módulos — no se tocan
+ // los archivos originales, solo se declaran acá los campos que usa Compras.
+ export type EmpresaResumen = { id: string; nombre: string }
+ export type EmpresaConDomicilio = EmpresaResumen & { domicilio: string | null }
+ export type ClienteResumen = { id: string; nombre: string }
+ 
+ // Domicilios de entrega del cliente (tabla cliente_domicilios), usados para
+ // elegir el "Lugar de envío" de una orden de compra.
+ export type ClienteDomicilio = {
+   id: string
+   cliente_id: string
+   alias: string
+-  direccion: string
++  direccion: string | null
+   es_principal: boolean
+   activo: boolean
+   horario_atencion: string | null
+ }
+ export type ArticuloResumen = {
+   id: string
+   codigo_interno: string
+   nombre: string
+   unidad: string | null
+   categoria: string | null
+   proveedor_habitual_id: string | null
+ }
+ export type ProveedorResumen = {
+   id: string
+   razon_social: string
+   domicilio: string | null
+   provincia: string | null
+   condicion_pago_default: string | null
+ }
+ 
+diff --git a/src/utils/permisos.ts b/src/utils/permisos.ts
+index 264ec83..1a49c23 100644
+--- a/src/utils/permisos.ts
++++ b/src/utils/permisos.ts
+@@ -1,25 +1,24 @@
+-// Control de acceso por rol, a nivel de app (no toca RLS/permisos de Supabase,
+-// que siguen permisivos para cualquier autenticado — ver plan de "Crear
+-// usuarios desde la app + roles por módulo"). Se usa tanto en src/proxy.ts
+-// (bloquea la navegación a rutas no permitidas) como en NavBar.tsx (oculta
+-// los links que no correspondan).
++// Control de navegación por rol, a nivel de app. No es una frontera de
++// autorización: cada dominio debe aplicar RBAC backend y RLS/grants propios.
++// Se usa tanto en src/proxy.ts (bloquea navegación) como en NavBar.tsx
++// (oculta los links que no correspondan).
+ 
+ export type Rol = 'admin' | 'gerente' | 'compras' | 'supervisor' | 'auditoria'
+ 
+ export const ROLES: { valor: Rol; etiqueta: string }[] = [
+   { valor: 'admin', etiqueta: 'Administrador' },
+   { valor: 'gerente', etiqueta: 'Gerente' },
+   { valor: 'compras', etiqueta: 'Compras' },
+   { valor: 'supervisor', etiqueta: 'Supervisor' },
+   { valor: 'auditoria', etiqueta: 'Auditoría' },
+ ]
+ 
+ // Prefijo de ruta -> roles que pueden entrar. Se evalúa por startsWith, así
+ // que /pedidos-compra/nuevo o /pedidos-compra/123 quedan cubiertos por la
+ // entrada de /pedidos-compra sin tener que listarlos aparte. El orden importa:
+ // se usa la primera entrada cuyo prefijo matchee, por eso /pedidos-compra va
+ // antes que nada que pudiera confundirse con el resto de Compras.
+ const RUTAS_PERMITIDAS: { prefijo: string; roles: Rol[] }[] = [
+   { prefijo: '/pedidos-compra', roles: ['admin', 'gerente', 'compras', 'supervisor'] },
+   { prefijo: '/proveedores', roles: ['admin', 'gerente', 'compras'] },
+   { prefijo: '/articulos', roles: ['admin', 'gerente', 'compras'] },
+diff --git a/apps/api/src/application/clients/client-quotes-service.ts b/apps/api/src/application/clients/client-quotes-service.ts
+new file mode 100644
+index 0000000..f2f1103
+--- /dev/null
++++ b/apps/api/src/application/clients/client-quotes-service.ts
+@@ -0,0 +1,38 @@
++import { randomUUID } from 'node:crypto'
++import { AppError, badRequest } from '../../http/errors/app-error.js'
++import type { ClientsRepository } from '../../infrastructure/db/clients-repository.js'
++import type { ClientQuotesStorage } from '../../infrastructure/storage/client-quotes-storage.js'
++
++export const MAX_QUOTE_BYTES=15*1024*1024
++const PDF_MAGIC=Buffer.from('%PDF-')
++export function decodePdf(input:{fileName:string;contentBase64:string}){
++  const name=input.fileName.trim()
++  if(!name||name.length>255)throw badRequest('Invalid file name')
++  if(!/\.pdf$/i.test(name))throw badRequest('Only PDF files are allowed')
++  if(!/^[A-Za-z0-9+/]*={0,2}$/.test(input.contentBase64))throw badRequest('Invalid file encoding')
++  const bytes=Buffer.from(input.contentBase64,'base64')
++  if(bytes.length===0)throw badRequest('File is required')
++  if(bytes.length>MAX_QUOTE_BYTES)throw new AppError(413,'quote_too_large','Quote file exceeds 15 MB')
++  if(bytes.subarray(0,PDF_MAGIC.length).compare(PDF_MAGIC)!==0)throw badRequest('File content is not a PDF')
++  return {name,bytes}
++}
++function safeName(name:string){return name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9._-]/g,'_').slice(-120)}
++export function createClientQuotesService(repo:ClientsRepository,storage:ClientQuotesStorage,log:(data:Record<string,unknown>,message:string)=>void){
++  return {
++    list:(clientId:string)=>repo.listQuotes(clientId),
++    async upload(input:{clientId:string;fileName:string;contentBase64:string;actorId:string;requestId:string}){
++      await repo.get(input.clientId)
++      const file=decodePdf(input)
++      const path=`${input.clientId}/${randomUUID()}_${safeName(file.name)}`
++      await storage.upload(path,file.bytes)
++      try{const record=await repo.insertQuote({clientId:input.clientId,storagePath:path,fileName:file.name,actorId:input.actorId});log({requestId:input.requestId,actorUserId:input.actorId,action:'client_quote.upload',resourceId:(record as {id?:unknown}).id,result:'ok'},'client domain mutation');return record}
++      catch(error){try{await storage.remove(path)}catch(compensationError){log({requestId:input.requestId,actorUserId:input.actorId,action:'client_quote.upload_compensation',storagePath:path,result:'error',err:compensationError},'client quote compensation failed')}throw error}
++    },
++    async download(clientId:string,quoteId:string){const quote=await repo.getQuote(clientId,quoteId);return {url:await storage.signedUrl(quote.storage_path,60),expiresIn:60,fileName:quote.nombre_archivo}},
++    async remove(input:{clientId:string;quoteId:string;actorId:string;requestId:string}){
++      const quote=await repo.deleteQuote(input.clientId,input.quoteId)
++      try{await storage.remove(quote.storage_path)}catch(error){try{await repo.restoreQuote({id:quote.id,clientId:input.clientId,storagePath:quote.storage_path,fileName:quote.nombre_archivo,actorId:quote.subido_por??input.actorId,createdAt:quote.created_at})}catch(compensationError){log({requestId:input.requestId,actorUserId:input.actorId,action:'client_quote.delete_compensation',resourceId:quote.id,result:'error',err:compensationError},'client quote compensation failed')}throw error}
++      log({requestId:input.requestId,actorUserId:input.actorId,action:'client_quote.delete',resourceId:quote.id,result:'ok'},'client domain mutation')
++    }
++  }
++}
+diff --git a/apps/api/src/application/clients/clients-service.ts b/apps/api/src/application/clients/clients-service.ts
+new file mode 100644
+index 0000000..8d94189
+--- /dev/null
++++ b/apps/api/src/application/clients/clients-service.ts
+@@ -0,0 +1,16 @@
++import type { ClientsRepository } from '../../infrastructure/db/clients-repository.js'
++import type { CreateAddressBody,CreateClientBody,UpdateAddressBody,UpdateClientBody } from '../../http/schemas/clients.js'
++
++type Actor={userId:string;requestId:string}
++export function createClientsService(repo:ClientsRepository,log:(data:Record<string,unknown>,message:string)=>void){
++  const audit=(actor:Actor,action:string,resourceId:unknown)=>log({requestId:actor.requestId,actorUserId:actor.userId,action,resourceId,result:'ok'},'client domain mutation')
++  return {
++    list:()=>repo.list(), detail:(id:string)=>repo.detail(id), addresses:(id:string)=>repo.addresses(id),
++    async create(input:CreateClientBody,actor:Actor){const row=await repo.create(input);audit(actor,'client.create',(row as {id?:unknown}).id);return row},
++    async update(id:string,input:UpdateClientBody,actor:Actor){const row=await repo.update(id,input);audit(actor,'client.update',id);return row},
++    async createAddress(clientId:string,input:CreateAddressBody,actor:Actor){const row=await repo.createAddress(clientId,input);audit(actor,'client_address.create',(row as {id?:unknown}).id);return row},
++    async updateAddress(clientId:string,addressId:string,input:UpdateAddressBody,actor:Actor){const row=await repo.updateAddress(clientId,addressId,input);audit(actor,'client_address.update',addressId);return row},
++    async setAddressStatus(clientId:string,addressId:string,activo:boolean,actor:Actor){const row=await repo.setAddressStatus(clientId,addressId,activo);audit(actor,activo?'client_address.activate':'client_address.deactivate',addressId);return row},
++    async setPrincipal(clientId:string,addressId:string,actor:Actor){const row=await repo.setPrincipal(clientId,addressId);audit(actor,'client_address.set_principal',addressId);return row},
++  }
++}
+diff --git a/apps/api/src/http/routes/v1/clients.ts b/apps/api/src/http/routes/v1/clients.ts
+new file mode 100644
+index 0000000..7933703
+--- /dev/null
++++ b/apps/api/src/http/routes/v1/clients.ts
+@@ -0,0 +1,22 @@
++import type { FastifyPluginAsync } from 'fastify'
++import { requirePermission } from '../../plugins/auth.js'
++import { badRequest } from '../../errors/app-error.js'
++import { clientIdSchema, createAddressBodySchema, createClientBodySchema, quoteUploadBodySchema, statusBodySchema, updateAddressBodySchema, updateClientBodySchema } from '../../schemas/clients.js'
++
++export const clientsRoutes: FastifyPluginAsync=async(app)=>{
++  const id=(raw:unknown)=>{const p=clientIdSchema.safeParse({id:raw});if(!p.success)throw badRequest('Invalid client id');return p.data.id}
++  const actor=(r:{auth?:{userId:string};id:string})=>({userId:r.auth!.userId,requestId:r.id})
++  app.get('/v1/clients',{preHandler:[requirePermission('clients:read')]},()=>app.clientsService.list())
++  app.get('/v1/clients/:id',{preHandler:[requirePermission('clients:read')]},r=>app.clientsService.detail(id((r.params as {id?:unknown}).id)))
++  app.post('/v1/clients',{preHandler:[requirePermission('clients:create')]},async(r,reply)=>{const p=createClientBodySchema.safeParse(r.body);if(!p.success)throw badRequest('Invalid client payload');return reply.code(201).send(await app.clientsService.create(p.data,actor(r)))})
++  app.patch('/v1/clients/:id',{preHandler:[requirePermission('clients:update')]},async r=>{const p=updateClientBodySchema.safeParse(r.body);if(!p.success)throw badRequest('Invalid client payload');return app.clientsService.update(id((r.params as {id?:unknown}).id),p.data,actor(r))})
++  app.get('/v1/clients/:id/addresses',{preHandler:[requirePermission('client_addresses:read')]},r=>app.clientsService.addresses(id((r.params as {id?:unknown}).id)))
++  app.post('/v1/clients/:id/addresses',{preHandler:[requirePermission('client_addresses:update')]},async(r,reply)=>{const p=createAddressBodySchema.safeParse(r.body);if(!p.success)throw badRequest('Invalid address payload');return reply.code(201).send(await app.clientsService.createAddress(id((r.params as {id?:unknown}).id),p.data,actor(r)))})
++  app.patch('/v1/clients/:id/addresses/:addressId',{preHandler:[requirePermission('client_addresses:update')]},async r=>{const p=updateAddressBodySchema.safeParse(r.body);if(!p.success)throw badRequest('Invalid address payload');const q=r.params as {id?:unknown;addressId?:unknown};return app.clientsService.updateAddress(id(q.id),id(q.addressId),p.data,actor(r))})
++  app.patch('/v1/clients/:id/addresses/:addressId/status',{preHandler:[requirePermission('client_addresses:update')]},async r=>{const p=statusBodySchema.safeParse(r.body);if(!p.success)throw badRequest('Invalid status payload');const q=r.params as {id?:unknown;addressId?:unknown};return app.clientsService.setAddressStatus(id(q.id),id(q.addressId),p.data.activo,actor(r))})
++  app.post('/v1/clients/:id/addresses/:addressId/principal',{preHandler:[requirePermission('client_addresses:update')]},r=>{const p=r.params as {id?:unknown;addressId?:unknown};return app.clientsService.setPrincipal(id(p.id),id(p.addressId),actor(r))})
++  app.get('/v1/clients/:id/quotes',{preHandler:[requirePermission('client_quotes:read')]},r=>app.clientQuotesService.list(id((r.params as {id?:unknown}).id)))
++  app.post('/v1/clients/:id/quotes',{bodyLimit:22_000_000,preHandler:[requirePermission('client_quotes:create')]},async(r,reply)=>{const p=quoteUploadBodySchema.safeParse(r.body);if(!p.success)throw badRequest('Invalid quote upload');const clientId=id((r.params as {id?:unknown}).id);const record=await app.clientQuotesService.upload({clientId,...p.data,actorId:r.auth!.userId,requestId:r.id});return reply.code(201).send(record)})
++  app.get('/v1/clients/:id/quotes/:quoteId/download',{preHandler:[requirePermission('client_quotes:read')]},r=>{const p=r.params as {id?:unknown;quoteId?:unknown};return app.clientQuotesService.download(id(p.id),id(p.quoteId))})
++  app.delete('/v1/clients/:id/quotes/:quoteId',{preHandler:[requirePermission('client_quotes:delete')]},async(r,reply)=>{const p=r.params as {id?:unknown;quoteId?:unknown};await app.clientQuotesService.remove({clientId:id(p.id),quoteId:id(p.quoteId),actorId:r.auth!.userId,requestId:r.id});return reply.code(204).send()})
++}
+diff --git a/apps/api/src/http/schemas/clients.ts b/apps/api/src/http/schemas/clients.ts
+new file mode 100644
+index 0000000..e0b265c
+--- /dev/null
++++ b/apps/api/src/http/schemas/clients.ts
+@@ -0,0 +1,24 @@
++import { z } from 'zod'
++
++const nullableText = z.string().trim().max(500).nullable().optional().default(null)
++export const clientIdSchema = z.object({ id: z.string().uuid() }).strict()
++export const createClientBodySchema = z.object({
++  nombre: z.string().trim().min(1).max(300), cuit: nullableText, personaContacto: nullableText,
++  codigoCostos: nullableText, presupuesto4hs: z.number().int().min(0).default(0),
++  presupuesto8hs: z.number().int().min(0).default(0), domicilio: nullableText,
++  llevaInsumos: z.boolean().nullable().optional().default(false),
++}).strict()
++export const updateClientBodySchema = createClientBodySchema.partial().extend({ activo: z.boolean().optional() }).strict()
++  .refine((value) => Object.keys(value).length > 0, 'At least one field is required')
++export const createAddressBodySchema = z.object({ alias:z.string().trim().min(1).max(200), direccion:nullableText, horarioAtencion:nullableText, esPrincipal:z.boolean().optional().default(false) }).strict()
++export const updateAddressBodySchema = createAddressBodySchema.partial().strict()
++  .refine((value) => Object.keys(value).length > 0, 'At least one field is required')
++export const statusBodySchema = z.object({ activo:z.boolean() }).strict()
++export const quoteUploadBodySchema = z.object({
++  fileName:z.string().trim().min(1).max(255),
++  contentBase64:z.string().min(1).max(21_000_000),
++}).strict()
++export type CreateClientBody=z.infer<typeof createClientBodySchema>
++export type UpdateClientBody=z.infer<typeof updateClientBodySchema>
++export type CreateAddressBody=z.infer<typeof createAddressBodySchema>
++export type UpdateAddressBody=z.infer<typeof updateAddressBodySchema>
+diff --git a/apps/api/src/infrastructure/db/clients-repository.ts b/apps/api/src/infrastructure/db/clients-repository.ts
+new file mode 100644
+index 0000000..19ff288
+--- /dev/null
++++ b/apps/api/src/infrastructure/db/clients-repository.ts
+@@ -0,0 +1,72 @@
++import type pg from 'pg'
++import type { Db } from './pool.js'
++import { AppError, badRequest, notFound } from '../../http/errors/app-error.js'
++import type { CreateAddressBody, CreateClientBody, UpdateAddressBody, UpdateClientBody } from '../../http/schemas/clients.js'
++
++const CLIENT_FIELDS = `id, nombre, cuit, persona_contacto, codigo_costos,
++  presupuesto_4hs, presupuesto_8hs, domicilio, lleva_insumos, activo, created_at`
++const ADDRESS_FIELDS = `id, cliente_id, alias, direccion, es_principal, activo,
++  horario_atencion, supervisor_id, created_at`
++
++function persistenceError(error: unknown): AppError {
++  if (error instanceof AppError) return error
++  const code = (error as { code?: unknown })?.code
++  if (code === '23505') return new AppError(409, 'client_conflict', 'Client data conflicts with an existing record')
++  if (code === '23503') return badRequest('Related client data does not exist')
++  return new AppError(502, 'client_persistence_failed', 'Client persistence failed')
++}
++
++export function createClientsRepository(db: Db) {
++  async function requireClient(id: string, client?: pg.PoolClient) {
++    const result = client
++      ? await client.query(`select ${CLIENT_FIELDS} from public.clientes where id = $1`, [id])
++      : await db.query(`select ${CLIENT_FIELDS} from public.clientes where id = $1`, [id])
++    const row = result.rows[0]
++    if (!row) throw notFound('Client not found')
++    return row
++  }
++  async function transaction<T>(fn: (client: pg.PoolClient) => Promise<T>): Promise<T> {
++    const client = await db.pool.connect()
++    try { await client.query('begin'); const value = await fn(client); await client.query('commit'); return value }
++    catch (error) { await client.query('rollback'); throw persistenceError(error) }
++    finally { client.release() }
++  }
++  return {
++    async list() { return (await db.query(`select ${CLIENT_FIELDS} from public.clientes order by nombre, id`)).rows },
++    get: requireClient,
++    async detail(id: string) {
++      const [client, addresses, quotes] = await Promise.all([
++        requireClient(id),
++        db.query(`select ${ADDRESS_FIELDS} from public.cliente_domicilios where cliente_id=$1 order by es_principal desc, alias, id`, [id]),
++        db.query(`select cp.id,cp.cliente_id,cp.nombre_archivo,cp.created_at,cp.subido_por,p.nombre_completo as subido_por_nombre from public.cliente_presupuestos cp left join public.perfiles p on p.id=cp.subido_por where cp.cliente_id=$1 order by cp.created_at desc,cp.id`, [id]),
++      ])
++      return { client, addresses: addresses.rows, quotes: quotes.rows }
++    },
++    async create(input: CreateClientBody) {
++      return transaction(async (client) => {
++        const result = await client.query(`insert into public.clientes (nombre,cuit,persona_contacto,codigo_costos,presupuesto_4hs,presupuesto_8hs,domicilio,lleva_insumos) values($1,$2,$3,$4,$5,$6,$7,$8) returning ${CLIENT_FIELDS}`,[input.nombre,input.cuit,input.personaContacto,input.codigoCostos,input.presupuesto4hs,input.presupuesto8hs,input.domicilio,input.llevaInsumos])
++        const row = result.rows[0]
++        if (!row) throw new AppError(502, 'client_create_empty', 'Client persistence failed')
++        if (input.domicilio) await client.query(`insert into public.cliente_domicilios (cliente_id,alias,direccion,es_principal,activo) values($1,'Principal',$2,true,true)`, [row.id,input.domicilio])
++        return row
++      })
++    },
++    async update(id: string, input: UpdateClientBody) {
++      const values = Object.entries({nombre:input.nombre,cuit:input.cuit,persona_contacto:input.personaContacto,codigo_costos:input.codigoCostos,presupuesto_4hs:input.presupuesto4hs,presupuesto_8hs:input.presupuesto8hs,domicilio:input.domicilio,lleva_insumos:input.llevaInsumos,activo:input.activo}).filter(([,v])=>v!==undefined)
++      try { const result=await db.query(`update public.clientes set ${values.map(([key],i)=>`${key}=$${i+2}`).join(', ')} where id=$1 returning ${CLIENT_FIELDS}`,[id,...values.map(([,v])=>v)]); if(!result.rows[0])throw notFound('Client not found'); return result.rows[0] } catch(error){throw persistenceError(error)}
++    },
++    async addresses(clientId: string) { await requireClient(clientId); return (await db.query(`select ${ADDRESS_FIELDS} from public.cliente_domicilios where cliente_id=$1 order by es_principal desc,alias,id`,[clientId])).rows },
++    async createAddress(clientId: string, input: CreateAddressBody) {
++      return transaction(async (client)=>{ await requireClient(clientId,client); if(input.esPrincipal){await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[clientId]);await client.query('update public.cliente_domicilios set es_principal=false where cliente_id=$1',[clientId])} return (await client.query(`insert into public.cliente_domicilios(cliente_id,alias,direccion,horario_atencion,es_principal,activo) values($1,$2,$3,$4,$5,true) returning ${ADDRESS_FIELDS}`,[clientId,input.alias,input.direccion,input.horarioAtencion,input.esPrincipal])).rows[0] })
++    },
++    async updateAddress(clientId:string,addressId:string,input:UpdateAddressBody){return transaction(async(client)=>{if(input.esPrincipal===true)await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[clientId]);const current=await client.query('select 1 from public.cliente_domicilios where id=$1 and cliente_id=$2 for update',[addressId,clientId]);if(!current.rows[0])throw notFound('Client address not found');if(input.esPrincipal===true)await client.query('update public.cliente_domicilios set es_principal=false where cliente_id=$1 and id<>$2',[clientId,addressId]);const values=Object.entries({alias:input.alias,direccion:input.direccion,horario_atencion:input.horarioAtencion,es_principal:input.esPrincipal}).filter(([,v])=>v!==undefined);return(await client.query(`update public.cliente_domicilios set ${values.map(([key],i)=>`${key}=$${i+3}`).join(', ')} where id=$1 and cliente_id=$2 returning ${ADDRESS_FIELDS}`,[addressId,clientId,...values.map(([,v])=>v)])).rows[0]})},
++    async setAddressStatus(clientId:string,addressId:string,activo:boolean){const result=await db.query(`update public.cliente_domicilios set activo=$3,es_principal=case when $3 then es_principal else false end where id=$1 and cliente_id=$2 returning ${ADDRESS_FIELDS}`,[addressId,clientId,activo]);if(!result.rows[0])throw notFound('Client address not found');return result.rows[0]},
++    async setPrincipal(clientId:string,addressId:string){return transaction(async(client)=>{await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[clientId]);const exists=await client.query('select 1 from public.cliente_domicilios where id=$1 and cliente_id=$2 and activo=true for update',[addressId,clientId]);if(!exists.rows[0])throw notFound('Active client address not found');await client.query('update public.cliente_domicilios set es_principal=false where cliente_id=$1 and id<>$2',[clientId,addressId]);return(await client.query(`update public.cliente_domicilios set es_principal=true where id=$1 and cliente_id=$2 returning ${ADDRESS_FIELDS}`,[addressId,clientId])).rows[0]})},
++    async listQuotes(clientId:string){await requireClient(clientId);return(await db.query('select cp.id,cp.cliente_id,cp.nombre_archivo,cp.subido_por,cp.created_at,p.nombre_completo as subido_por_nombre from public.cliente_presupuestos cp left join public.perfiles p on p.id=cp.subido_por where cp.cliente_id=$1 order by cp.created_at desc,cp.id',[clientId])).rows},
++    async insertQuote(input:{clientId:string;storagePath:string;fileName:string;actorId:string}){const r=await db.query('insert into public.cliente_presupuestos(cliente_id,storage_path,nombre_archivo,subido_por) values($1,$2,$3,$4) returning id,cliente_id,nombre_archivo,subido_por,created_at',[input.clientId,input.storagePath,input.fileName,input.actorId]);return r.rows[0]},
++    async getQuote(clientId:string,quoteId:string){const r=await db.query('select id,cliente_id,nombre_archivo,storage_path,subido_por,created_at from public.cliente_presupuestos where id=$1 and cliente_id=$2',[quoteId,clientId]);if(!r.rows[0])throw notFound('Client quote not found');return r.rows[0] as {id:string;storage_path:string;nombre_archivo:string;subido_por:string}},
++    async deleteQuote(clientId:string,quoteId:string){const r=await db.query('delete from public.cliente_presupuestos where id=$1 and cliente_id=$2 returning id,storage_path,nombre_archivo,subido_por,created_at',[quoteId,clientId]);if(!r.rows[0])throw notFound('Client quote not found');return r.rows[0] as {id:string;storage_path:string;nombre_archivo:string;subido_por:string;created_at:string}},
++    async restoreQuote(input:{id:string;clientId:string;storagePath:string;fileName:string;actorId:string;createdAt:string}){await db.query('insert into public.cliente_presupuestos(id,cliente_id,storage_path,nombre_archivo,subido_por,created_at) values($1,$2,$3,$4,$5,$6) on conflict(id) do nothing',[input.id,input.clientId,input.storagePath,input.fileName,input.actorId,input.createdAt])},
++  }
++}
++export type ClientsRepository=ReturnType<typeof createClientsRepository>
+diff --git a/apps/api/src/infrastructure/storage/client-quotes-storage.ts b/apps/api/src/infrastructure/storage/client-quotes-storage.ts
+new file mode 100644
+index 0000000..2ab5ad5
+--- /dev/null
++++ b/apps/api/src/infrastructure/storage/client-quotes-storage.ts
+@@ -0,0 +1,20 @@
++import { createClient } from '@supabase/supabase-js'
++import type { Env } from '../../config/env.js'
++import { AppError, serviceUnavailable } from '../../http/errors/app-error.js'
++
++const BUCKET = 'presupuestos-clientes'
++export type ClientQuotesStorage = {
++  upload(path:string,bytes:Uint8Array):Promise<void>
++  remove(path:string):Promise<void>
++  signedUrl(path:string,expiresIn:number):Promise<string>
++}
++
++export function createClientQuotesStorage(env:Env):ClientQuotesStorage {
++  if(!env.SUPABASE_SERVICE_ROLE_KEY) return {upload:async()=>{throw serviceUnavailable('Storage dependency unavailable')},remove:async()=>{throw serviceUnavailable('Storage dependency unavailable')},signedUrl:async()=>{throw serviceUnavailable('Storage dependency unavailable')}}
++  const client=createClient(env.SUPABASE_URL,env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}})
++  return {
++    async upload(path,bytes){const {error}=await client.storage.from(BUCKET).upload(path,bytes,{contentType:'application/pdf',upsert:false});if(error)throw new AppError(502,'quote_storage_upload_failed','Quote storage upload failed')},
++    async remove(path){const {error}=await client.storage.from(BUCKET).remove([path]);if(error)throw new AppError(502,'quote_storage_delete_failed','Quote storage delete failed')},
++    async signedUrl(path,expiresIn){const {data,error}=await client.storage.from(BUCKET).createSignedUrl(path,expiresIn);if(error||!data)throw new AppError(502,'quote_storage_sign_failed','Quote download could not be prepared');return data.signedUrl},
++  }
++}
+diff --git a/apps/api/tests/client-quotes-service.test.ts b/apps/api/tests/client-quotes-service.test.ts
+new file mode 100644
+index 0000000..1dea456
+--- /dev/null
++++ b/apps/api/tests/client-quotes-service.test.ts
+@@ -0,0 +1,29 @@
++import { describe, expect, it, vi } from 'vitest'
++import { createClientQuotesService, decodePdf, MAX_QUOTE_BYTES } from '../src/application/clients/client-quotes-service.js'
++import type { ClientsRepository } from '../src/infrastructure/db/clients-repository.js'
++import type { ClientQuotesStorage } from '../src/infrastructure/storage/client-quotes-storage.js'
++import { notFound } from '../src/http/errors/app-error.js'
++
++const PDF=Buffer.from('%PDF-1.7\n%%EOF').toString('base64')
++function setup(overrides:{insertFails?:boolean;uploadFails?:boolean;removeFails?:boolean;foreignQuote?:boolean}={}){
++  const repo={
++    get:vi.fn(async()=>({id:'c'}),), listQuotes:vi.fn(async()=>[]),
++    insertQuote:vi.fn(async()=>{if(overrides.insertFails)throw new Error('db');return{id:'q'}}),
++    getQuote:vi.fn(async()=>{if(overrides.foreignQuote)throw notFound('Client quote not found');return{id:'q',storage_path:'c/x.pdf',nombre_archivo:'x.pdf',subido_por:'u'}}),
++    deleteQuote:vi.fn(async()=>({id:'q',storage_path:'c/x.pdf',nombre_archivo:'x.pdf',subido_por:'u',created_at:'2026-01-01T00:00:00Z'})),
++    restoreQuote:vi.fn(async()=>undefined),
++  } as unknown as ClientsRepository
++  const storage:ClientQuotesStorage={upload:vi.fn(async()=>{if(overrides.uploadFails)throw new Error('storage upload')}),remove:vi.fn(async()=>{if(overrides.removeFails)throw new Error('storage')}),signedUrl:vi.fn(async()=> 'https://signed.example/x')}
++  const log=vi.fn()
++  return {repo,storage,log,service:createClientQuotesService(repo,storage,log)}
++}
++
++describe('client quote lifecycle',()=>{
++  it('validates PDF magic and size',()=>{expect(decodePdf({fileName:'x.pdf',contentBase64:PDF}).bytes.length).toBeGreaterThan(0);expect(()=>decodePdf({fileName:'x.pdf',contentBase64:Buffer.from('no').toString('base64')})).toThrow('not a PDF');expect(()=>decodePdf({fileName:'x.txt',contentBase64:PDF})).toThrow('Only PDF');const oversized=Buffer.concat([Buffer.from('%PDF-'),Buffer.alloc(MAX_QUOTE_BYTES)]).toString('base64');expect(()=>decodePdf({fileName:'x.pdf',contentBase64:oversized})).toThrow('exceeds 15 MB')})
++  it('uploads storage before metadata',async()=>{const x=setup();await x.service.upload({clientId:'c',fileName:'x.pdf',contentBase64:PDF,actorId:'u',requestId:'r'});expect(x.storage.upload).toHaveBeenCalledOnce();expect((x.repo as never as {insertQuote:ReturnType<typeof vi.fn>}).insertQuote).toHaveBeenCalledOnce()})
++  it('does not create metadata when storage upload fails',async()=>{const x=setup({uploadFails:true});await expect(x.service.upload({clientId:'c',fileName:'x.pdf',contentBase64:PDF,actorId:'u',requestId:'r'})).rejects.toThrow('storage upload');expect((x.repo as never as {insertQuote:ReturnType<typeof vi.fn>}).insertQuote).not.toHaveBeenCalled()})
++  it('removes object when metadata insert fails',async()=>{const x=setup({insertFails:true});await expect(x.service.upload({clientId:'c',fileName:'x.pdf',contentBase64:PDF,actorId:'u',requestId:'r'})).rejects.toThrow('db');expect(x.storage.remove).toHaveBeenCalledOnce()})
++  it('returns short-lived signed download',async()=>{const x=setup();await expect(x.service.download('c','q')).resolves.toMatchObject({url:'https://signed.example/x',expiresIn:60})})
++  it('does not sign a quote outside the requested client',async()=>{const x=setup({foreignQuote:true});await expect(x.service.download('other-client','q')).rejects.toThrow('Client quote not found');expect(x.storage.signedUrl).not.toHaveBeenCalled()})
++  it('restores metadata when storage delete fails',async()=>{const x=setup({removeFails:true});await expect(x.service.remove({clientId:'c',quoteId:'q',actorId:'u',requestId:'r'})).rejects.toThrow('storage');expect((x.repo as never as {restoreQuote:ReturnType<typeof vi.fn>}).restoreQuote).toHaveBeenCalledOnce()})
++})
+diff --git a/apps/api/tests/clients-http.test.ts b/apps/api/tests/clients-http.test.ts
+new file mode 100644
+index 0000000..e7a1690
+--- /dev/null
++++ b/apps/api/tests/clients-http.test.ts
+@@ -0,0 +1,27 @@
++import { afterEach, describe, expect, it, vi } from 'vitest'
++import type { FastifyInstance } from 'fastify'
++import { buildApp } from '../src/app.js'
++import { createProfileStubDb, signAccessToken, testEnv } from './helpers.js'
++import type { ClientsRepository } from '../src/infrastructure/db/clients-repository.js'
++import type { ClientQuotesStorage } from '../src/infrastructure/storage/client-quotes-storage.js'
++import { notFound } from '../src/http/errors/app-error.js'
++
++const USER='22222222-2222-4222-8222-222222222222', CLIENT='33333333-3333-4333-8333-333333333333', ADDRESS='44444444-4444-4444-8444-444444444444', QUOTE='55555555-5555-4555-8555-555555555555'
++const client={id:CLIENT,nombre:'Cliente',cuit:null,persona_contacto:null,codigo_costos:null,presupuesto_4hs:0,presupuesto_8hs:0,domicilio:null,lleva_insumos:false,activo:true,created_at:'2026-01-01'}
++const address={id:ADDRESS,cliente_id:CLIENT,alias:'Principal',direccion:'Calle 1',es_principal:true,activo:true,horario_atencion:null,supervisor_id:null,created_at:'2026-01-01'}
++const quote={id:QUOTE,cliente_id:CLIENT,nombre_archivo:'x.pdf',storage_path:`${CLIENT}/x.pdf`,subido_por:USER,created_at:'2026-01-01'}
++const apps:FastifyInstance[]=[]
++afterEach(async()=>{await Promise.all(apps.splice(0).map(app=>app.close()))})
++function repo():ClientsRepository{return {list:vi.fn(async()=>[client]),get:vi.fn(async()=>client),detail:vi.fn(async()=>({client,addresses:[address],quotes:[]})),create:vi.fn(async()=>client),update:vi.fn(async()=>client),addresses:vi.fn(async()=>[address]),createAddress:vi.fn(async()=>address),updateAddress:vi.fn(async()=>address),setAddressStatus:vi.fn(async()=>address),setPrincipal:vi.fn(async()=>address),listQuotes:vi.fn(async()=>[]),insertQuote:vi.fn(async()=>quote),getQuote:vi.fn(async()=>quote),deleteQuote:vi.fn(async()=>quote),restoreQuote:vi.fn(async()=>undefined)} as unknown as ClientsRepository}
++const storage:ClientQuotesStorage={upload:vi.fn(async()=>undefined),remove:vi.fn(async()=>undefined),signedUrl:vi.fn(async()=> 'https://signed.example/x')}
++async function app(role:string,clientsRepo=repo()){const instance=await buildApp(testEnv(),{db:createProfileStubDb({profile:{id:USER,nombre_completo:'User',rol:role}}),clientsRepo,clientQuotesStorage:storage});apps.push(instance);await instance.ready();return instance}
++async function auth(){return {authorization:`Bearer ${await signAccessToken({sub:USER})}`}}
++
++describe('Phase 4A HTTP',()=>{
++  it('requires authentication',async()=>{const a=await app('admin');expect((await a.inject({method:'GET',url:'/v1/clients'})).statusCode).toBe(401)})
++  it('returns not found without leaking persistence details',async()=>{const clientsRepo=repo();vi.mocked(clientsRepo.detail).mockRejectedValue(notFound('Client not found'));const a=await app('admin',clientsRepo),headers=await auth();const response=await a.inject({method:'GET',url:`/v1/clients/${CLIENT}`,headers});expect(response.statusCode).toBe(404);expect(response.json()).toMatchObject({code:'not_found',detail:'Client not found'});expect(response.body).not.toContain('select ')})
++  it('allows admin CRUD and validates payload',async()=>{const a=await app('admin'),headers=await auth();expect((await a.inject({method:'GET',url:'/v1/clients',headers})).statusCode).toBe(200);expect((await a.inject({method:'GET',url:`/v1/clients/${CLIENT}`,headers})).statusCode).toBe(200);expect((await a.inject({method:'POST',url:'/v1/clients',headers,payload:{nombre:'Nuevo'}})).statusCode).toBe(201);expect((await a.inject({method:'POST',url:'/v1/clients',headers,payload:{nombre:''}})).statusCode).toBe(400);expect((await a.inject({method:'PATCH',url:`/v1/clients/${CLIENT}`,headers,payload:{cuit:'20'}})).statusCode).toBe(200)})
++  it('covers address lifecycle and principal',async()=>{const a=await app('compras'),headers=await auth();expect((await a.inject({method:'POST',url:`/v1/clients/${CLIENT}/addresses`,headers,payload:{alias:'Planta'}})).statusCode).toBe(201);expect((await a.inject({method:'PATCH',url:`/v1/clients/${CLIENT}/addresses/${ADDRESS}`,headers,payload:{direccion:'Nueva'}})).statusCode).toBe(200);expect((await a.inject({method:'PATCH',url:`/v1/clients/${CLIENT}/addresses/${ADDRESS}/status`,headers,payload:{activo:false}})).statusCode).toBe(200);expect((await a.inject({method:'POST',url:`/v1/clients/${CLIENT}/addresses/${ADDRESS}/principal`,headers})).statusCode).toBe(200)})
++  it('uploads, signs and deletes quotes',async()=>{const a=await app('gerente'),headers=await auth(),contentBase64=Buffer.from('%PDF-1.7\n%%EOF').toString('base64');expect((await a.inject({method:'POST',url:`/v1/clients/${CLIENT}/quotes`,headers,payload:{fileName:'x.pdf',contentBase64}})).statusCode).toBe(201);expect((await a.inject({method:'GET',url:`/v1/clients/${CLIENT}/quotes/${QUOTE}/download`,headers})).statusCode).toBe(200);expect((await a.inject({method:'DELETE',url:`/v1/clients/${CLIENT}/quotes/${QUOTE}`,headers})).statusCode).toBe(204)})
++  it('denies supervisor and auditoria',async()=>{for(const role of ['supervisor','auditoria']){const a=await app(role),headers=await auth();expect((await a.inject({method:'POST',url:'/v1/clients',headers,payload:{nombre:'No'}})).statusCode).toBe(403)}})
++})
+diff --git a/apps/api/tests/clients-rbac.test.ts b/apps/api/tests/clients-rbac.test.ts
+new file mode 100644
+index 0000000..7923a45
+--- /dev/null
++++ b/apps/api/tests/clients-rbac.test.ts
+@@ -0,0 +1,7 @@
++import { describe,expect,it } from 'vitest'
++import { authorize } from '../src/domain/rbac.js'
++
++describe('Phase 4A RBAC',()=>{
++  for(const role of ['admin','gerente','compras'] as const)it(`${role} has complete client permissions`,()=>{for(const permission of ['clients:read','clients:create','clients:update','client_addresses:read','client_addresses:update','client_quotes:read','client_quotes:create','client_quotes:delete'] as const)expect(authorize({role},permission)).toBe(true)})
++  for(const role of ['supervisor','auditoria'] as const)it(`${role} receives no Phase 4A permissions`,()=>{for(const permission of ['clients:create','client_addresses:update','client_quotes:create','client_quotes:delete'] as const)expect(authorize({role},permission)).toBe(false)})
++})
+diff --git a/apps/api/tests/clients-repository.test.ts b/apps/api/tests/clients-repository.test.ts
+new file mode 100644
+index 0000000..3fe2ab2
+--- /dev/null
++++ b/apps/api/tests/clients-repository.test.ts
+@@ -0,0 +1,24 @@
++import { describe,expect,it,vi } from 'vitest'
++import { createClientsRepository } from '../src/infrastructure/db/clients-repository.js'
++import type { Db } from '../src/infrastructure/db/pool.js'
++
++describe('clients repository transactions',()=>{
++  it('rolls back client creation when initial address insert fails',async()=>{
++    const queries:string[]=[]
++    const client={query:vi.fn(async(sql:string)=>{queries.push(sql);if(sql.startsWith('insert into public.clientes'))return{rows:[{id:'c'}]};if(sql.includes('insert into public.cliente_domicilios'))throw new Error('address failure');return{rows:[]}}),release:vi.fn()}
++    const db={pool:{connect:async()=>client},query:vi.fn()} as unknown as Db
++    const repo=createClientsRepository(db)
++    await expect(repo.create({nombre:'Cliente',cuit:null,personaContacto:null,codigoCostos:null,presupuesto4hs:0,presupuesto8hs:0,domicilio:'Calle',llevaInsumos:false})).rejects.toThrow('Client persistence failed')
++    expect(queries).toContain('rollback')
++    expect(queries).not.toContain('commit')
++    expect(client.release).toHaveBeenCalledOnce()
++  })
++  it('serializes set-principal and commits both updates',async()=>{
++    const queries:string[]=[]
++    const client={query:vi.fn(async(sql:string)=>{queries.push(sql);if(sql.includes('select 1 from public.cliente_domicilios'))return{rows:[{exists:1}]};if(sql.includes('returning id, cliente_id'))return{rows:[{id:'a',es_principal:true}]};return{rows:[]}}),release:vi.fn()}
++    const db={pool:{connect:async()=>client},query:vi.fn()} as unknown as Db
++    await createClientsRepository(db).setPrincipal('c','a')
++    expect(queries.some(q=>q.includes('pg_advisory_xact_lock'))).toBe(true)
++    expect(queries).toContain('commit')
++  })
++})
+diff --git a/apps/api/tests/phase4a-policy-static.test.ts b/apps/api/tests/phase4a-policy-static.test.ts
+new file mode 100644
+index 0000000..91b6244
+--- /dev/null
++++ b/apps/api/tests/phase4a-policy-static.test.ts
+@@ -0,0 +1,9 @@
++import { readFileSync } from 'node:fs'
++import { describe,expect,it } from 'vitest'
++
++const sql=readFileSync(new URL('../../../supabase/migrations/forward/20260928120000_phase4a_clients.sql',import.meta.url),'utf8')
++describe('Phase 4A browser bypass closure migration',()=>{
++  it('revokes browser DML for all three tables',()=>{expect(sql).toMatch(/REVOKE INSERT, UPDATE, DELETE ON public\.clientes, public\.cliente_domicilios, public\.cliente_presupuestos FROM anon, authenticated/i)})
++  it('drops every known browser write policy for clients, addresses, quotes and storage',()=>{for(const policy of ['admin_crea_clientes','admin_edita_clientes','admin_borra_clientes','cliente_domicilios_authenticated_all','cliente_presupuestos_authenticated_all','presupuestos_clientes_storage_authenticated_all'])expect(sql).toContain(`DROP POLICY IF EXISTS ${policy}`)})
++  it('removes renamed browser policies scoped to the private quote bucket',()=>{expect(sql).toContain("roles && ARRAY['public'::name, 'anon'::name, 'authenticated'::name]");expect(sql).toContain("LIKE '%presupuestos-clientes%'");expect(sql).toContain("DROP POLICY %I ON storage.objects")})
++})
+diff --git a/apps/api/tests/postgrest-phase4a-rls.negative.test.ts b/apps/api/tests/postgrest-phase4a-rls.negative.test.ts
+new file mode 100644
+index 0000000..c181064
+--- /dev/null
++++ b/apps/api/tests/postgrest-phase4a-rls.negative.test.ts
+@@ -0,0 +1,13 @@
++import { describe,expect,it } from 'vitest'
++
++const ready=Boolean(process.env.RUN_SUPABASE_INTEGRATION==='1'&&process.env.SUPABASE_URL&&process.env.SUPABASE_ANON_KEY&&process.env.SUPABASE_SERVICE_ROLE_KEY&&process.env.POSTGREST_TEST_USER_JWT)
++const nil='00000000-0000-0000-0000-000000000000'
++describe.skipIf(!ready)('Phase 4A direct browser bypass negative',()=>{
++  it.each([
++    ['POST','clientes',{nombre:'DENY PHASE4A'}],['PATCH',`clientes?id=eq.${nil}`,{nombre:'DENY'}],['DELETE',`clientes?id=eq.${nil}`,null],
++    ['POST','cliente_domicilios',{cliente_id:nil,alias:'DENY'}],['PATCH',`cliente_domicilios?id=eq.${nil}`,{activo:false}],['DELETE',`cliente_domicilios?id=eq.${nil}`,null],
++    ['POST','cliente_presupuestos',{cliente_id:nil,storage_path:'deny/x.pdf',nombre_archivo:'x.pdf'}],['PATCH',`cliente_presupuestos?id=eq.${nil}`,{nombre_archivo:'deny.pdf'}],['DELETE',`cliente_presupuestos?id=eq.${nil}`,null],
++  ])('%s /rest/v1/%s denied',async(method,resource,body)=>{const response=await fetch(`${process.env.SUPABASE_URL}/rest/v1/${resource}`,{method,headers:{apikey:process.env.SUPABASE_ANON_KEY!,authorization:`Bearer ${process.env.POSTGREST_TEST_USER_JWT}`,'content-type':'application/json',prefer:'return=minimal'},...(body?{body:JSON.stringify(body)}:{})});expect(response.ok).toBe(false);expect([401,403]).toContain(response.status)})
++  it('storage upload is denied',async()=>{const response=await fetch(`${process.env.SUPABASE_URL}/storage/v1/object/presupuestos-clientes/deny/${crypto.randomUUID()}.pdf`,{method:'POST',headers:{apikey:process.env.SUPABASE_ANON_KEY!,authorization:`Bearer ${process.env.POSTGREST_TEST_USER_JWT}`,'content-type':'application/pdf'},body:'%PDF-1.7\n%%EOF'});expect(response.ok).toBe(false);expect([400,401,403]).toContain(response.status)})
++  it('storage read and delete are denied for an existing private object',async()=>{const path=`deny/${crypto.randomUUID()}.pdf`,url=`${process.env.SUPABASE_URL}/storage/v1/object/presupuestos-clientes/${path}`,serviceHeaders={apikey:process.env.SUPABASE_SERVICE_ROLE_KEY!,authorization:`Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY!}`};const created=await fetch(url,{method:'POST',headers:{...serviceHeaders,'content-type':'application/pdf'},body:'%PDF-1.7\n%%EOF'});expect(created.ok).toBe(true);try{for(const method of ['GET','DELETE']){const response=await fetch(url,{method,headers:{apikey:process.env.SUPABASE_ANON_KEY!,authorization:`Bearer ${process.env.POSTGREST_TEST_USER_JWT}`}});expect(response.ok).toBe(false);expect([400,401,403,404]).toContain(response.status)}}finally{await fetch(url,{method:'DELETE',headers:serviceHeaders})}})
++})
+diff --git a/supabase/migrations/forward/20260928120000_phase4a_clients.sql b/supabase/migrations/forward/20260928120000_phase4a_clients.sql
+new file mode 100644
+index 0000000..3a4cda5
+--- /dev/null
++++ b/supabase/migrations/forward/20260928120000_phase4a_clients.sql
+@@ -0,0 +1,49 @@
++-- Phase 4A: browser DML closure; API uses the least-privilege dinamic_api role.
++BEGIN;
++
++GRANT SELECT, INSERT, UPDATE ON public.clientes TO dinamic_api;
++GRANT SELECT, INSERT, UPDATE ON public.cliente_domicilios TO dinamic_api;
++GRANT SELECT, INSERT, UPDATE, DELETE ON public.cliente_presupuestos TO dinamic_api;
++
++DROP POLICY IF EXISTS clientes_dinamic_api_select ON public.clientes;
++CREATE POLICY clientes_dinamic_api_select ON public.clientes FOR SELECT TO dinamic_api USING (true);
++DROP POLICY IF EXISTS clientes_dinamic_api_insert ON public.clientes;
++CREATE POLICY clientes_dinamic_api_insert ON public.clientes FOR INSERT TO dinamic_api WITH CHECK (true);
++DROP POLICY IF EXISTS clientes_dinamic_api_update ON public.clientes;
++CREATE POLICY clientes_dinamic_api_update ON public.clientes FOR UPDATE TO dinamic_api USING (true) WITH CHECK (true);
++DROP POLICY IF EXISTS admin_crea_clientes ON public.clientes;
++DROP POLICY IF EXISTS admin_edita_clientes ON public.clientes;
++DROP POLICY IF EXISTS admin_borra_clientes ON public.clientes;
++DROP POLICY IF EXISTS cliente_domicilios_dinamic_api_all ON public.cliente_domicilios;
++CREATE POLICY cliente_domicilios_dinamic_api_all ON public.cliente_domicilios FOR ALL TO dinamic_api USING (true) WITH CHECK (true);
++DROP POLICY IF EXISTS cliente_presupuestos_dinamic_api_all ON public.cliente_presupuestos;
++CREATE POLICY cliente_presupuestos_dinamic_api_all ON public.cliente_presupuestos FOR ALL TO dinamic_api USING (true) WITH CHECK (true);
++
++DROP POLICY IF EXISTS cliente_domicilios_authenticated_all ON public.cliente_domicilios;
++DROP POLICY IF EXISTS cliente_presupuestos_authenticated_all ON public.cliente_presupuestos;
++DROP POLICY IF EXISTS presupuestos_clientes_storage_authenticated_all ON storage.objects;
++-- Policy names changed across historical environments. Remove any remaining browser
++-- policy scoped to this bucket by effective role/expression, not only by known name.
++DO $$
++DECLARE browser_policy record;
++BEGIN
++  FOR browser_policy IN
++    SELECT policyname
++    FROM pg_policies
++    WHERE schemaname = 'storage'
++      AND tablename = 'objects'
++      AND roles && ARRAY['public'::name, 'anon'::name, 'authenticated'::name]
++      AND (coalesce(qual, '') LIKE '%presupuestos-clientes%'
++        OR coalesce(with_check, '') LIKE '%presupuestos-clientes%')
++  LOOP
++    EXECUTE format('DROP POLICY %I ON storage.objects', browser_policy.policyname);
++  END LOOP;
++END
++$$;
++DROP POLICY IF EXISTS cliente_domicilios_authenticated_select ON public.cliente_domicilios;
++CREATE POLICY cliente_domicilios_authenticated_select ON public.cliente_domicilios
++  FOR SELECT TO authenticated USING (true);
++REVOKE INSERT, UPDATE, DELETE ON public.clientes, public.cliente_domicilios, public.cliente_presupuestos FROM anon, authenticated;
++
++-- Reads remain temporarily for legacy Compras/Auditorías consumers. Storage has no browser policy.
++COMMIT;

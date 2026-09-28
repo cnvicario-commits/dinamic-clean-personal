@@ -1,0 +1,39 @@
+ apps/api/scripts/export-contracts.mjs          |  57 ++++++++++++++
+ apps/api/src/app.ts                            |  16 ++++
+ apps/api/src/config/env.ts                     |   3 +-
+ apps/api/src/domain/rbac-catalog.ts            |   1 +
+ apps/api/src/domain/rbac.ts                    |  10 ++-
+ apps/api/src/http/openapi.ts                   | 103 +++++++++++++++++++++++++
+ apps/api/tests/business-rbac.test.ts           |  20 ++---
+ apps/api/tests/openapi.contract.test.ts        |  20 +++++
+ src/app/clientes/[id]/page.tsx                 |  26 ++-----
+ src/app/clientes/page.tsx                      |  11 +--
+ src/components/ClienteDomicilioEstadoBoton.tsx |  17 ++--
+ src/components/ClienteDomicilioForm.tsx        |  33 +-------
+ src/components/ClienteDomiciliosTabla.tsx      |   2 +-
+ src/components/ClienteForm.tsx                 |  46 +++--------
+ src/components/ClientePresupuestosPanel.tsx    |  55 ++++---------
+ src/components/MarcarPrincipalBoton.tsx        |  18 +++--
+ src/lib/api/generated/client.ts                |  36 +++++++++
+ src/lib/api/generated/index.ts                 |  10 +++
+ src/lib/api/generated/types.ts                 |  13 ++++
+ src/types/compras.ts                           |   2 +-
+ src/utils/permisos.ts                          |   9 +--
+ 21 files changed, 345 insertions(+), 163 deletions(-)
+
+Untracked implementation files (full contents included in phase4a-clients-diff.txt):
+      38 apps/api/src/application/clients/client-quotes-service.ts
+      16 apps/api/src/application/clients/clients-service.ts
+      22 apps/api/src/http/routes/v1/clients.ts
+      24 apps/api/src/http/schemas/clients.ts
+      72 apps/api/src/infrastructure/db/clients-repository.ts
+      20 apps/api/src/infrastructure/storage/client-quotes-storage.ts
+      29 apps/api/tests/client-quotes-service.test.ts
+      27 apps/api/tests/clients-http.test.ts
+       7 apps/api/tests/clients-rbac.test.ts
+      24 apps/api/tests/clients-repository.test.ts
+       9 apps/api/tests/phase4a-policy-static.test.ts
+      13 apps/api/tests/postgrest-phase4a-rls.negative.test.ts
+      49 supabase/migrations/forward/20260928120000_phase4a_clients.sql
+
+Evidence artifacts are intentionally excluded from their own diff.

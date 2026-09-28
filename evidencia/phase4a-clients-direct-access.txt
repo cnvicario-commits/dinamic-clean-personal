@@ -1,0 +1,66 @@
+FASE 4A — BÚSQUEDA FINAL DE ACCESO DIRECTO
+Fecha: 2026-09-28
+
+Patrones revisados:
+- from('clientes')
+- from('cliente_domicilios')
+- from('cliente_presupuestos')
+- presupuestos-clientes
+- insert/update/delete/upsert y Storage desde src/
+
+RESULTADO DE ESCRITURAS FRONTEND
+No se encontraron INSERT, UPDATE, DELETE ni UPSERT directos desde src/ hacia
+clientes, cliente_domicilios o cliente_presupuestos. Tampoco se encontraron
+operaciones directas del frontend contra el bucket presupuestos-clientes.
+Clasificación: ELIMINADO.
+
+ACCESOS DEL DOMINIO /clientes
+- src/app/clientes/page.tsx: obtiene sesión y lista mediante GET /v1/clients.
+- src/app/clientes/[id]/page.tsx: obtiene sesión y detalle mediante GET /v1/clients/:id.
+- src/components/ClienteForm.tsx: POST /v1/clients.
+- src/components/ClienteDomicilioForm.tsx: POST/PATCH de domicilios vía API.
+- src/components/ClienteDomicilioEstadoBoton.tsx: PATCH de estado vía API.
+- src/components/MarcarPrincipalBoton.tsx: POST principal vía API.
+- src/components/ClientePresupuestosPanel.tsx: upload/download/delete vía API.
+Clasificación: MIGRADO A BACKEND.
+
+LECTURAS LEGACY TEMPORALES — COMPRAS
+- src/app/pedidos-deposito/page.tsx:12 — SELECT clientes.
+- src/app/panel-compras/[id]/page.tsx:63 — SELECT cliente_domicilios.
+- src/app/pedidos-compra/nuevo/page.tsx:9,11 — SELECT clientes/domicilios.
+- src/app/pedidos-compra/page.tsx:13 — SELECT clientes.
+- src/app/pedidos-compra/[id]/page.tsx:40,42 — SELECT clientes/domicilios.
+- src/app/pedidos-compra/importar/page.tsx:9,11 — SELECT clientes/domicilios.
+- src/app/ordenes-compra/nuevo/page.tsx:17,20 — SELECT clientes/domicilios.
+- src/app/ordenes-compra/page.tsx:13 — SELECT clientes.
+Justificación: consumers de 4B/4C fuera del alcance; sólo lectura necesaria.
+Clasificación: LECTURA LEGACY TEMPORAL JUSTIFICADA.
+
+LECTURAS LEGACY TEMPORALES — AUDITORÍAS
+- src/app/auditorias/nueva/page.tsx:16,17 — SELECT clientes/domicilios.
+- src/app/auditorias/planificacion/nueva/page.tsx:8,9 — SELECT clientes/domicilios.
+- src/app/auditorias/planificacion/[id]/editar/page.tsx:50,51 — SELECT clientes/domicilios.
+Justificación: consumer de Auditorías fuera del alcance; sólo lectura necesaria.
+Clasificación: LECTURA LEGACY TEMPORAL JUSTIFICADA.
+
+OTRA LECTURA LEGACY
+- src/app/dashboard/page.tsx:87 — SELECT clientes.
+Justificación: dashboard existente fuera del alcance; sólo lectura agregada.
+Clasificación: LECTURA LEGACY TEMPORAL JUSTIFICADA.
+
+BACKEND Y TESTS (NO SON BYPASS DE NAVEGADOR)
+- apps/api/src/infrastructure/storage/client-quotes-storage.ts:5 — bucket privado,
+  accedido sólo por backend con service-role server-only.
+- apps/api/tests/postgrest-phase4a-rls.negative.test.ts:11-12 — pruebas negativas
+  reales de upload/read/delete como authenticated.
+- apps/api/tests/phase4a-policy-static.test.ts:8 — verificación estática de migration.
+
+CONTROL EFECTIVO VERIFICADO EN SUPABASE LOCAL
+- authenticated: sin INSERT/UPDATE/DELETE sobre las tres tablas.
+- Storage: cero policies browser de escritura para presupuestos-clientes.
+- Bucket presupuestos-clientes: public=false.
+- Prueba real: 11/11 casos negativos PostgREST/Storage pasaron.
+
+CONCLUSIÓN
+No permanece ninguna escritura browser → Supabase/Storage equivalente a las
+operaciones migradas de Fase 4A.

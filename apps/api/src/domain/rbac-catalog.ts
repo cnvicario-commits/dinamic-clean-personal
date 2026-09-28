@@ -45,6 +45,7 @@ export const PERMISSIONS = Object.freeze([
   // Clients + nested
   'clients:read',
   'clients:create',
+  'clients:update',
   'client_addresses:read',
   'client_addresses:update',
   'client_quotes:read',
