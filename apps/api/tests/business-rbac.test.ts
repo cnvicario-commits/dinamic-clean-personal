@@ -37,6 +37,7 @@ const CONFIRMED_PRODUCTIVE_GRANTS: Readonly<Record<Role, readonly Permission[]>>
     'client_addresses:read', 'client_addresses:update',
     'client_quotes:read', 'client_quotes:create', 'client_quotes:delete',
     'suppliers:read','suppliers:update','articles:read','articles:update','articles:import',
+    'purchase_requests:read','purchase_requests:create','purchase_requests:update','purchase_orders:read','purchase_orders:create','purchase_orders:update','warehouse_requests:read','warehouse_requests:create','warehouse_requests:update',
   ],
   gerente: [
     'profile:read_self', 'profile:update_self', 'employees:read',
@@ -48,12 +49,14 @@ const CONFIRMED_PRODUCTIVE_GRANTS: Readonly<Record<Role, readonly Permission[]>>
     'client_addresses:read', 'client_addresses:update',
     'client_quotes:read', 'client_quotes:create', 'client_quotes:delete',
     'suppliers:read','suppliers:update','articles:read','articles:update','articles:import',
+    'purchase_requests:read','purchase_requests:create','purchase_requests:update','purchase_orders:read','purchase_orders:create','purchase_orders:update','warehouse_requests:read','warehouse_requests:create','warehouse_requests:update',
   ],
   compras: ['profile:read_self', 'profile:update_self',
     'clients:read', 'clients:create', 'clients:update',
     'client_addresses:read', 'client_addresses:update',
     'client_quotes:read', 'client_quotes:create', 'client_quotes:delete',
-    'suppliers:read','suppliers:update','articles:read','articles:update','articles:import'],
+    'suppliers:read','suppliers:update','articles:read','articles:update','articles:import',
+    'purchase_requests:read','purchase_requests:create','purchase_requests:update','purchase_orders:read','purchase_orders:create','purchase_orders:update','warehouse_requests:read','warehouse_requests:create','warehouse_requests:update'],
   supervisor: ['profile:read_self', 'profile:update_self'],
   auditoria: ['profile:read_self', 'profile:update_self'],
 }
@@ -63,15 +66,6 @@ const CATALOG_DENY_UNTIL_CONFIRMED: readonly Permission[] = [
   'companies:read',
   'companies:create',
   'companies:update',
-  'purchase_requests:read',
-  'purchase_requests:create',
-  'purchase_requests:update',
-  'purchase_orders:read',
-  'purchase_orders:create',
-  'purchase_orders:update',
-  'warehouse_requests:read',
-  'warehouse_requests:create',
-  'warehouse_requests:update',
   'economic_results:read',
   'economic_results:import',
   'crm:read',
@@ -178,7 +172,7 @@ describe('business RBAC catalog (Phase 2C corrections)', () => {
     { role: 'compras', permission: 'employees:read', expected: false },
     { role: 'admin', permission: 'users:change_role', expected: true },
     { role: 'gerente', permission: 'users:create', expected: false },
-    { role: 'compras', permission: 'purchase_orders:read', expected: false },
+    { role: 'compras', permission: 'purchase_orders:read', expected: true },
     { role: 'supervisor', permission: 'purchase_requests:read', expected: false },
     { role: 'supervisor', permission: 'audits:read', expected: false },
     { role: 'gerente', permission: 'employees:create', expected: true },
@@ -200,6 +194,8 @@ describe('business RBAC catalog (Phase 2C corrections)', () => {
       expect(authorize({ role }, 'users:set_password')).toBe(false)
     }
   })
+
+  it('Phase 4C grants purchases only to admin, gerente and compras',()=>{const permissions:Permission[]=['purchase_requests:read','purchase_requests:create','purchase_requests:update','purchase_orders:read','purchase_orders:create','purchase_orders:update','warehouse_requests:read','warehouse_requests:create','warehouse_requests:update'];for(const permission of permissions){for(const role of ['admin','gerente','compras'] as Role[])expect(authorize({role},permission)).toBe(true);for(const role of ['supervisor','auditoria'] as Role[])expect(authorize({role},permission)).toBe(false)}})
 
   it('still-unconfirmed catalog-only business permissions → DENY for every role', () => {
     for (const permission of CATALOG_DENY_UNTIL_CONFIRMED) {

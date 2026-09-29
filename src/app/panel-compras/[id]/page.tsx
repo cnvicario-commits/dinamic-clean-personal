@@ -1,4 +1,4 @@
-import { createClient } from '@/utils/supabase/server'
+import { createAuthenticatedServerApiClient } from '@/lib/api/server'
 import Link from 'next/link'
 import PanelComprasAsignacion from '@/components/PanelComprasAsignacion'
 import type { LineaPendiente, PedidoCompraItemConArticulo } from '@/types/compras'
@@ -9,15 +9,8 @@ export default async function PanelComprasDetallePage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const supabase = await createClient()
-
-  const { data: pedido } = await supabase
-    .from('pedidos_compra')
-    .select(
-      '*, empresas(id, nombre, cuit, domicilio), clientes(id, nombre), pedidos_compra_items(*, articulos(id, codigo_interno, nombre, unidad, proveedor_habitual_id))'
-    )
-    .eq('id', id)
-    .single()
+  const api=await createAuthenticatedServerApiClient()
+  const pedido=await api.getPurchaseRequest(id).catch(()=>null) as unknown as (import('@/types/compras').PedidoCompraDetalleView|null)
 
   if (!pedido) {
     return (
@@ -44,43 +37,12 @@ export default async function PanelComprasDetallePage({
   }
 
   const items = (pedido.pedidos_compra_items ?? []) as PedidoCompraItemConArticulo[]
-  const itemIds = items.map((i) => i.id)
-  const articuloIds = [...new Set(items.map((i) => i.articulo_id))]
-
-  const [{ data: filasOc }, { data: filasDeposito }, { data: proveedores }, { data: preciosProveedor }, { data: domiciliosCliente }] =
-    await Promise.all([
-      itemIds.length > 0
-        ? supabase.from('ordenes_compra_items').select('pedido_compra_item_id, cantidad').in('pedido_compra_item_id', itemIds)
-        : Promise.resolve({ data: [] as { pedido_compra_item_id: string | null; cantidad: number }[] }),
-      itemIds.length > 0
-        ? supabase.from('pedidos_deposito_items').select('pedido_compra_item_id, cantidad').in('pedido_compra_item_id', itemIds)
-        : Promise.resolve({ data: [] as { pedido_compra_item_id: string | null; cantidad: number }[] }),
-      supabase.from('proveedores').select('id, razon_social, domicilio, provincia, condicion_pago_default').eq('activo', true).order('razon_social'),
-      articuloIds.length > 0
-        ? supabase.from('articulos_proveedor').select('articulo_id, proveedor_id, precio').eq('activo', true).in('articulo_id', articuloIds)
-        : Promise.resolve({ data: [] as { articulo_id: string; proveedor_id: string; precio: number }[] }),
-      supabase
-        .from('cliente_domicilios')
-        .select('id, cliente_id, alias, direccion, es_principal, activo, horario_atencion')
-        .eq('cliente_id', pedido.cliente_id)
-        .eq('activo', true)
-        .order('alias'),
-    ])
-
-  const asignadoOc = new Map<string, number>()
-  for (const fila of filasOc ?? []) {
-    if (!fila.pedido_compra_item_id) continue
-    asignadoOc.set(fila.pedido_compra_item_id, (asignadoOc.get(fila.pedido_compra_item_id) ?? 0) + fila.cantidad)
-  }
-  const asignadoDeposito = new Map<string, number>()
-  for (const fila of filasDeposito ?? []) {
-    if (!fila.pedido_compra_item_id) continue
-    asignadoDeposito.set(fila.pedido_compra_item_id, (asignadoDeposito.get(fila.pedido_compra_item_id) ?? 0) + fila.cantidad)
-  }
+  const catalogs=await api.getPurchaseCatalogs()
 
   const lineas: LineaPendiente[] = items.map((i) => {
-    const oc = asignadoOc.get(i.id) ?? 0
-    const dep = asignadoDeposito.get(i.id) ?? 0
+    const assigned=i as typeof i&{cantidad_asignada_oc:number;cantidad_asignada_deposito:number}
+    const oc = Number(assigned.cantidad_asignada_oc??0)
+    const dep = Number(assigned.cantidad_asignada_deposito??0)
     return {
       ...i,
       cantidad_asignada_oc: oc,
@@ -116,11 +78,11 @@ export default async function PanelComprasDetallePage({
         clienteId={pedido.cliente_id}
         empresaNombre={pedido.empresas?.nombre ?? null}
         empresaDomicilio={pedido.empresas?.domicilio ?? null}
-        domicilios={domiciliosCliente ?? []}
+        domicilios={catalogs.domicilios.filter(d=>d.cliente_id===pedido.cliente_id)}
         lugarEnvioDefault={lugarEnvioDefault}
         lineas={lineas}
-        proveedores={proveedores ?? []}
-        preciosProveedor={preciosProveedor ?? []}
+        proveedores={catalogs.proveedores}
+        preciosProveedor={catalogs.preciosProveedor}
       />
     </div>
   )

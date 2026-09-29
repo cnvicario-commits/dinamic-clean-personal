@@ -1,27 +1,11 @@
 import type { ComponentProps } from 'react'
-import { createClient } from '@/utils/supabase/server'
+import { createAuthenticatedServerApiClient } from '@/lib/api/server'
 import Link from 'next/link'
 import PedidosCompraTabla from '@/components/PedidosCompraTabla'
 
 export default async function PedidosCompraPage() {
-  const supabase = await createClient()
-  const [{ data: pedidos }, { data: clientes }, { data: empresas }, { data: perfiles }] = await Promise.all([
-    supabase
-      .from('pedidos_compra')
-      .select('*, empresas(nombre), clientes(nombre)')
-      .order('created_at', { ascending: false }),
-    supabase.from('clientes').select('id, nombre').order('nombre'),
-    supabase.from('empresas').select('*').order('nombre'),
-    // perfiles no tiene FK declarada hacia pedidos_compra: se resuelve
-    // nombre_completo armando este Map en vez de un join real de Supabase.
-    supabase.from('perfiles').select('id, nombre_completo'),
-  ])
-
-  const nombrePorId = new Map((perfiles ?? []).map((p) => [p.id, p.nombre_completo]))
-  const pedidosConNombre = (pedidos ?? []).map((p) => ({
-    ...p,
-    creado_por_nombre: nombrePorId.get(p.creado_por) ?? null,
-  }))
+  const api = await createAuthenticatedServerApiClient()
+  const [pedidos,catalogs] = await Promise.all([api.listPurchaseRequests(),api.getPurchaseCatalogs()])
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-10">
@@ -44,9 +28,9 @@ export default async function PedidosCompraPage() {
       </div>
 
       <PedidosCompraTabla
-        pedidos={pedidosConNombre as ComponentProps<typeof PedidosCompraTabla>['pedidos']}
-        clientes={clientes ?? []}
-        empresas={empresas ?? []}
+        pedidos={pedidos as ComponentProps<typeof PedidosCompraTabla>['pedidos']}
+        clientes={catalogs.clientes}
+        empresas={catalogs.empresas}
       />
     </div>
   )

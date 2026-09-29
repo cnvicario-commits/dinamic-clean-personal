@@ -175,6 +175,13 @@ export type PriceListPreview = { proveedorId:string;total:number;validas:number;
 export type PriceListApplyResult = { actualizados:number;vinculadosPorCodigoInterno:number;pendientesNuevas:number;pendientesActualizadas:number }
 export type SupplierArticlePending = { id:string; proveedor_id:string; codigo_proveedor:string|null; nombre_proveedor:string|null; precio:number|null; archivo_origen:string|null; motivo:string|null; sugerencias:unknown; created_at:string; razon_social:string }
 export type SupplierCatalogRow = { codigo_proveedor:string|null;nombre_proveedor:string|null;precio:number;codigo_interno:string }
+export type PurchaseRequestItemBody = { articuloId:string;cantidad:number;observaciones?:string|null }
+export type PurchaseRequestBody = { empresaId:string;clienteId:string;observacionesGenerales?:string|null;lugarEnvioDomicilioId?:string|null;lugarEnvioEmpresa?:boolean;lugarEnvioTexto?:string|null;lugarEnvioAlias?:string|null;estado?:'borrador'|'enviada';items:PurchaseRequestItemBody[] }
+export type PurchaseOrderBody = { empresaId:string;proveedorId:string;clienteId:string;observacionesGenerales?:string|null;lugarEnvioTexto?:string|null;lugarEnvioAlias?:string|null;condicionPago?:string|null;horarioAtencionTexto?:string|null;items:Array<PurchaseRequestItemBody&{precioUnitario:number}> }
+export type PurchaseAssignmentBody = { lugarEnvioTexto?:string|null;lugarEnvioAlias?:string|null;horarioAtencionTexto?:string|null;items:Array<{pedidoCompraItemId:string;destino:'proveedor'|'deposito'|'proveedor_deposito';proveedorId?:string|null;cantidad:number;precioUnitario?:number|null;observaciones?:string|null}> }
+export type PurchaseImportBody = { empresaId:string;orders:Array<{clienteId:string;clienteDomicilioId?:string|null;lugarEnvioTexto?:string|null;lugarEnvioAlias?:string|null;items:PurchaseRequestItemBody[]}> }
+export type PurchaseCatalogs = { empresas:Array<{id:string;nombre:string;cuit:string;domicilio:string|null;activo:boolean}>;clientes:Array<{id:string;nombre:string}>;articulos:Array<{id:string;codigo_interno:string;nombre:string;unidad:string|null;categoria:string|null;proveedor_habitual_id:string|null}>;domicilios:Array<{id:string;cliente_id:string;alias:string;direccion:string|null;es_principal:boolean;activo:boolean;horario_atencion:string|null}>;proveedores:Array<{id:string;razon_social:string;domicilio:string|null;provincia:string|null;condicion_pago_default:string|null}>;preciosProveedor:Array<{articulo_id:string;proveedor_id:string;precio:number}> }
+export type PurchaseRecord = Record<string,unknown>&{id:string;estado:string}
 
 /** GET /v1/employees query (optional fields omitted when unset) */
 export type ListEmployeesQuery = {
@@ -290,7 +297,7 @@ import type {
   UpdateClientAddressBody,
   QuoteUploadBody,
   QuoteDownload,
-  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow,
+  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord,
   UsersListResponse,
 } from './types'
 
@@ -388,6 +395,26 @@ export type DinamicApiClient = {
   listSupplierArticlePending: () => Promise<SupplierArticlePending[]>
   resolveSupplierArticlePending: (id:string,articuloId:string) => Promise<SupplierArticle>
   listSupplierCatalog: (id:string) => Promise<SupplierCatalogRow[]>
+  getPurchaseCatalogs: () => Promise<PurchaseCatalogs>
+  listPurchaseRequests: () => Promise<PurchaseRecord[]>
+  getPurchaseRequest: (id:string) => Promise<PurchaseRecord>
+  createPurchaseRequest: (body:PurchaseRequestBody) => Promise<PurchaseRecord>
+  updatePurchaseRequest: (id:string,body:PurchaseRequestBody) => Promise<PurchaseRecord>
+  transitionPurchaseRequest: (id:string,estado:'enviada') => Promise<PurchaseRecord>
+  duplicatePurchaseRequest: (id:string) => Promise<PurchaseRecord>
+  setPurchaseRequestItemDiscarded: (id:string,descartada:boolean,motivo?:string|null) => Promise<PurchaseRecord>
+  previewPurchaseImport: (body:PurchaseImportBody) => Promise<{total:number;valid:number;invalid:number;errors:Array<{row:number;message:string}>}>
+  applyPurchaseImport: (body:PurchaseImportBody,key:string) => Promise<{replayed:boolean;response:{purchaseRequestIds:string[]}}>
+  assignPurchaseRequest: (id:string,body:PurchaseAssignmentBody,key:string) => Promise<{replayed:boolean;response:{purchaseOrderIds:string[];warehouseRequestId:string|null}}>
+  listPurchaseOrders: () => Promise<PurchaseRecord[]>
+  getPurchaseOrder: (id:string) => Promise<PurchaseRecord>
+  createPurchaseOrder: (body:PurchaseOrderBody) => Promise<PurchaseRecord>
+  transitionPurchaseOrder: (id:string,estado:'enviada'|'recepcionada') => Promise<PurchaseRecord>
+  duplicatePurchaseOrder: (id:string) => Promise<PurchaseRecord>
+  listWarehouseRequests: () => Promise<PurchaseRecord[]>
+  getWarehouseRequest: (id:string) => Promise<PurchaseRecord>
+  transitionWarehouseRequest: (id:string,estado:'enviada'|'recepcionada') => Promise<PurchaseRecord>
+  duplicateWarehouseRequest: (id:string) => Promise<PurchaseRecord>
   getClientQuoteDownload: (clientId:string,quoteId:string) => Promise<QuoteDownload>
   deleteClientQuote: (clientId:string,quoteId:string) => Promise<void>
 }
@@ -550,6 +577,10 @@ export function createDinamicApiClient(options: DinamicApiClientOptions): Dinami
     listArticles(){return requestJson<Article[]>('/v1/articles')},getArticle(id){return requestJson<Article>(\`/v1/articles/\${id}\`)},createArticle(body){return requestJson<Article>('/v1/articles',{method:'POST',body:JSON.stringify(body)})},updateArticle(id,body){return requestJson<Article>(\`/v1/articles/\${id}\`,{method:'PATCH',body:JSON.stringify(body)})},updateArticleStatus(id,activo){return requestJson<Article>(\`/v1/articles/\${id}/status\`,{method:'PATCH',body:JSON.stringify({activo})},)},listArticleSuppliers(id){return requestJson<SupplierArticle[]>(\`/v1/articles/\${id}/suppliers\`)},createArticleSupplier(id,body){return requestJson<SupplierArticle>(\`/v1/articles/\${id}/suppliers\`,{method:'POST',body:JSON.stringify(body)})},updateArticleSupplier(id,relationId,body){return requestJson<SupplierArticle>(\`/v1/articles/\${id}/suppliers/\${relationId}\`,{method:'PATCH',body:JSON.stringify(body)})},previewArticleImport(body){return requestJson<ArticleImportPreview>('/v1/articles/import/preview',{method:'POST',body:JSON.stringify(body)})},importArticles(body,idempotencyKey){return requestJson('/v1/articles/import',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':idempotencyKey}})},previewPriceList(body){return requestJson<PriceListPreview>('/v1/price-lists/preview',{method:'POST',body:JSON.stringify(body)})},applyPriceList(body,idempotencyKey){return requestJson('/v1/price-lists/apply',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':idempotencyKey}})},
     listSupplierArticlePending(){return requestJson<SupplierArticlePending[]>('/v1/supplier-article-pending')},resolveSupplierArticlePending(id,articuloId){return requestJson<SupplierArticle>(\`/v1/supplier-article-pending/\${id}/resolve\`,{method:'POST',body:JSON.stringify({articuloId})})},
     listSupplierCatalog(id){return requestJson<SupplierCatalogRow[]>(\`/v1/suppliers/\${id}/articles\`)},
+    getPurchaseCatalogs(){return requestJson<PurchaseCatalogs>('/v1/purchases/catalogs')},
+    listPurchaseRequests(){return requestJson<PurchaseRecord[]>('/v1/purchase-requests')},getPurchaseRequest(id){return requestJson<PurchaseRecord>(\`/v1/purchase-requests/\${id}\`)},createPurchaseRequest(body){return requestJson<PurchaseRecord>('/v1/purchase-requests',{method:'POST',body:JSON.stringify(body)})},updatePurchaseRequest(id,body){return requestJson<PurchaseRecord>(\`/v1/purchase-requests/\${id}\`,{method:'PUT',body:JSON.stringify(body)})},transitionPurchaseRequest(id,estado){return requestJson<PurchaseRecord>(\`/v1/purchase-requests/\${id}/state\`,{method:'PATCH',body:JSON.stringify({estado})})},duplicatePurchaseRequest(id){return requestJson<PurchaseRecord>(\`/v1/purchase-requests/\${id}/duplicate\`,{method:'POST'})},setPurchaseRequestItemDiscarded(id,descartada,motivo){return requestJson<PurchaseRecord>(\`/v1/purchase-request-items/\${id}/discard\`,{method:'PATCH',body:JSON.stringify({descartada,motivo})})},previewPurchaseImport(body){return requestJson('/v1/purchase-requests/import/preview',{method:'POST',body:JSON.stringify(body)})},applyPurchaseImport(body,key){return requestJson('/v1/purchase-requests/import/apply',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},assignPurchaseRequest(id,body,key){return requestJson(\`/v1/purchase-requests/\${id}/assignments\`,{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},
+    listPurchaseOrders(){return requestJson<PurchaseRecord[]>('/v1/purchase-orders')},getPurchaseOrder(id){return requestJson<PurchaseRecord>(\`/v1/purchase-orders/\${id}\`)},createPurchaseOrder(body){return requestJson<PurchaseRecord>('/v1/purchase-orders',{method:'POST',body:JSON.stringify(body)})},transitionPurchaseOrder(id,estado){return requestJson<PurchaseRecord>(\`/v1/purchase-orders/\${id}/state\`,{method:'PATCH',body:JSON.stringify({estado})})},duplicatePurchaseOrder(id){return requestJson<PurchaseRecord>(\`/v1/purchase-orders/\${id}/duplicate\`,{method:'POST'})},
+    listWarehouseRequests(){return requestJson<PurchaseRecord[]>('/v1/warehouse-requests')},getWarehouseRequest(id){return requestJson<PurchaseRecord>(\`/v1/warehouse-requests/\${id}\`)},transitionWarehouseRequest(id,estado){return requestJson<PurchaseRecord>(\`/v1/warehouse-requests/\${id}/state\`,{method:'PATCH',body:JSON.stringify({estado})})},duplicateWarehouseRequest(id){return requestJson<PurchaseRecord>(\`/v1/warehouse-requests/\${id}/duplicate\`,{method:'POST'})},
   }
 }
 `
@@ -595,7 +626,7 @@ export type {
   UpdateClientAddressBody,
   QuoteUploadBody,
   QuoteDownload,
-  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow,
+  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord,
   ProblemDetails,
 } from './types'
 export {
