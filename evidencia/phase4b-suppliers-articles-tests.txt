@@ -1,0 +1,11 @@
+# Tests ejecutados
+
+- Backend lint/typecheck/build: PASS.
+- Backend unit/API: PASS — 35 archivos, 227 tests; 8 archivos/45 tests opt-in omitidos.
+- Frontend lint/typecheck/build: PASS.
+- PostgreSQL real local: PASS — 7 tests (ART concurrente, idempotencia/replay/mismatch, preview sin writes, rollback).
+- PostgREST real local: PASS — matriz negativa para admin/gerente/compras y anon.
+- Contratos: PASS — exportación y typechecks posteriores PASS.
+- `git diff --check`: PASS.
+
+Los tests PostgreSQL/PostgREST se ejecutaron con `USE_LOCAL_SUPABASE=1`; no son mocks.

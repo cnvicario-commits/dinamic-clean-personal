@@ -1,0 +1,10 @@
+Validación DB final 4C
+
+PASS
+- `purchases-db-validation.integration.test.ts`: 4/4.
+- Migraciones 4C registradas con checksum; constraints, FK, CHECK, índices, triggers/secuencias e idempotencia verificados.
+- RLS habilitado; DML autenticado directo por PostgREST denegado.
+- Grants mínimos de `dinamic_api` verificados.
+- `postgrest-phase4c-rls.negative.test.ts`: 1/1 con usuarios authenticated reales.
+
+No se incluyen secretos ni URLs de conexión.

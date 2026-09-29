@@ -1,0 +1,30 @@
+A  docs/cursor-development-workflow.md
+A  docs/migrations-deployment.md
+A  docs/phase-0-baseline-approach.md
+A  docs/phase-0-closeout.md
+A  docs/phase-0-gitignore-check.md
+A  docs/phase-0-phase-1-foundation-report.md
+A  docs/phase-0-restore-runbook.md
+A  docs/phase-0-secrets-inventory.md
+A  docs/phase-1-db-least-privilege.md
+A  docs/phase-1-deploy-runbook.md
+A  docs/phase-1-postgrest-rbac-gap.md
+A  evidencia/phase4b-suppliers-articles-db-validation.txt
+A  evidencia/phase4b-suppliers-articles-diff.txt
+A  evidencia/phase4b-suppliers-articles-diffstat.txt
+A  evidencia/phase4b-suppliers-articles-direct-access.txt
+A  evidencia/phase4b-suppliers-articles-e2e-matrix.md
+A  evidencia/phase4b-suppliers-articles-status.txt
+A  evidencia/phase4b-suppliers-articles-tests.txt
+A  evidencia/phase4b-suppliers-articles-validation.md
+ A evidencia/phase4c-final-corrections-tests.txt
+ A evidencia/phase4c-final-corrections-validation.md
+ A evidencia/phase4c-purchases-db-validation.txt
+ A evidencia/phase4c-purchases-direct-access.txt
+ A evidencia/phase4c-purchases-e2e-matrix.md
+ A evidencia/phase4c-purchases-state-machines.md
+ A evidencia/phase4c-purchases-tests.txt
+ A evidencia/phase4c-purchases-validation.md
+?? evidencia/phase4c-final-corrections-diff.txt
+?? evidencia/phase4c-final-corrections-diffstat.txt
+?? evidencia/phase4c-final-corrections-status.txt

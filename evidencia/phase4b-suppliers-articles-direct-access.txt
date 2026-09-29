@@ -1,0 +1,9 @@
+# Búsqueda final de acceso directo
+
+Las pantallas propias de 4B (`proveedores`, `lista-precios`, `pendientes`, `articulos`, `articulos/[id]`) usan el cliente API autenticado; sus mutaciones pasan por Fastify.
+
+## LECTURA LEGACY TEMPORAL JUSTIFICADA — 4C
+
+Persisten SELECT directos únicamente en consumidores de Compras/Depósito: `src/app/ordenes-compra/nuevo/page.tsx`, `src/app/ordenes-compra/page.tsx`, `src/app/ordenes-compra/imprimir/page.tsx`, `src/app/ordenes-compra/[id]/page.tsx`, `src/app/panel-compras/[id]/page.tsx`, `src/app/pedidos-compra/nuevo/page.tsx`, `src/app/pedidos-compra/importar/page.tsx`, `src/app/pedidos-compra/[id]/page.tsx`, `src/app/pedidos-deposito/[id]/page.tsx`.
+
+Se preservan para no romper 4C; no contienen writes 4B. No quedan escrituras browser→Supabase/PostgREST (`insert`, `update`, `delete`, `upsert`, `rpc`) sobre tablas 4B.

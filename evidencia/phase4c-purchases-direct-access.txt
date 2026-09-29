@@ -1,0 +1,11 @@
+Auditoría final de acceso directo 4C
+
+MIGRADO
+- Pedidos, items, asignaciones, OC, items OC, depósito e items depósito: mutaciones únicamente por API tipada/backend.
+- Las pantallas 4C consumen endpoints de catálogos 4A/4B; no hacen `.from(...).insert/update/delete/upsert` sobre Supabase.
+
+LOCAL/NO AUTORITATIVO
+- Utilidades de presentación como `Array.from` no son acceso a persistencia.
+
+DEFECTO
+- No se encontró escritura browser directa 4C en la auditoría final.
