@@ -13,7 +13,15 @@ Historical files under `supabase/migrations/` are kept for audit history only.
 For an existing development database, apply pending forward migrations without
 replaying the baseline:
 
-`RESTORE_TARGET_DB_URL=... ./scripts/apply-forward-migrations.sh`
+`./scripts/apply-forward-migrations.sh`
+
+The runner uses `MIGRATIONS_DATABASE_URL`: export it in CI/CD as a
+deployment-only secret, or set it in the ignored `apps/api/.env` for local
+development. It never uses the API runtime `DATABASE_URL`.
+
+`RESTORE_TARGET_DB_URL` remains exclusive to `scripts/restore-development.sh`:
+it identifies a disposable restore target and is not an alias for the
+administrative deployment connection.
 
 The runner records filename + checksum in `app_migrations.forward_history` and
 fails if an already-applied file changes.

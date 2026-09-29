@@ -77,12 +77,13 @@ describe('phase2f cors', () => {
         url: '/healthz',
         headers: {
           origin: 'https://app.example.com',
-          'access-control-request-method': 'GET',
+          'access-control-request-method': 'PATCH',
         },
       })
       expect(preflight.statusCode).toBe(204)
       expect(preflight.headers['access-control-allow-origin']).toBe('https://app.example.com')
       expect(preflight.headers['access-control-allow-credentials']).toBe('true')
+      expect(preflight.headers['access-control-allow-methods']).toContain('PATCH')
     } finally {
       await app.close()
     }

@@ -37,6 +37,13 @@ Prefer JWKS in production. The secret must never appear in `NEXT_PUBLIC_*` or gi
 
 Connect as `dinamic_api` on **test** — see `docs/phase-1-db-least-privilege.md` and `supabase/ops/create_api_role.sql`. Do not switch production without change control. Never put credentials in evidence dumps.
 
+## Forward migrations
+
+Run `./scripts/apply-forward-migrations.sh` from the repository root. It uses
+`MIGRATIONS_DATABASE_URL` only for the migration process (an exported CI/CD
+secret, or the ignored local `apps/api/.env`); the running API uses only
+`DATABASE_URL` as `dinamic_api`.
+
 ## Deploy (Compose)
 
 See `docs/phase-1-deploy-runbook.md` and `deploy/docker-compose.api.yml`.

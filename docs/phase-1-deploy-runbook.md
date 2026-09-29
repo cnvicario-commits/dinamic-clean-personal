@@ -22,11 +22,26 @@ npm run lint && npm run typecheck && npm test && npm run build
 | Variable | Purpose |
 |----------|---------|
 | `DATABASE_URL` | Prefer `dinamic_api` role on **test** DB — see `docs/phase-1-db-least-privilege.md` |
+| `MIGRATIONS_DATABASE_URL` | Deployment-only administrative PostgreSQL connection; inject into the migration job, never the API runtime container |
 | `SUPABASE_URL` | JWKS issuer base |
 | `SUPABASE_JWT_SECRET` | Optional HS256 fallback (dev/tests) |
 | `CORS_ORIGIN` | Frontend origin |
 
-Mount via Compose `env_file: apps/api/.env` (gitignored). Do **not** `COPY` `.env` into the image.
+Mount runtime configuration via Compose `env_file: apps/api/.env` (gitignored).
+The Compose file explicitly clears `MIGRATIONS_DATABASE_URL` so a local file
+that also supports the migration runner cannot leak that secret into the API
+container. Do **not** `COPY` `.env` into the image.
+
+Run forward migrations before deploying the API image. In CI/CD, expose only
+`MIGRATIONS_DATABASE_URL` to this step, then discard it before starting the
+runtime container:
+
+```bash
+./scripts/apply-forward-migrations.sh
+```
+
+The runner reads an exported CI/CD variable, or the ignored local
+`apps/api/.env` for development. The runtime API uses only `DATABASE_URL`.
 
 ## 3. Deploy (Compose)
 
