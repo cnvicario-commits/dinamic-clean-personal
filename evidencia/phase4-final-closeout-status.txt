@@ -1,17 +1,10 @@
- M apps/api/scripts/export-contracts.mjs
- M apps/api/src/app.ts
- M apps/api/src/infrastructure/db/results-repository.ts
- M apps/api/tests/catalog-postgres.integration.test.ts
- M apps/api/tests/results-http.test.ts
- M apps/api/tests/results-postgres.integration.test.ts
- A evidencia/phase4-final-closeout-db-validation.txt
- A evidencia/phase4-final-closeout-direct-access.txt
- A evidencia/phase4-final-closeout-tests.txt
- A evidencia/phase4-final-closeout-validation.md
- M src/components/ImportarResultadosMensuales.tsx
- M src/lib/api/generated/client.ts
-?? evidencia/phase4-final-closeout-diff.txt
-?? evidencia/phase4-final-closeout-diffstat.txt
-?? evidencia/phase4-final-closeout-status.txt
-Estado de certificación: PHASE_4_NOT_READY_TO_CLOSE
-Bloqueante: integración opt-in 4A de presupuestos fallida por fixture/identidad (`Client persistence failed`).
+ M apps/api/tests/phase4a-quote-idempotency.integration.test.ts
+ A evidencia/phase4-final-4a-root-cause.md
+ M evidencia/phase4-final-closeout-db-validation.txt
+ M evidencia/phase4-final-closeout-diff.txt
+ M evidencia/phase4-final-closeout-diffstat.txt
+ M evidencia/phase4-final-closeout-direct-access.txt
+ M evidencia/phase4-final-closeout-status.txt
+ M evidencia/phase4-final-closeout-tests.txt
+ M evidencia/phase4-final-closeout-validation.md
+Estado de certificación: PHASE_4_READY_TO_CLOSE

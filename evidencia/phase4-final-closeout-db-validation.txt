@@ -1,12 +1,14 @@
 # DB efectiva Fase 4
 
 PASS
-- `app_migrations.forward_history` contiene migrations 4A, 4B, 4C y 4D aplicadas.
+- `app_migrations.forward_history` contiene `20260928120000_phase4a_clients.sql` y `20260928130000_phase4a_quote_upload_idempotency.sql`, además de las migrations 4B, 4C y 4D.
 - 4B: `catalog_operation_idempotency`, secuencia/trigger ART, grants/RLS verificados por integración.
 - 4C: constraints, numeración, idempotencia y RLS/grants verificados por `purchases-db-validation.integration.test.ts`.
 - 4D: FK `resultados_mensuales_detalle_resultado_fk`, índice de FK, UNIQUE `(anio,mes)`, `resultados_import_idempotency`, RLS y grants `dinamic_api` verificados.
 - PostgREST authenticated real: SELECT y DML sobre Resultados denegados.
 
-4A conserva un bloqueo de certificación en la prueba opt-in de presupuestos: el fixture de identidad usado por el test no logra persistir el cliente con la configuración actual. No se modificó la DB 4A para ocultarlo.
+4A: objetos, grants `dinamic_api` y policies de clientes/presupuestos/idempotencia quedaron materializados por las migrations existentes; la integración real 2/2 PASS confirmó persistencia y replay.
+- Privilegios efectivos `dinamic_api`: `cliente_presupuestos` SELECT/INSERT/UPDATE/DELETE; `clientes` y `cliente_domicilios` SELECT/INSERT/UPDATE; idempotencia SELECT/INSERT/UPDATE. No se concedió DELETE innecesario.
+- PostgREST authenticated real 4A: 12/12 denegaciones verificadas.
 
 No se incluyen secretos.
