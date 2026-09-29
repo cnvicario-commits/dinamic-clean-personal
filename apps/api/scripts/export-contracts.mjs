@@ -182,6 +182,9 @@ export type PurchaseAssignmentBody = { lugarEnvioTexto?:string|null;lugarEnvioAl
 export type PurchaseImportBody = { empresaId:string;orders:Array<{clienteId:string;clienteDomicilioId?:string|null;lugarEnvioTexto?:string|null;lugarEnvioAlias?:string|null;items:PurchaseRequestItemBody[]}> }
 export type PurchaseCatalogs = { empresas:Array<{id:string;nombre:string;cuit:string;domicilio:string|null;activo:boolean}>;clientes:Array<{id:string;nombre:string}>;articulos:Array<{id:string;codigo_interno:string;nombre:string;unidad:string|null;categoria:string|null;proveedor_habitual_id:string|null}>;domicilios:Array<{id:string;cliente_id:string;alias:string;direccion:string|null;es_principal:boolean;activo:boolean;horario_atencion:string|null}>;proveedores:Array<{id:string;razon_social:string;domicilio:string|null;provincia:string|null;condicion_pago_default:string|null}>;preciosProveedor:Array<{articulo_id:string;proveedor_id:string;precio:number}> }
 export type PurchaseRecord = Record<string,unknown>&{id:string;estado:string}
+export type ResultRow = { anio:number; mes:number; values:Record<string,number|null>; details:Array<{rubro:string;concepto:string;monto:number}> }
+export type ResultsImportBody = { rows:ResultRow[] }
+export type ResultRecord = Record<string,unknown>&{id:string;anio:number;mes:number}
 
 /** GET /v1/employees query (optional fields omitted when unset) */
 export type ListEmployeesQuery = {
@@ -297,7 +300,7 @@ import type {
   UpdateClientAddressBody,
   QuoteUploadBody,
   QuoteDownload,
-  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord,
+  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord, ResultRow, ResultsImportBody, ResultRecord,
   UsersListResponse,
 } from './types'
 
@@ -415,6 +418,10 @@ export type DinamicApiClient = {
   getWarehouseRequest: (id:string) => Promise<PurchaseRecord>
   transitionWarehouseRequest: (id:string,estado:'enviada'|'recepcionada') => Promise<PurchaseRecord>
   duplicateWarehouseRequest: (id:string) => Promise<PurchaseRecord>
+  listResults: (query?:{anio?:number;mes?:number}) => Promise<ResultRecord[]>
+  getResult: (id:string) => Promise<ResultRecord & {details:unknown[]}>
+  previewResultsImport: (body:ResultsImportBody) => Promise<Record<string,unknown>>
+  applyResultsImport: (body:ResultsImportBody,key:string) => Promise<{resultIds:string[]}>
   getClientQuoteDownload: (clientId:string,quoteId:string) => Promise<QuoteDownload>
   deleteClientQuote: (clientId:string,quoteId:string) => Promise<void>
 }
@@ -581,6 +588,7 @@ export function createDinamicApiClient(options: DinamicApiClientOptions): Dinami
     listPurchaseRequests(){return requestJson<PurchaseRecord[]>('/v1/purchase-requests')},getPurchaseRequest(id){return requestJson<PurchaseRecord>(\`/v1/purchase-requests/\${id}\`)},createPurchaseRequest(body){return requestJson<PurchaseRecord>('/v1/purchase-requests',{method:'POST',body:JSON.stringify(body)})},updatePurchaseRequest(id,body){return requestJson<PurchaseRecord>(\`/v1/purchase-requests/\${id}\`,{method:'PUT',body:JSON.stringify(body)})},transitionPurchaseRequest(id,estado){return requestJson<PurchaseRecord>(\`/v1/purchase-requests/\${id}/state\`,{method:'PATCH',body:JSON.stringify({estado})})},duplicatePurchaseRequest(id){return requestJson<PurchaseRecord>(\`/v1/purchase-requests/\${id}/duplicate\`,{method:'POST'})},setPurchaseRequestItemDiscarded(id,descartada,motivo){return requestJson<PurchaseRecord>(\`/v1/purchase-request-items/\${id}/discard\`,{method:'PATCH',body:JSON.stringify({descartada,motivo})})},previewPurchaseImport(body){return requestJson('/v1/purchase-requests/import/preview',{method:'POST',body:JSON.stringify(body)})},applyPurchaseImport(body,key){return requestJson('/v1/purchase-requests/import/apply',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},assignPurchaseRequest(id,body,key){return requestJson(\`/v1/purchase-requests/\${id}/assignments\`,{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},
     listPurchaseOrders(){return requestJson<PurchaseRecord[]>('/v1/purchase-orders')},getPurchaseOrder(id){return requestJson<PurchaseRecord>(\`/v1/purchase-orders/\${id}\`)},createPurchaseOrder(body){return requestJson<PurchaseRecord>('/v1/purchase-orders',{method:'POST',body:JSON.stringify(body)})},transitionPurchaseOrder(id,estado){return requestJson<PurchaseRecord>(\`/v1/purchase-orders/\${id}/state\`,{method:'PATCH',body:JSON.stringify({estado})})},duplicatePurchaseOrder(id){return requestJson<PurchaseRecord>(\`/v1/purchase-orders/\${id}/duplicate\`,{method:'POST'})},
     listWarehouseRequests(){return requestJson<PurchaseRecord[]>('/v1/warehouse-requests')},getWarehouseRequest(id){return requestJson<PurchaseRecord>(\`/v1/warehouse-requests/\${id}\`)},transitionWarehouseRequest(id,estado){return requestJson<PurchaseRecord>(\`/v1/warehouse-requests/\${id}/state\`,{method:'PATCH',body:JSON.stringify({estado})})},duplicateWarehouseRequest(id){return requestJson<PurchaseRecord>(\`/v1/warehouse-requests/\${id}/duplicate\`,{method:'POST'})},
+    listResults(query){const q=query?new URLSearchParams(Object.entries(query).filter(([,v])=>v!==undefined).map(([k,v])=>[k,String(v)])).toString():'';return requestJson<ResultRecord[]>('/v1/results'+(q?'?'+q:''))},getResult(id){return requestJson<ResultRecord&{details:unknown[]}>('/v1/results/'+id)},previewResultsImport(body){return requestJson('/v1/results/import/preview',{method:'POST',body:JSON.stringify(body)})},applyResultsImport(body,key){return requestJson('/v1/results/import/apply',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},
   }
 }
 `

@@ -1,0 +1,25 @@
+ apps/api/scripts/export-contracts.mjs              | 10 ++++-
+ apps/api/src/app.ts                                |  8 ++++
+ .../api/src/application/results/results-service.ts |  3 ++
+ apps/api/src/domain/rbac.ts                        |  1 +
+ apps/api/src/http/openapi.ts                       |  6 +++
+ apps/api/src/http/routes/v1/results.ts             | 12 +++++
+ apps/api/src/http/schemas/results.ts               | 11 +++++
+ .../src/infrastructure/db/results-repository.ts    | 19 ++++++++
+ apps/api/tests/business-rbac.test.ts               |  8 ++--
+ apps/api/tests/openapi.contract.test.ts            |  1 +
+ .../tests/postgrest-phase4c-rls.negative.test.ts   |  3 +-
+ apps/api/tests/results-http.test.ts                | 14 ++++++
+ .../api/tests/results-postgres.integration.test.ts | 21 +++++++++
+ evidencia/phase4d-results-db-validation.txt        | 21 +++++++++
+ evidencia/phase4d-results-direct-access.txt        | 12 +++++
+ evidencia/phase4d-results-e2e-matrix.md            | 14 ++++++
+ evidencia/phase4d-results-tests.txt                | 18 ++++++++
+ evidencia/phase4d-results-validation.md            |  5 +++
+ src/app/resultados/page.tsx                        | 26 +++++------
+ src/components/ImportarResultadosMensuales.tsx     | 51 +++++++---------------
+ src/lib/api/generated/client.ts                    |  7 ++-
+ src/lib/api/generated/types.ts                     |  3 ++
+ .../forward/20260929140000_phase4d_results_api.sql | 17 ++++++++
+ ...0929141000_phase4d_results_runtime_policies.sql | 11 +++++
+ 24 files changed, 246 insertions(+), 56 deletions(-)
