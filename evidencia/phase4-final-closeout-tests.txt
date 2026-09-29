@@ -1,0 +1,30 @@
+# Certificación transversal Fase 4
+
+## Static/build
+
+PASS: `npm run lint --prefix apps/api`, `npm run typecheck --prefix apps/api`, `npm run build --prefix apps/api`, `npm test --prefix apps/api` (38 files, 237 PASS, 61 skipped), `npm run lint`, `npx tsc --noEmit`, `npx next build --webpack`, `git diff --check`.
+
+## Unit/HTTP
+
+PASS: HTTP/RBAC Resultados 2/2; suite API 237 PASS.
+
+## PostgreSQL integration
+
+- 4A: FAIL — `phase4a-quote-idempotency.integration.test.ts` (2 tests; fixture/identity persistence fails with `Client persistence failed`).
+- 4B: PASS — catalog integration 8/8.
+- 4C: PASS — purchase integration + DB validation 12/12.
+- 4D: PASS — results integration 3/3.
+
+## Concurrency
+
+PASS: ART (4B), asignaciones/numeración/OC/depósito (4C), período Resultados con keys distintas y misma key (4D).
+
+## Rollback
+
+PASS: 4B imports/price list; 4C headers/items/import/generación; 4D fallo intermedio real después de modificar cabecera.
+
+## Security
+
+PASS: RBAC 4D admin versus gerente/compras/supervisor/auditoria; PostgREST real 4A–4D DML y SELECT financiero denegados.
+
+NOT_EXECUTED: 4A opt-in PostgREST/quote completa requiere credenciales de identidad/fixture válidas; la corrida intentada terminó FAIL, no se convierte en PASS.
