@@ -1,0 +1,2346 @@
+diff --git a/apps/api/scripts/export-contracts.mjs b/apps/api/scripts/export-contracts.mjs
+index d66015c..7a84569 100644
+--- a/apps/api/scripts/export-contracts.mjs
++++ b/apps/api/scripts/export-contracts.mjs
+@@ -175,6 +175,13 @@ export type PriceListPreview = { proveedorId:string;total:number;validas:number;
+ export type PriceListApplyResult = { actualizados:number;vinculadosPorCodigoInterno:number;pendientesNuevas:number;pendientesActualizadas:number }
+ export type SupplierArticlePending = { id:string; proveedor_id:string; codigo_proveedor:string|null; nombre_proveedor:string|null; precio:number|null; archivo_origen:string|null; motivo:string|null; sugerencias:unknown; created_at:string; razon_social:string }
+ export type SupplierCatalogRow = { codigo_proveedor:string|null;nombre_proveedor:string|null;precio:number;codigo_interno:string }
++export type PurchaseRequestItemBody = { articuloId:string;cantidad:number;observaciones?:string|null }
++export type PurchaseRequestBody = { empresaId:string;clienteId:string;observacionesGenerales?:string|null;lugarEnvioDomicilioId?:string|null;lugarEnvioEmpresa?:boolean;lugarEnvioTexto?:string|null;lugarEnvioAlias?:string|null;estado?:'borrador'|'enviada';items:PurchaseRequestItemBody[] }
++export type PurchaseOrderBody = { empresaId:string;proveedorId:string;clienteId:string;observacionesGenerales?:string|null;lugarEnvioTexto?:string|null;lugarEnvioAlias?:string|null;condicionPago?:string|null;horarioAtencionTexto?:string|null;items:Array<PurchaseRequestItemBody&{precioUnitario:number}> }
++export type PurchaseAssignmentBody = { lugarEnvioTexto?:string|null;lugarEnvioAlias?:string|null;horarioAtencionTexto?:string|null;items:Array<{pedidoCompraItemId:string;destino:'proveedor'|'deposito'|'proveedor_deposito';proveedorId?:string|null;cantidad:number;precioUnitario?:number|null;observaciones?:string|null}> }
++export type PurchaseImportBody = { empresaId:string;orders:Array<{clienteId:string;clienteDomicilioId?:string|null;lugarEnvioTexto?:string|null;lugarEnvioAlias?:string|null;items:PurchaseRequestItemBody[]}> }
++export type PurchaseCatalogs = { empresas:Array<{id:string;nombre:string;cuit:string;domicilio:string|null;activo:boolean}>;clientes:Array<{id:string;nombre:string}>;articulos:Array<{id:string;codigo_interno:string;nombre:string;unidad:string|null;categoria:string|null;proveedor_habitual_id:string|null}>;domicilios:Array<{id:string;cliente_id:string;alias:string;direccion:string|null;es_principal:boolean;activo:boolean;horario_atencion:string|null}>;proveedores:Array<{id:string;razon_social:string;domicilio:string|null;provincia:string|null;condicion_pago_default:string|null}>;preciosProveedor:Array<{articulo_id:string;proveedor_id:string;precio:number}> }
++export type PurchaseRecord = Record<string,unknown>&{id:string;estado:string}
+ 
+ /** GET /v1/employees query (optional fields omitted when unset) */
+ export type ListEmployeesQuery = {
+@@ -290,7 +297,7 @@ import type {
+   UpdateClientAddressBody,
+   QuoteUploadBody,
+   QuoteDownload,
+-  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow,
++  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord,
+   UsersListResponse,
+ } from './types'
+ 
+@@ -388,6 +395,26 @@ export type DinamicApiClient = {
+   listSupplierArticlePending: () => Promise<SupplierArticlePending[]>
+   resolveSupplierArticlePending: (id:string,articuloId:string) => Promise<SupplierArticle>
+   listSupplierCatalog: (id:string) => Promise<SupplierCatalogRow[]>
++  getPurchaseCatalogs: () => Promise<PurchaseCatalogs>
++  listPurchaseRequests: () => Promise<PurchaseRecord[]>
++  getPurchaseRequest: (id:string) => Promise<PurchaseRecord>
++  createPurchaseRequest: (body:PurchaseRequestBody) => Promise<PurchaseRecord>
++  updatePurchaseRequest: (id:string,body:PurchaseRequestBody) => Promise<PurchaseRecord>
++  transitionPurchaseRequest: (id:string,estado:'enviada') => Promise<PurchaseRecord>
++  duplicatePurchaseRequest: (id:string) => Promise<PurchaseRecord>
++  setPurchaseRequestItemDiscarded: (id:string,descartada:boolean,motivo?:string|null) => Promise<PurchaseRecord>
++  previewPurchaseImport: (body:PurchaseImportBody) => Promise<{total:number;valid:number;invalid:number;errors:Array<{row:number;message:string}>}>
++  applyPurchaseImport: (body:PurchaseImportBody,key:string) => Promise<{replayed:boolean;response:{purchaseRequestIds:string[]}}>
++  assignPurchaseRequest: (id:string,body:PurchaseAssignmentBody,key:string) => Promise<{replayed:boolean;response:{purchaseOrderIds:string[];warehouseRequestId:string|null}}>
++  listPurchaseOrders: () => Promise<PurchaseRecord[]>
++  getPurchaseOrder: (id:string) => Promise<PurchaseRecord>
++  createPurchaseOrder: (body:PurchaseOrderBody) => Promise<PurchaseRecord>
++  transitionPurchaseOrder: (id:string,estado:'enviada'|'recepcionada') => Promise<PurchaseRecord>
++  duplicatePurchaseOrder: (id:string) => Promise<PurchaseRecord>
++  listWarehouseRequests: () => Promise<PurchaseRecord[]>
++  getWarehouseRequest: (id:string) => Promise<PurchaseRecord>
++  transitionWarehouseRequest: (id:string,estado:'enviada'|'recepcionada') => Promise<PurchaseRecord>
++  duplicateWarehouseRequest: (id:string) => Promise<PurchaseRecord>
+   getClientQuoteDownload: (clientId:string,quoteId:string) => Promise<QuoteDownload>
+   deleteClientQuote: (clientId:string,quoteId:string) => Promise<void>
+ }
+@@ -550,6 +577,10 @@ export function createDinamicApiClient(options: DinamicApiClientOptions): Dinami
+     listArticles(){return requestJson<Article[]>('/v1/articles')},getArticle(id){return requestJson<Article>(\`/v1/articles/\${id}\`)},createArticle(body){return requestJson<Article>('/v1/articles',{method:'POST',body:JSON.stringify(body)})},updateArticle(id,body){return requestJson<Article>(\`/v1/articles/\${id}\`,{method:'PATCH',body:JSON.stringify(body)})},updateArticleStatus(id,activo){return requestJson<Article>(\`/v1/articles/\${id}/status\`,{method:'PATCH',body:JSON.stringify({activo})},)},listArticleSuppliers(id){return requestJson<SupplierArticle[]>(\`/v1/articles/\${id}/suppliers\`)},createArticleSupplier(id,body){return requestJson<SupplierArticle>(\`/v1/articles/\${id}/suppliers\`,{method:'POST',body:JSON.stringify(body)})},updateArticleSupplier(id,relationId,body){return requestJson<SupplierArticle>(\`/v1/articles/\${id}/suppliers/\${relationId}\`,{method:'PATCH',body:JSON.stringify(body)})},previewArticleImport(body){return requestJson<ArticleImportPreview>('/v1/articles/import/preview',{method:'POST',body:JSON.stringify(body)})},importArticles(body,idempotencyKey){return requestJson('/v1/articles/import',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':idempotencyKey}})},previewPriceList(body){return requestJson<PriceListPreview>('/v1/price-lists/preview',{method:'POST',body:JSON.stringify(body)})},applyPriceList(body,idempotencyKey){return requestJson('/v1/price-lists/apply',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':idempotencyKey}})},
+     listSupplierArticlePending(){return requestJson<SupplierArticlePending[]>('/v1/supplier-article-pending')},resolveSupplierArticlePending(id,articuloId){return requestJson<SupplierArticle>(\`/v1/supplier-article-pending/\${id}/resolve\`,{method:'POST',body:JSON.stringify({articuloId})})},
+     listSupplierCatalog(id){return requestJson<SupplierCatalogRow[]>(\`/v1/suppliers/\${id}/articles\`)},
++    getPurchaseCatalogs(){return requestJson<PurchaseCatalogs>('/v1/purchases/catalogs')},
++    listPurchaseRequests(){return requestJson<PurchaseRecord[]>('/v1/purchase-requests')},getPurchaseRequest(id){return requestJson<PurchaseRecord>(\`/v1/purchase-requests/\${id}\`)},createPurchaseRequest(body){return requestJson<PurchaseRecord>('/v1/purchase-requests',{method:'POST',body:JSON.stringify(body)})},updatePurchaseRequest(id,body){return requestJson<PurchaseRecord>(\`/v1/purchase-requests/\${id}\`,{method:'PUT',body:JSON.stringify(body)})},transitionPurchaseRequest(id,estado){return requestJson<PurchaseRecord>(\`/v1/purchase-requests/\${id}/state\`,{method:'PATCH',body:JSON.stringify({estado})})},duplicatePurchaseRequest(id){return requestJson<PurchaseRecord>(\`/v1/purchase-requests/\${id}/duplicate\`,{method:'POST'})},setPurchaseRequestItemDiscarded(id,descartada,motivo){return requestJson<PurchaseRecord>(\`/v1/purchase-request-items/\${id}/discard\`,{method:'PATCH',body:JSON.stringify({descartada,motivo})})},previewPurchaseImport(body){return requestJson('/v1/purchase-requests/import/preview',{method:'POST',body:JSON.stringify(body)})},applyPurchaseImport(body,key){return requestJson('/v1/purchase-requests/import/apply',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},assignPurchaseRequest(id,body,key){return requestJson(\`/v1/purchase-requests/\${id}/assignments\`,{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},
++    listPurchaseOrders(){return requestJson<PurchaseRecord[]>('/v1/purchase-orders')},getPurchaseOrder(id){return requestJson<PurchaseRecord>(\`/v1/purchase-orders/\${id}\`)},createPurchaseOrder(body){return requestJson<PurchaseRecord>('/v1/purchase-orders',{method:'POST',body:JSON.stringify(body)})},transitionPurchaseOrder(id,estado){return requestJson<PurchaseRecord>(\`/v1/purchase-orders/\${id}/state\`,{method:'PATCH',body:JSON.stringify({estado})})},duplicatePurchaseOrder(id){return requestJson<PurchaseRecord>(\`/v1/purchase-orders/\${id}/duplicate\`,{method:'POST'})},
++    listWarehouseRequests(){return requestJson<PurchaseRecord[]>('/v1/warehouse-requests')},getWarehouseRequest(id){return requestJson<PurchaseRecord>(\`/v1/warehouse-requests/\${id}\`)},transitionWarehouseRequest(id,estado){return requestJson<PurchaseRecord>(\`/v1/warehouse-requests/\${id}/state\`,{method:'PATCH',body:JSON.stringify({estado})})},duplicateWarehouseRequest(id){return requestJson<PurchaseRecord>(\`/v1/warehouse-requests/\${id}/duplicate\`,{method:'POST'})},
+   }
+ }
+ `
+@@ -595,7 +626,7 @@ export type {
+   UpdateClientAddressBody,
+   QuoteUploadBody,
+   QuoteDownload,
+-  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow,
++  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord,
+   ProblemDetails,
+ } from './types'
+ export {
+diff --git a/apps/api/src/app.ts b/apps/api/src/app.ts
+index 08b29fd..85f73e8 100644
+--- a/apps/api/src/app.ts
++++ b/apps/api/src/app.ts
+@@ -38,6 +38,9 @@ import { createClientsService } from './application/clients/clients-service.js'
+ import { createCatalogRepository, type CatalogRepository } from './infrastructure/db/catalog-repository.js'
+ import { createCatalogService } from './application/catalog/catalog-service.js'
+ import { catalogRoutes } from './http/routes/v1/catalog.js'
++import { createPurchasesRepository, type PurchasesRepository } from './infrastructure/db/purchases-repository.js'
++import { createPurchasesService } from './application/purchases/purchases-service.js'
++import { purchasesRoutes } from './http/routes/v1/purchases.js'
+ 
+ declare module 'fastify' {
+   interface FastifyInstance {
+@@ -58,6 +61,8 @@ declare module 'fastify' {
+     clientsService: ReturnType<typeof createClientsService>
+     catalogRepo: CatalogRepository
+     catalogService: ReturnType<typeof createCatalogService>
++    purchasesRepo: PurchasesRepository
++    purchasesService: ReturnType<typeof createPurchasesService>
+     /**
+      * True when IdentityAdmin is wired (Auth Admin key or test inject).
+      * ProfilesRepository always uses the DB pool (Phase 2D).
+@@ -76,6 +81,7 @@ export type BuildAppOptions = {
+   clientsRepo?: ClientsRepository
+   clientQuotesStorage?: ClientQuotesStorage
+   catalogRepo?: CatalogRepository
++  purchasesRepo?: PurchasesRepository
+ }
+ 
+ /**
+@@ -183,6 +189,8 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
+   app.decorate('clientsService',createClientsService(app.clientsRepo,(data,message)=>app.log.info(data,message)))
+   app.decorate('catalogRepo',options.catalogRepo??createCatalogRepository(db))
+   app.decorate('catalogService',createCatalogService(app.catalogRepo,(data,message)=>app.log.info(data,message)))
++  app.decorate('purchasesRepo',options.purchasesRepo??createPurchasesRepository(db))
++  app.decorate('purchasesService',createPurchasesService(app.purchasesRepo,(data,message)=>app.log.info(data,message)))
+   app.decorate('db', db)
+   app.decorate('jwtVerifier', jwtVerifier)
+   app.decorate('usersModuleReady', usersModuleReady)
+@@ -318,6 +326,7 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
+   await app.register(hrCatalogsRoutes)
+   await app.register(clientsRoutes)
+   await app.register(catalogRoutes)
++  await app.register(purchasesRoutes)
+   await app.register((await import('./http/routes/v1/attendance.js')).attendanceRoutes)
+   await app.register((await import('./http/routes/v1/hr-reports.js')).hrReportsRoutes)
+   await app.register(usersRoutes)
+diff --git a/apps/api/src/application/purchases/purchases-service.ts b/apps/api/src/application/purchases/purchases-service.ts
+new file mode 100644
+index 0000000..8d216d4
+--- /dev/null
++++ b/apps/api/src/application/purchases/purchases-service.ts
+@@ -0,0 +1,14 @@
++import type { PurchasesRepository } from '../../infrastructure/db/purchases-repository.js'
++type Actor={userId:string;requestId:string}
++export function createPurchasesService(repo:PurchasesRepository,log:(d:Record<string,unknown>,m:string)=>void){
++ const mutation=async<T>(a:Actor,action:string,id:string|undefined,run:()=>Promise<T>)=>{const result=await run();log({requestId:a.requestId,actorUserId:a.userId,action,resourceId:id,result:'ok'},'purchases domain mutation');return result}
++ return{catalogs:repo.catalogs,listRequests:repo.listRequests,request:repo.requestDetail,listOrders:repo.listOrders,order:repo.orderDetail,listWarehouses:repo.listWarehouses,warehouse:repo.warehouseDetail,previewImport:repo.previewImport,
++ createRequest:(i:Parameters<typeof repo.saveRequest>[0],a:Actor)=>mutation(a,'purchase_request.create',undefined,()=>repo.saveRequest(i,a.userId)),
++ updateRequest:(id:string,i:Parameters<typeof repo.saveRequest>[0],a:Actor)=>mutation(a,'purchase_request.update',id,()=>repo.saveRequest(i,a.userId,id)),
++ transition:(table:Parameters<typeof repo.transition>[0],id:string,state:string,a:Actor)=>mutation(a,`${table}.transition`,id,()=>repo.transition(table,id,state)),
++ discard:(id:string,i:Parameters<typeof repo.discard>[1],a:Actor)=>mutation(a,'purchase_request_item.discard',id,()=>repo.discard(id,i)),
++ createOrder:(i:Parameters<typeof repo.createOrder>[0],a:Actor)=>mutation(a,'purchase_order.create',undefined,()=>repo.createOrder(i,a.userId)),
++ assign:(id:string,i:Parameters<typeof repo.applyAssignments>[1],key:string,a:Actor)=>mutation(a,'purchase_order.generate',id,()=>repo.applyAssignments(id,i,key,a.userId)),
++ applyImport:(i:Parameters<typeof repo.applyImport>[0],key:string,a:Actor)=>mutation(a,'purchase_request.import',undefined,()=>repo.applyImport(i,key,a.userId)),
++ duplicate:(kind:Parameters<typeof repo.duplicate>[0],id:string,a:Actor)=>mutation(a,`${kind}.duplicate`,id,()=>repo.duplicate(kind,id,a.userId))}
++}
+diff --git a/apps/api/src/domain/rbac.ts b/apps/api/src/domain/rbac.ts
+index 58cf739..bb85fa7 100644
+--- a/apps/api/src/domain/rbac.ts
++++ b/apps/api/src/domain/rbac.ts
+@@ -98,6 +98,9 @@ const ROLE_PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = Object.f
+     'clients:read', 'clients:create', 'clients:update', 'client_addresses:read', 'client_addresses:update',
+     'client_quotes:read', 'client_quotes:create', 'client_quotes:delete',
+     'suppliers:read','suppliers:update','articles:read','articles:update','articles:import',
++    'purchase_requests:read','purchase_requests:create','purchase_requests:update',
++    'purchase_orders:read','purchase_orders:create','purchase_orders:update',
++    'warehouse_requests:read','warehouse_requests:create','warehouse_requests:update',
+   ] as const satisfies readonly Permission[]),
+   gerente: Object.freeze([
+     ...SELF_PROFILE,
+@@ -112,12 +115,18 @@ const ROLE_PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = Object.f
+     'clients:read', 'clients:create', 'clients:update', 'client_addresses:read', 'client_addresses:update',
+     'client_quotes:read', 'client_quotes:create', 'client_quotes:delete',
+     'suppliers:read','suppliers:update','articles:read','articles:update','articles:import',
++    'purchase_requests:read','purchase_requests:create','purchase_requests:update',
++    'purchase_orders:read','purchase_orders:create','purchase_orders:update',
++    'warehouse_requests:read','warehouse_requests:create','warehouse_requests:update',
+   ] as const satisfies readonly Permission[]),
+   compras: Object.freeze([
+     ...SELF_PROFILE,
+     'clients:read', 'clients:create', 'clients:update', 'client_addresses:read', 'client_addresses:update',
+     'client_quotes:read', 'client_quotes:create', 'client_quotes:delete',
+     'suppliers:read','suppliers:update','articles:read','articles:update','articles:import',
++    'purchase_requests:read','purchase_requests:create','purchase_requests:update',
++    'purchase_orders:read','purchase_orders:create','purchase_orders:update',
++    'warehouse_requests:read','warehouse_requests:create','warehouse_requests:update',
+   ] as const satisfies readonly Permission[]),
+   supervisor: Object.freeze([...SELF_PROFILE] as const satisfies readonly Permission[]),
+   auditoria: Object.freeze([...SELF_PROFILE] as const satisfies readonly Permission[]),
+diff --git a/apps/api/src/http/openapi.ts b/apps/api/src/http/openapi.ts
+index 98c62eb..1d3a43d 100644
+--- a/apps/api/src/http/openapi.ts
++++ b/apps/api/src/http/openapi.ts
+@@ -34,6 +34,7 @@ import {
+   updateClientBodySchema,
+ } from './schemas/clients.js'
+ import { articleCreate,articleImportBody,articleUpdate,priceListBody,relationCreate,relationUpdate,supplierCreate,supplierUpdate } from './schemas/catalog.js'
++import { assignments as purchaseAssignments, importBody as purchaseImportBody, purchaseOrder, purchaseRequest, transition as purchaseTransition } from './schemas/purchases.js'
+ 
+ /** Derive JSON Schema fragments from Zod response schemas. */
+ function zodJsonSchema(schema: z.ZodType): Record<string, unknown> {
+@@ -211,6 +212,23 @@ export const openApiDocument = {
+         responses: { '204': { description: 'Deleted' }, '400': { description: 'Invalid id' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Quote not found for client' }, '502': { description: 'Storage deletion failure; metadata restore attempted' } },
+       },
+     },
++    '/v1/purchases/catalogs':{get:{summary:'Purchase catalogs',security:bearer,responses:{'200':{description:'Catalogs'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'}}}},
++    '/v1/purchase-requests':{get:{summary:'List purchase requests',security:bearer,responses:{'200':{description:'List'}}},post:{summary:'Create purchase request atomically',security:bearer,requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/PurchaseRequestBody'}}}},responses:{'201':{description:'Created'},'400':{description:'Validation'}}}},
++    '/v1/purchase-requests/{id}':{get:{summary:'Purchase request detail',security:bearer,parameters:idParameter,responses:{'200':{description:'Detail'}}},put:{summary:'Replace draft request and items atomically',security:bearer,parameters:idParameter,requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/PurchaseRequestBody'}}}},responses:{'200':{description:'Updated'},'409':{description:'Not editable'}}}},
++    '/v1/purchase-requests/{id}/state':{patch:{summary:'Transition purchase request',security:bearer,parameters:idParameter,requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/PurchaseTransitionBody'}}}},responses:{'200':{description:'Transitioned'},'409':{description:'Invalid transition'}}}},
++    '/v1/purchase-requests/{id}/duplicate':{post:{summary:'Duplicate purchase request atomically',security:bearer,parameters:idParameter,responses:{'201':{description:'Created'}}}},
++    '/v1/purchase-request-items/{id}/discard':{patch:{summary:'Discard or restore a sent request item',security:bearer,parameters:idParameter,responses:{'200':{description:'Updated'},'409':{description:'Invalid state'}}}},
++    '/v1/purchase-requests/{id}/assignments':{post:{summary:'Generate purchase orders and warehouse request atomically',security:bearer,parameters:[...idParameter,{name:'Idempotency-Key',in:'header',required:true,schema:{type:'string'}}],requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/PurchaseAssignmentsBody'}}}},responses:{'200':{description:'Generated or replayed'},'409':{description:'Conflict or over-allocation'}}}},
++    '/v1/purchase-requests/import/preview':{post:{summary:'Read-only purchase import preview',security:bearer,requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/PurchaseImportBody'}}}},responses:{'200':{description:'Preview'}}}},
++    '/v1/purchase-requests/import/apply':{post:{summary:'Apply purchase import atomically',security:bearer,parameters:[{name:'Idempotency-Key',in:'header',required:true,schema:{type:'string'}}],requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/PurchaseImportBody'}}}},responses:{'200':{description:'Applied or replayed'}}}},
++    '/v1/purchase-orders':{get:{summary:'List purchase orders',security:bearer,responses:{'200':{description:'List'}}},post:{summary:'Create independent purchase order atomically',security:bearer,requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/PurchaseOrderBody'}}}},responses:{'201':{description:'Created'}}}},
++    '/v1/purchase-orders/{id}':{get:{summary:'Purchase order detail',security:bearer,parameters:idParameter,responses:{'200':{description:'Detail'}}}},
++    '/v1/purchase-orders/{id}/state':{patch:{summary:'Transition purchase order',security:bearer,parameters:idParameter,requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/PurchaseTransitionBody'}}}},responses:{'200':{description:'Transitioned'},'409':{description:'Invalid transition'}}}},
++    '/v1/purchase-orders/{id}/duplicate':{post:{summary:'Duplicate purchase order atomically',security:bearer,parameters:idParameter,responses:{'201':{description:'Created'}}}},
++    '/v1/warehouse-requests':{get:{summary:'List warehouse requests',security:bearer,responses:{'200':{description:'List'}}}},
++    '/v1/warehouse-requests/{id}':{get:{summary:'Warehouse request detail',security:bearer,parameters:idParameter,responses:{'200':{description:'Detail'}}}},
++    '/v1/warehouse-requests/{id}/state':{patch:{summary:'Transition warehouse request',security:bearer,parameters:idParameter,requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/PurchaseTransitionBody'}}}},responses:{'200':{description:'Transitioned'},'409':{description:'Invalid transition'}}}},
++    '/v1/warehouse-requests/{id}/duplicate':{post:{summary:'Duplicate warehouse request atomically',security:bearer,parameters:idParameter,responses:{'201':{description:'Created'}}}},
+     '/v1/suppliers': { get:{summary:'List suppliers',security:bearer,responses:{'200':{description:'Supplier list'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'}}},post:{summary:'Create supplier',security:bearer,requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/CreateSupplierBody'}}}},responses:{'201':{description:'Created'},'400':{description:'Validation'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'},'409':{description:'Duplicate CUIT'}}}},
+     '/v1/suppliers/{id}': { get:{summary:'Supplier detail',security:bearer,parameters:idParameter,responses:{'200':{description:'Supplier'},'404':{description:'Not found'}}},patch:{summary:'Update supplier',security:bearer,parameters:idParameter,requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/UpdateSupplierBody'}}}},responses:{'200':{description:'Updated'},'404':{description:'Not found'}}}},
+     '/v1/suppliers/{id}/status': { patch:{summary:'Set supplier status',security:bearer,parameters:idParameter,responses:{'200':{description:'Updated'}}}},
+@@ -512,6 +530,7 @@ export const openApiDocument = {
+       ClientAddressStatusBody: zodJsonSchema(statusBodySchema),
+       QuoteUploadBody: zodJsonSchema(quoteUploadBodySchema),
+       CreateSupplierBody:zodJsonSchema(supplierCreate),UpdateSupplierBody:zodJsonSchema(supplierUpdate),CreateArticleBody:zodJsonSchema(articleCreate),UpdateArticleBody:zodJsonSchema(articleUpdate),CreateSupplierArticleBody:zodJsonSchema(relationCreate),UpdateSupplierArticleBody:zodJsonSchema(relationUpdate),ArticleImportBody:zodJsonSchema(articleImportBody),PriceListBody:zodJsonSchema(priceListBody),
++      PurchaseRequestBody:zodJsonSchema(purchaseRequest),PurchaseOrderBody:zodJsonSchema(purchaseOrder),PurchaseAssignmentsBody:zodJsonSchema(purchaseAssignments),PurchaseImportBody:zodJsonSchema(purchaseImportBody),PurchaseTransitionBody:zodJsonSchema(purchaseTransition),
+       ClientRecord: { type:'object',required:['id','nombre','cuit','persona_contacto','codigo_costos','presupuesto_4hs','presupuesto_8hs','domicilio','lleva_insumos','activo','created_at'],properties:{id:{type:'string',format:'uuid'},nombre:{type:'string'},cuit:{type:['string','null']},persona_contacto:{type:['string','null']},codigo_costos:{type:['string','null']},presupuesto_4hs:{type:'integer'},presupuesto_8hs:{type:'integer'},domicilio:{type:['string','null']},lleva_insumos:{type:['boolean','null']},activo:{type:'boolean'},created_at:{type:'string'}} },
+       ClientAddress: { type:'object',required:['id','cliente_id','alias','direccion','es_principal','activo','horario_atencion','supervisor_id','created_at'],properties:{id:{type:'string',format:'uuid'},cliente_id:{type:'string',format:'uuid'},alias:{type:'string'},direccion:{type:['string','null']},es_principal:{type:'boolean'},activo:{type:'boolean'},horario_atencion:{type:['string','null']},supervisor_id:{type:['string','null'],format:'uuid'},created_at:{type:'string'}} },
+       ClientQuote: { type:'object',required:['id','cliente_id','nombre_archivo','subido_por','created_at'],properties:{id:{type:'string',format:'uuid'},cliente_id:{type:'string',format:'uuid'},nombre_archivo:{type:'string'},subido_por:{type:['string','null'],format:'uuid'},subido_por_nombre:{type:['string','null']},created_at:{type:'string'}} },
+diff --git a/apps/api/src/http/routes/v1/purchases.ts b/apps/api/src/http/routes/v1/purchases.ts
+new file mode 100644
+index 0000000..8f9b7f3
+--- /dev/null
++++ b/apps/api/src/http/routes/v1/purchases.ts
+@@ -0,0 +1,31 @@
++import type { FastifyPluginAsync,FastifyRequest } from 'fastify'
++import type { z } from 'zod'
++import { requirePermission } from '../../plugins/auth.js'
++import { badRequest } from '../../errors/app-error.js'
++import { uuid,idempotencyKey,purchaseRequest,transition,discard,assignments,purchaseOrder,importBody } from '../../schemas/purchases.js'
++const id=(v:unknown)=>{const p=uuid.safeParse(v);if(!p.success)throw badRequest('Invalid id');return p.data}
++const body=<T extends z.ZodType>(s:T,x:unknown):z.infer<T>=>{const p=s.safeParse(x);if(!p.success)throw badRequest('Invalid purchases payload',p.error.flatten());return p.data}
++const actor=(r:FastifyRequest)=>({userId:r.auth!.userId,requestId:r.id})
++const key=(r:FastifyRequest)=>{const p=idempotencyKey.safeParse(r.headers['idempotency-key']);if(!p.success)throw badRequest('Idempotency-Key header is required');return p.data}
++export const purchasesRoutes:FastifyPluginAsync=async app=>{
++ app.get('/v1/purchases/catalogs',{preHandler:[requirePermission('purchase_requests:read')]},()=>app.purchasesService.catalogs())
++ app.get('/v1/purchase-requests',{preHandler:[requirePermission('purchase_requests:read')]},()=>app.purchasesService.listRequests())
++ app.get('/v1/purchase-requests/:id',{preHandler:[requirePermission('purchase_requests:read')]},r=>app.purchasesService.request(id((r.params as {id:unknown}).id)))
++ app.post('/v1/purchase-requests',{preHandler:[requirePermission('purchase_requests:create')]},async(r,reply)=>reply.code(201).send(await app.purchasesService.createRequest(body(purchaseRequest,r.body),actor(r))))
++ app.put('/v1/purchase-requests/:id',{preHandler:[requirePermission('purchase_requests:update')]},r=>app.purchasesService.updateRequest(id((r.params as {id:unknown}).id),body(purchaseRequest,r.body),actor(r)))
++ app.patch('/v1/purchase-requests/:id/state',{preHandler:[requirePermission('purchase_requests:update')]},r=>app.purchasesService.transition('pedidos_compra',id((r.params as {id:unknown}).id),body(transition,r.body).estado,actor(r)))
++ app.post('/v1/purchase-requests/:id/duplicate',{preHandler:[requirePermission('purchase_requests:create')]},async(r,reply)=>reply.code(201).send(await app.purchasesService.duplicate('request',id((r.params as {id:unknown}).id),actor(r))))
++ app.patch('/v1/purchase-request-items/:id/discard',{preHandler:[requirePermission('purchase_requests:update')]},r=>app.purchasesService.discard(id((r.params as {id:unknown}).id),body(discard,r.body),actor(r)))
++ app.post('/v1/purchase-requests/import/preview',{preHandler:[requirePermission('purchase_requests:create')]},r=>app.purchasesService.previewImport(body(importBody,r.body)))
++ app.post('/v1/purchase-requests/import/apply',{preHandler:[requirePermission('purchase_requests:create')]},r=>app.purchasesService.applyImport(body(importBody,r.body),key(r),actor(r)))
++ app.post('/v1/purchase-requests/:id/assignments',{preHandler:[requirePermission('purchase_orders:create')]},r=>app.purchasesService.assign(id((r.params as {id:unknown}).id),body(assignments,r.body),key(r),actor(r)))
++ app.get('/v1/purchase-orders',{preHandler:[requirePermission('purchase_orders:read')]},()=>app.purchasesService.listOrders())
++ app.get('/v1/purchase-orders/:id',{preHandler:[requirePermission('purchase_orders:read')]},r=>app.purchasesService.order(id((r.params as {id:unknown}).id)))
++ app.post('/v1/purchase-orders',{preHandler:[requirePermission('purchase_orders:create')]},async(r,reply)=>reply.code(201).send(await app.purchasesService.createOrder(body(purchaseOrder,r.body),actor(r))))
++ app.patch('/v1/purchase-orders/:id/state',{preHandler:[requirePermission('purchase_orders:update')]},r=>app.purchasesService.transition('ordenes_compra',id((r.params as {id:unknown}).id),body(transition,r.body).estado,actor(r)))
++ app.post('/v1/purchase-orders/:id/duplicate',{preHandler:[requirePermission('purchase_orders:create')]},async(r,reply)=>reply.code(201).send(await app.purchasesService.duplicate('order',id((r.params as {id:unknown}).id),actor(r))))
++ app.get('/v1/warehouse-requests',{preHandler:[requirePermission('warehouse_requests:read')]},()=>app.purchasesService.listWarehouses())
++ app.get('/v1/warehouse-requests/:id',{preHandler:[requirePermission('warehouse_requests:read')]},r=>app.purchasesService.warehouse(id((r.params as {id:unknown}).id)))
++ app.patch('/v1/warehouse-requests/:id/state',{preHandler:[requirePermission('warehouse_requests:update')]},r=>app.purchasesService.transition('pedidos_deposito',id((r.params as {id:unknown}).id),body(transition,r.body).estado,actor(r)))
++ app.post('/v1/warehouse-requests/:id/duplicate',{preHandler:[requirePermission('warehouse_requests:create')]},async(r,reply)=>reply.code(201).send(await app.purchasesService.duplicate('warehouse',id((r.params as {id:unknown}).id),actor(r))))
++}
+diff --git a/apps/api/src/http/schemas/purchases.ts b/apps/api/src/http/schemas/purchases.ts
+new file mode 100644
+index 0000000..2370f79
+--- /dev/null
++++ b/apps/api/src/http/schemas/purchases.ts
+@@ -0,0 +1,14 @@
++import { z } from 'zod'
++import { uuid, idempotencyKey } from './catalog.js'
++export { idempotencyKey, uuid }
++const state=z.enum(['borrador','enviada','recepcionada'])
++const note=z.string().trim().max(2000).nullable().optional()
++const requestItem=z.object({articuloId:uuid,cantidad:z.number().finite().positive(),observaciones:note}).strict()
++export const purchaseRequest=z.object({empresaId:uuid,clienteId:uuid,observacionesGenerales:note,lugarEnvioDomicilioId:uuid.nullable().optional(),lugarEnvioEmpresa:z.boolean().optional(),lugarEnvioTexto:note,lugarEnvioAlias:note,estado:z.enum(['borrador','enviada']).optional(),items:z.array(requestItem).min(1).max(500)}).strict()
++export const transition=z.object({estado:state}).strict()
++export const discard=z.object({descartada:z.boolean(),motivo:note}).strict()
++const assignment=z.object({pedidoCompraItemId:uuid,destino:z.enum(['proveedor','deposito','proveedor_deposito']),proveedorId:uuid.nullable().optional(),cantidad:z.number().finite().positive(),precioUnitario:z.number().finite().positive().nullable().optional(),observaciones:note}).strict().superRefine((x,c)=>{if(x.destino!=='deposito'&&!x.proveedorId)c.addIssue({code:'custom',message:'Supplier is required'});if(x.destino!=='deposito'&&!x.precioUnitario)c.addIssue({code:'custom',message:'Price is required'})})
++export const assignments=z.object({lugarEnvioTexto:note,lugarEnvioAlias:note,horarioAtencionTexto:note,items:z.array(assignment).min(1).max(500)}).strict()
++const orderItem=z.object({articuloId:uuid,cantidad:z.number().finite().positive(),precioUnitario:z.number().finite().positive(),observaciones:note}).strict()
++export const purchaseOrder=z.object({empresaId:uuid,proveedorId:uuid,clienteId:uuid,observacionesGenerales:note,lugarEnvioTexto:note,lugarEnvioAlias:note,condicionPago:note,horarioAtencionTexto:note,items:z.array(orderItem).min(1).max(500)}).strict()
++export const importBody=z.object({empresaId:uuid,orders:z.array(z.object({clienteId:uuid,clienteDomicilioId:uuid.nullable().optional(),lugarEnvioTexto:note,lugarEnvioAlias:note,items:z.array(requestItem).min(1).max(500)}).strict()).min(1).max(500)}).strict()
+diff --git a/apps/api/src/infrastructure/db/purchases-repository.ts b/apps/api/src/infrastructure/db/purchases-repository.ts
+new file mode 100644
+index 0000000..0988b52
+--- /dev/null
++++ b/apps/api/src/infrastructure/db/purchases-repository.ts
+@@ -0,0 +1,102 @@
++import { createHash } from 'node:crypto'
++import type pg from 'pg'
++import type { Db } from './pool.js'
++import { AppError, conflict, notFound } from '../../http/errors/app-error.js'
++
++type Note = string | null | undefined
++type RequestItem = { articuloId:string; cantidad:number; observaciones?:Note }
++type RequestInput = { empresaId:string; clienteId:string; observacionesGenerales?:Note; lugarEnvioDomicilioId?:string|null|undefined; lugarEnvioEmpresa?:boolean|undefined; lugarEnvioTexto?:Note; lugarEnvioAlias?:Note; estado?:'borrador'|'enviada'|undefined; items:RequestItem[] }
++type OrderItem = RequestItem & { precioUnitario:number }
++type OrderInput = { empresaId:string; proveedorId:string; clienteId:string; observacionesGenerales?:Note; lugarEnvioTexto?:Note; lugarEnvioAlias?:Note; condicionPago?:Note; horarioAtencionTexto?:Note; items:OrderItem[] }
++type Assignment = { pedidoCompraItemId:string; destino:'proveedor'|'deposito'|'proveedor_deposito'; proveedorId?:string|null|undefined; cantidad:number; precioUnitario?:number|null|undefined; observaciones?:Note }
++type AssignInput = { lugarEnvioTexto?:Note; lugarEnvioAlias?:Note; horarioAtencionTexto?:Note; items:Assignment[] }
++type ImportInput = { empresaId:string; orders:Array<{clienteId:string;clienteDomicilioId?:string|null|undefined;lugarEnvioTexto?:Note;lugarEnvioAlias?:Note;items:RequestItem[]}> }
++
++async function transaction<T>(db:Db, run:(c:pg.PoolClient)=>Promise<T>):Promise<T>{
++  const c=await db.pool.connect()
++  try{await c.query('begin');const result=await run(c);await c.query('commit');return result}
++  catch(error){await c.query('rollback');throw error}
++  finally{c.release()}
++}
++function first<T extends pg.QueryResultRow>(rows:T[],message:string):T{if(!rows[0])throw notFound(message);return rows[0]}
++
++export function createPurchasesRepository(db:Db){
++  async function validate(c:pg.PoolClient,input:{empresaId:string;clienteId:string;proveedorId?:string|undefined;lugarEnvioDomicilioId?:string|null|undefined},items:RequestItem[]){
++    if(!(await c.query('select 1 from public.empresas where id=$1 and activo=true',[input.empresaId])).rowCount)throw new AppError(400,'invalid_company','Company not found or inactive')
++    if(!(await c.query('select 1 from public.clientes where id=$1',[input.clienteId])).rowCount)throw new AppError(400,'invalid_client','Client not found')
++    if(input.proveedorId&&!(await c.query('select 1 from public.proveedores where id=$1 and activo=true',[input.proveedorId])).rowCount)throw new AppError(400,'invalid_supplier','Supplier not found or inactive')
++    if(input.lugarEnvioDomicilioId&&!(await c.query('select 1 from public.cliente_domicilios where id=$1 and cliente_id=$2 and activo=true',[input.lugarEnvioDomicilioId,input.clienteId])).rowCount)throw new AppError(400,'invalid_address','Address does not belong to client')
++    const ids=[...new Set(items.map(x=>x.articuloId))]
++    if((await c.query('select id from public.articulos where id=any($1::uuid[])',[ids])).rowCount!==ids.length)throw new AppError(400,'invalid_article','Article not found')
++  }
++  async function requestDetail(id:string):Promise<Record<string,unknown>&{pedidos_compra_items:pg.QueryResultRow[]}>{
++    const [header,items]=await Promise.all([
++      db.query("select h.*,to_jsonb(e) empresas,jsonb_build_object('nombre',cl.nombre) clientes,case when d.id is null then null else jsonb_build_object('alias',d.alias,'direccion',d.direccion) end cliente_domicilios from public.pedidos_compra h join public.empresas e on e.id=h.empresa_id join public.clientes cl on cl.id=h.cliente_id left join public.cliente_domicilios d on d.id=h.lugar_envio_domicilio_id where h.id=$1",[id]),
++      db.query("select i.*,jsonb_build_object('id',a.id,'codigo_interno',a.codigo_interno,'nombre',a.nombre,'unidad',a.unidad,'categoria',a.categoria,'proveedor_habitual_id',a.proveedor_habitual_id) articulos,coalesce((select sum(oi.cantidad) from public.ordenes_compra_items oi where oi.pedido_compra_item_id=i.id),0)::float cantidad_asignada_oc,coalesce((select sum(di.cantidad) from public.pedidos_deposito_items di where di.pedido_compra_item_id=i.id),0)::float cantidad_asignada_deposito from public.pedidos_compra_items i join public.articulos a on a.id=i.articulo_id where i.pedido_id=$1 order by i.created_at,i.id",[id]),
++    ])
++    return {...first<Record<string,unknown>>(header.rows,'Purchase request not found'),pedidos_compra_items:items.rows}
++  }
++  async function saveRequest(input:RequestInput,actorId:string,id?:string){
++    const header=await transaction(db,async c=>{
++      await validate(c,input,input.items)
++      let saved:pg.QueryResultRow
++      if(id){
++        const current=first((await c.query('select * from public.pedidos_compra where id=$1 for update',[id])).rows,'Purchase request not found')
++        if(current.estado!=='borrador')throw conflict('Only draft purchase requests can be edited')
++        saved=first((await c.query('update public.pedidos_compra set empresa_id=$2,cliente_id=$3,observaciones_generales=$4,lugar_envio_domicilio_id=$5,lugar_envio_empresa=$6,lugar_envio_texto=$7,lugar_envio_alias=$8,estado=$9 where id=$1 returning *',[id,input.empresaId,input.clienteId,input.observacionesGenerales??null,input.lugarEnvioDomicilioId??null,input.lugarEnvioEmpresa??false,input.lugarEnvioTexto??null,input.lugarEnvioAlias??null,input.estado??'borrador'])).rows,'Purchase request not found')
++        await c.query('delete from public.pedidos_compra_items where pedido_id=$1',[id])
++      }else{
++        saved=first((await c.query('insert into public.pedidos_compra(empresa_id,cliente_id,observaciones_generales,lugar_envio_domicilio_id,lugar_envio_empresa,lugar_envio_texto,lugar_envio_alias,estado,creado_por) values($1,$2,$3,$4,$5,$6,$7,$8,$9) returning *',[input.empresaId,input.clienteId,input.observacionesGenerales??null,input.lugarEnvioDomicilioId??null,input.lugarEnvioEmpresa??false,input.lugarEnvioTexto??null,input.lugarEnvioAlias??null,input.estado??'borrador',actorId])).rows,'Create failed')
++      }
++      for(const item of input.items)await c.query('insert into public.pedidos_compra_items(pedido_id,articulo_id,cantidad,observaciones) values($1,$2,$3,$4)',[saved.id,item.articuloId,item.cantidad,item.observaciones??null])
++      return saved
++    })
++    return requestDetail(String(header.id))
++  }
++  async function genericDetail(kind:'order'|'warehouse',id:string){
++    const order=kind==='order'
++    const table=order?'ordenes_compra':'pedidos_deposito',itemsTable=order?'ordenes_compra_items':'pedidos_deposito_items',fk=order?'oc_id':'pedido_deposito_id'
++    const supplier=order?",to_jsonb(pr) proveedores":""
++    const supplierJoin=order?'join public.proveedores pr on pr.id=h.proveedor_id':''
++    const extra=order?",(select ap.codigo_proveedor from public.articulos_proveedor ap join public.ordenes_compra oc on oc.id=i.oc_id where ap.articulo_id=i.articulo_id and ap.proveedor_id=oc.proveedor_id limit 1) codigo_proveedor":",(select ap.precio::float from public.articulos_proveedor ap where ap.articulo_id=i.articulo_id and ap.proveedor_id=a.proveedor_habitual_id and ap.activo=true limit 1) precio_referencia"
++    const [h,items]=await Promise.all([db.query(`select h.*,to_jsonb(e) empresas,jsonb_build_object('nombre',cl.nombre) clientes${supplier},case when pc.id is null then null else jsonb_build_object('numero_pedido',pc.numero_pedido) end pedidos_compra from public.${table} h join public.empresas e on e.id=h.empresa_id join public.clientes cl on cl.id=h.cliente_id ${supplierJoin} left join public.pedidos_compra pc on pc.id=h.pedido_id where h.id=$1`,[id]),db.query(`select i.*,jsonb_build_object('id',a.id,'codigo_interno',a.codigo_interno,'nombre',a.nombre,'unidad',a.unidad,'categoria',a.categoria,'proveedor_habitual_id',a.proveedor_habitual_id) articulos${extra} from public.${itemsTable} i join public.articulos a on a.id=i.articulo_id where i.${fk}=$1 order by i.created_at,i.id`,[id])])
++    return {...first(h.rows,'Record not found'),[itemsTable]:items.rows}
++  }
++  async function transition(table:'pedidos_compra'|'ordenes_compra'|'pedidos_deposito',id:string,next:string){
++    const allowed:Record<string,Record<string,string[]>>={pedidos_compra:{borrador:['enviada']},ordenes_compra:{borrador:['enviada'],enviada:['recepcionada']},pedidos_deposito:{borrador:['enviada'],enviada:['recepcionada']}}
++    return transaction(db,async c=>{const old=first((await c.query(`select estado from public.${table} where id=$1 for update`,[id])).rows,'Record not found');if(!(allowed[table]![String(old.estado)]??[]).includes(next))throw new AppError(409,'invalid_state_transition',`Cannot transition ${String(old.estado)} to ${next}`);return first((await c.query(`update public.${table} set estado=$2 where id=$1 returning *`,[id,next])).rows,'Record not found')})
++  }
++  async function createOrder(input:OrderInput,actorId:string){
++    return transaction(db,async c=>{await validate(c,input,input.items);const h=first((await c.query("insert into public.ordenes_compra(empresa_id,proveedor_id,cliente_id,pedido_id,observaciones_generales,lugar_envio_texto,lugar_envio_alias,condicion_pago,horario_atencion_texto,estado,creado_por) values($1,$2,$3,null,$4,$5,$6,$7,$8,'borrador',$9) returning *",[input.empresaId,input.proveedorId,input.clienteId,input.observacionesGenerales??null,input.lugarEnvioTexto??null,input.lugarEnvioAlias??null,input.condicionPago??null,input.horarioAtencionTexto??null,actorId])).rows,'Create failed');for(const i of input.items)await c.query('insert into public.ordenes_compra_items(oc_id,articulo_id,cantidad,precio_unitario,observaciones) values($1,$2,$3,$4,$5)',[h.id,i.articuloId,i.cantidad,i.precioUnitario,i.observaciones??null]);return h})
++  }
++  async function idempotent<T extends object>(actorId:string,operation:'purchase_request_import'|'purchase_order_generate',key:string,payload:unknown,run:(c:pg.PoolClient)=>Promise<T>){
++    const hash=createHash('sha256').update(JSON.stringify(payload)).digest('hex')
++    return transaction(db,async c=>{await c.query("insert into public.purchase_operation_idempotency(actor_id,operation,idempotency_key,payload_hash,status) values($1,$2,$3,$4,'PROCESSING') on conflict do nothing",[actorId,operation,key,hash]);const row=first((await c.query('select * from public.purchase_operation_idempotency where actor_id=$1 and operation=$2 and idempotency_key=$3 for update',[actorId,operation,key])).rows,'Idempotency row missing');if(row.payload_hash!==hash)throw new AppError(409,'idempotency_key_payload_mismatch','Idempotency-Key already used with a different payload');if(row.status==='COMPLETED')return{replayed:true,response:row.response as T};const response=await run(c);await c.query("update public.purchase_operation_idempotency set status='COMPLETED',response=$4,updated_at=now() where actor_id=$1 and operation=$2 and idempotency_key=$3",[actorId,operation,key,response]);return{replayed:false,response}})
++  }
++  async function applyAssignments(pedidoId:string,input:AssignInput,key:string,actorId:string){
++    return idempotent(actorId,'purchase_order_generate',key,input,async c=>{
++      const pedido=first((await c.query("select * from public.pedidos_compra where id=$1 and estado='enviada' for update",[pedidoId])).rows,'Sent purchase request not found')
++      const ids=[...new Set(input.items.map(i=>i.pedidoCompraItemId))]
++      const source=await c.query('select * from public.pedidos_compra_items where pedido_id=$1 and id=any($2::uuid[]) order by id for update',[pedidoId,ids])
++      if(source.rowCount!==ids.length)throw new AppError(400,'invalid_assignment_item','Item does not belong to purchase request')
++      const sums=await c.query('select source_id,sum(qty)::float qty from (select pedido_compra_item_id source_id,cantidad qty from public.ordenes_compra_items where pedido_compra_item_id=any($1::uuid[]) union all select pedido_compra_item_id,cantidad from public.pedidos_deposito_items where pedido_compra_item_id=any($1::uuid[])) q group by source_id',[ids])
++      const used=new Map(sums.rows.map(r=>[String(r.source_id),Number(r.qty)]))
++      for(const s of source.rows){if(s.descartada)throw conflict('Discarded items cannot be assigned');const add=input.items.filter(i=>i.pedidoCompraItemId===s.id).reduce((n,i)=>n+i.cantidad,0);if((used.get(String(s.id))??0)+add>Number(s.cantidad))throw new AppError(409,'purchase_item_overallocated','Assignment exceeds pending quantity')}
++      const orderIds:string[]=[];const groups=new Map<string,Assignment[]>()
++      for(const i of input.items.filter(i=>i.destino!=='deposito'))groups.set(i.proveedorId!,[...(groups.get(i.proveedorId!)??[]),i])
++      for(const [supplierId,items] of groups){const supplier=first((await c.query('select * from public.proveedores where id=$1 and activo=true',[supplierId])).rows,'Supplier not found');const h=first((await c.query("insert into public.ordenes_compra(empresa_id,proveedor_id,cliente_id,pedido_id,lugar_envio_texto,lugar_envio_alias,horario_atencion_texto,condicion_pago,estado,creado_por) values($1,$2,$3,$4,$5,$6,$7,$8,'borrador',$9) returning id",[pedido.empresa_id,supplierId,pedido.cliente_id,pedidoId,input.lugarEnvioTexto??null,input.lugarEnvioAlias??null,input.horarioAtencionTexto??null,supplier.condicion_pago_default,actorId])).rows,'Create failed');orderIds.push(String(h.id));for(const i of items)await c.query('insert into public.ordenes_compra_items(oc_id,pedido_compra_item_id,articulo_id,cantidad,precio_unitario,observaciones) select $1,$2,articulo_id,$3,$4,$5 from public.pedidos_compra_items where id=$6',[h.id,i.destino==='proveedor'?i.pedidoCompraItemId:null,i.cantidad,i.precioUnitario,i.observaciones??null,i.pedidoCompraItemId])}
++      const warehouse=input.items.filter(i=>i.destino!=='proveedor');let warehouseId:string|null=null
++      if(warehouse.length){const h=first((await c.query("insert into public.pedidos_deposito(empresa_id,cliente_id,pedido_id,lugar_envio_texto,lugar_envio_alias,estado,creado_por) values($1,$2,$3,$4,$5,'borrador',$6) returning id",[pedido.empresa_id,pedido.cliente_id,pedidoId,input.lugarEnvioTexto??null,input.lugarEnvioAlias??null,actorId])).rows,'Create failed');warehouseId=String(h.id);for(const i of warehouse)await c.query('insert into public.pedidos_deposito_items(pedido_deposito_id,pedido_compra_item_id,articulo_id,cantidad,observaciones) select $1,$2,articulo_id,$3,$4 from public.pedidos_compra_items where id=$2',[h.id,i.pedidoCompraItemId,i.cantidad,i.observaciones??null])}
++      return{purchaseOrderIds:orderIds,warehouseRequestId:warehouseId}
++    })
++  }
++  async function previewImport(input:ImportInput){const errors:Array<{row:number;message:string}>=[],seen=new Set<string>();for(let i=0;i<input.orders.length;i++){const o=input.orders[i]!;if(!(await db.query('select 1 from public.clientes where id=$1',[o.clienteId])).rowCount)errors.push({row:i+1,message:'Client not found'});if(o.clienteDomicilioId&&!(await db.query('select 1 from public.cliente_domicilios where id=$1 and cliente_id=$2',[o.clienteDomicilioId,o.clienteId])).rowCount)errors.push({row:i+1,message:'Address does not belong to client'});const destination=`${o.clienteId}:${o.clienteDomicilioId??''}`;if(seen.has(destination))errors.push({row:i+1,message:'Duplicate client/address destination'});seen.add(destination);const ids=[...new Set(o.items.map(x=>x.articuloId))];if((await db.query('select id from public.articulos where id=any($1::uuid[])',[ids])).rowCount!==ids.length)errors.push({row:i+1,message:'Article not found'})}const invalidRows=new Set(errors.map(e=>e.row));return{total:input.orders.length,valid:input.orders.length-invalidRows.size,invalid:invalidRows.size,clientsFound:input.orders.length-errors.filter(e=>e.message==='Client not found').length,addressesFound:input.orders.filter(o=>o.clienteDomicilioId).length-errors.filter(e=>e.message==='Address does not belong to client').length,articles:input.orders.reduce((n,o)=>n+o.items.length,0),duplicates:errors.filter(e=>e.message.startsWith('Duplicate')).length,conflicts:errors.length,errors}}
++  async function applyImport(input:ImportInput,key:string,actorId:string){return idempotent(actorId,'purchase_request_import',key,input,async c=>{const ids:string[]=[];for(const o of input.orders){await validate(c,{...o,empresaId:input.empresaId},o.items);const h=first((await c.query("insert into public.pedidos_compra(empresa_id,cliente_id,lugar_envio_domicilio_id,lugar_envio_texto,lugar_envio_alias,estado,creado_por) values($1,$2,$3,$4,$5,'borrador',$6) returning id",[input.empresaId,o.clienteId,o.clienteDomicilioId??null,o.lugarEnvioTexto??null,o.lugarEnvioAlias??null,actorId])).rows,'Create failed');ids.push(String(h.id));for(const item of o.items)await c.query('insert into public.pedidos_compra_items(pedido_id,articulo_id,cantidad,observaciones) values($1,$2,$3,$4)',[h.id,item.articuloId,item.cantidad,item.observaciones??null])}return{purchaseRequestIds:ids}})}
++  async function duplicate(kind:'request'|'order'|'warehouse',id:string,actorId:string){if(kind==='request'){const d=await requestDetail(id);return saveRequest({empresaId:String(d.empresa_id),clienteId:String(d.cliente_id),observacionesGenerales:d.observaciones_generales as Note,lugarEnvioDomicilioId:d.lugar_envio_domicilio_id as string|null,lugarEnvioEmpresa:Boolean(d.lugar_envio_empresa),lugarEnvioTexto:d.lugar_envio_texto as Note,lugarEnvioAlias:d.lugar_envio_alias as Note,items:(d.pedidos_compra_items as Array<Record<string,unknown>>).map(i=>({articuloId:String(i.articulo_id),cantidad:Number(i.cantidad),observaciones:i.observaciones as Note}))},actorId)}return transaction(db,async c=>{const order=kind==='order',table=order?'ordenes_compra':'pedidos_deposito',items=order?'ordenes_compra_items':'pedidos_deposito_items',fk=order?'oc_id':'pedido_deposito_id';const h=first((await c.query(`select * from public.${table} where id=$1 for update`,[id])).rows,'Record not found');let nh;if(order){nh=first((await c.query("insert into public.ordenes_compra(empresa_id,proveedor_id,cliente_id,pedido_id,observaciones_generales,lugar_envio_texto,lugar_envio_alias,condicion_pago,horario_atencion_texto,estado,creado_por) values($1,$2,$3,null,$4,$5,$6,$7,$8,'borrador',$9) returning *",[h.empresa_id,h.proveedor_id,h.cliente_id,h.observaciones_generales,h.lugar_envio_texto,h.lugar_envio_alias,h.condicion_pago,h.horario_atencion_texto,actorId])).rows,'Create failed');await c.query(`insert into public.${items}(oc_id,articulo_id,pedido_compra_item_id,cantidad,precio_unitario,observaciones) select $1,articulo_id,null,cantidad,precio_unitario,observaciones from public.${items} where ${fk}=$2`,[nh.id,id])}else{nh=first((await c.query("insert into public.pedidos_deposito(empresa_id,cliente_id,pedido_id,observaciones_generales,lugar_envio_texto,lugar_envio_alias,estado,creado_por) values($1,$2,null,$3,$4,$5,'borrador',$6) returning *",[h.empresa_id,h.cliente_id,h.observaciones_generales,h.lugar_envio_texto,h.lugar_envio_alias,actorId])).rows,'Create failed');await c.query(`insert into public.${items}(pedido_deposito_id,articulo_id,pedido_compra_item_id,cantidad,observaciones) select $1,articulo_id,null,cantidad,observaciones from public.${items} where ${fk}=$2`,[nh.id,id])}return nh})}
++  const catalogs=()=>Promise.all([db.query('select id,nombre,cuit,domicilio,activo from public.empresas where activo=true order by nombre'),db.query('select id,nombre from public.clientes order by nombre'),db.query('select id,codigo_interno,nombre,unidad,categoria,proveedor_habitual_id from public.articulos where activo=true order by nombre'),db.query('select id,cliente_id,alias,direccion,es_principal,activo,horario_atencion from public.cliente_domicilios where activo=true order by alias'),db.query('select id,razon_social,domicilio,provincia,condicion_pago_default from public.proveedores where activo=true order by razon_social'),db.query('select articulo_id,proveedor_id,precio from public.articulos_proveedor where activo=true')]).then(([a,b,c,d,e,f])=>({empresas:a.rows,clientes:b.rows,articulos:c.rows,domicilios:d.rows,proveedores:e.rows,preciosProveedor:f.rows}))
++  const listRequests=()=>db.query("select h.*,jsonb_build_object('nombre',e.nombre) empresas,jsonb_build_object('nombre',cl.nombre) clientes,p.nombre_completo creado_por_nombre,case when exists(select 1 from public.pedidos_compra_items i where i.pedido_id=h.id) then not exists(select 1 from public.pedidos_compra_items i where i.pedido_id=h.id and not i.descartada and i.cantidad>coalesce((select sum(x.cantidad) from (select cantidad from public.ordenes_compra_items where pedido_compra_item_id=i.id union all select cantidad from public.pedidos_deposito_items where pedido_compra_item_id=i.id)x),0)) else false end procesado from public.pedidos_compra h join public.empresas e on e.id=h.empresa_id join public.clientes cl on cl.id=h.cliente_id left join public.perfiles p on p.id=h.creado_por order by h.created_at desc").then(r=>r.rows)
++  const listOrders=()=>db.query("select h.*,jsonb_build_object('nombre',e.nombre) empresas,jsonb_build_object('nombre',cl.nombre) clientes,jsonb_build_object('razon_social',p.razon_social) proveedores from public.ordenes_compra h join public.empresas e on e.id=h.empresa_id join public.clientes cl on cl.id=h.cliente_id join public.proveedores p on p.id=h.proveedor_id order by h.created_at desc").then(r=>r.rows)
++  const listWarehouses=()=>db.query("select h.*,jsonb_build_object('nombre',e.nombre) empresas,jsonb_build_object('nombre',cl.nombre) clientes,p.nombre_completo creado_por_nombre from public.pedidos_deposito h join public.empresas e on e.id=h.empresa_id join public.clientes cl on cl.id=h.cliente_id left join public.perfiles p on p.id=h.creado_por order by h.created_at desc").then(r=>r.rows)
++  return{catalogs,listRequests,requestDetail,saveRequest,transition,createOrder,orderDetail:(id:string)=>genericDetail('order',id),warehouseDetail:(id:string)=>genericDetail('warehouse',id),listOrders,listWarehouses,applyAssignments,previewImport,applyImport,duplicate,discard:(id:string,input:{descartada:boolean;motivo?:Note})=>transaction(db,async c=>{const row=first((await c.query('select i.id,p.estado from public.pedidos_compra_items i join public.pedidos_compra p on p.id=i.pedido_id where i.id=$1 for update of i,p',[id])).rows,'Item not found');if(row.estado!=='enviada')throw conflict('Items can only be discarded while the request is sent');return first((await c.query('update public.pedidos_compra_items set descartada=$2,motivo_descarte=$3 where id=$1 returning *',[id,input.descartada,input.motivo??null])).rows,'Item not found')})}
++}
++export type PurchasesRepository=ReturnType<typeof createPurchasesRepository>
+diff --git a/apps/api/tests/business-rbac.test.ts b/apps/api/tests/business-rbac.test.ts
+index 6a7bb96..457da21 100644
+--- a/apps/api/tests/business-rbac.test.ts
++++ b/apps/api/tests/business-rbac.test.ts
+@@ -37,6 +37,7 @@ const CONFIRMED_PRODUCTIVE_GRANTS: Readonly<Record<Role, readonly Permission[]>>
+     'client_addresses:read', 'client_addresses:update',
+     'client_quotes:read', 'client_quotes:create', 'client_quotes:delete',
+     'suppliers:read','suppliers:update','articles:read','articles:update','articles:import',
++    'purchase_requests:read','purchase_requests:create','purchase_requests:update','purchase_orders:read','purchase_orders:create','purchase_orders:update','warehouse_requests:read','warehouse_requests:create','warehouse_requests:update',
+   ],
+   gerente: [
+     'profile:read_self', 'profile:update_self', 'employees:read',
+@@ -48,12 +49,14 @@ const CONFIRMED_PRODUCTIVE_GRANTS: Readonly<Record<Role, readonly Permission[]>>
+     'client_addresses:read', 'client_addresses:update',
+     'client_quotes:read', 'client_quotes:create', 'client_quotes:delete',
+     'suppliers:read','suppliers:update','articles:read','articles:update','articles:import',
++    'purchase_requests:read','purchase_requests:create','purchase_requests:update','purchase_orders:read','purchase_orders:create','purchase_orders:update','warehouse_requests:read','warehouse_requests:create','warehouse_requests:update',
+   ],
+   compras: ['profile:read_self', 'profile:update_self',
+     'clients:read', 'clients:create', 'clients:update',
+     'client_addresses:read', 'client_addresses:update',
+     'client_quotes:read', 'client_quotes:create', 'client_quotes:delete',
+-    'suppliers:read','suppliers:update','articles:read','articles:update','articles:import'],
++    'suppliers:read','suppliers:update','articles:read','articles:update','articles:import',
++    'purchase_requests:read','purchase_requests:create','purchase_requests:update','purchase_orders:read','purchase_orders:create','purchase_orders:update','warehouse_requests:read','warehouse_requests:create','warehouse_requests:update'],
+   supervisor: ['profile:read_self', 'profile:update_self'],
+   auditoria: ['profile:read_self', 'profile:update_self'],
+ }
+@@ -63,15 +66,6 @@ const CATALOG_DENY_UNTIL_CONFIRMED: readonly Permission[] = [
+   'companies:read',
+   'companies:create',
+   'companies:update',
+-  'purchase_requests:read',
+-  'purchase_requests:create',
+-  'purchase_requests:update',
+-  'purchase_orders:read',
+-  'purchase_orders:create',
+-  'purchase_orders:update',
+-  'warehouse_requests:read',
+-  'warehouse_requests:create',
+-  'warehouse_requests:update',
+   'economic_results:read',
+   'economic_results:import',
+   'crm:read',
+@@ -178,7 +172,7 @@ describe('business RBAC catalog (Phase 2C corrections)', () => {
+     { role: 'compras', permission: 'employees:read', expected: false },
+     { role: 'admin', permission: 'users:change_role', expected: true },
+     { role: 'gerente', permission: 'users:create', expected: false },
+-    { role: 'compras', permission: 'purchase_orders:read', expected: false },
++    { role: 'compras', permission: 'purchase_orders:read', expected: true },
+     { role: 'supervisor', permission: 'purchase_requests:read', expected: false },
+     { role: 'supervisor', permission: 'audits:read', expected: false },
+     { role: 'gerente', permission: 'employees:create', expected: true },
+@@ -201,6 +195,8 @@ describe('business RBAC catalog (Phase 2C corrections)', () => {
+     }
+   })
+ 
++  it('Phase 4C grants purchases only to admin, gerente and compras',()=>{const permissions:Permission[]=['purchase_requests:read','purchase_requests:create','purchase_requests:update','purchase_orders:read','purchase_orders:create','purchase_orders:update','warehouse_requests:read','warehouse_requests:create','warehouse_requests:update'];for(const permission of permissions){for(const role of ['admin','gerente','compras'] as Role[])expect(authorize({role},permission)).toBe(true);for(const role of ['supervisor','auditoria'] as Role[])expect(authorize({role},permission)).toBe(false)}})
++
+   it('still-unconfirmed catalog-only business permissions → DENY for every role', () => {
+     for (const permission of CATALOG_DENY_UNTIL_CONFIRMED) {
+       for (const role of ROLES) {
+diff --git a/apps/api/tests/openapi.contract.test.ts b/apps/api/tests/openapi.contract.test.ts
+index 23cf7fe..2ab30c9 100644
+--- a/apps/api/tests/openapi.contract.test.ts
++++ b/apps/api/tests/openapi.contract.test.ts
+@@ -29,6 +29,9 @@ describe('openapi contract (Phase 1)', () => {
+         '/v1/hr/reports/overtime',
+         '/v1/me',
+         '/v1/price-lists/apply','/v1/price-lists/preview','/v1/supplier-article-pending','/v1/supplier-article-pending/{id}/resolve','/v1/suppliers','/v1/suppliers/{id}','/v1/suppliers/{id}/articles','/v1/suppliers/{id}/status',
++        '/v1/purchases/catalogs','/v1/purchase-requests','/v1/purchase-requests/{id}','/v1/purchase-requests/{id}/state','/v1/purchase-requests/{id}/duplicate','/v1/purchase-request-items/{id}/discard','/v1/purchase-requests/{id}/assignments','/v1/purchase-requests/import/preview','/v1/purchase-requests/import/apply',
++        '/v1/purchase-orders','/v1/purchase-orders/{id}','/v1/purchase-orders/{id}/state','/v1/purchase-orders/{id}/duplicate',
++        '/v1/warehouse-requests','/v1/warehouse-requests/{id}','/v1/warehouse-requests/{id}/state','/v1/warehouse-requests/{id}/duplicate',
+         '/v1/users',
+         '/v1/users/{id}',
+         '/v1/users/{id}/disable',
+diff --git a/apps/api/tests/postgrest-phase4c-rls.negative.test.ts b/apps/api/tests/postgrest-phase4c-rls.negative.test.ts
+new file mode 100644
+index 0000000..67d7396
+--- /dev/null
++++ b/apps/api/tests/postgrest-phase4c-rls.negative.test.ts
+@@ -0,0 +1,18 @@
++import { afterAll,beforeAll,describe,expect,it } from 'vitest'
++import { createClient } from '@supabase/supabase-js'
++const url=process.env.SUPABASE_URL??process.env.NEXT_PUBLIC_SUPABASE_URL
++const anon=process.env.SUPABASE_ANON_KEY??process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
++const service=process.env.SUPABASE_SERVICE_ROLE_KEY
++const ready=Boolean(process.env.RUN_SUPABASE_INTEGRATION==='1'&&url&&anon&&service)
++const nil='00000000-0000-0000-0000-000000000000'
++describe.skipIf(!ready)('Phase 4C direct browser bypass negative',()=>{
++ const users:Array<{id:string;role:string;token:string}>=[];const password=`P4c-${crypto.randomUUID()}!Aa1`
++ beforeAll(async()=>{const admin=createClient(url!,service!,{auth:{persistSession:false}});for(const role of ['admin','gerente','compras']){const email=`phase4c-${role}-${crypto.randomUUID()}@example.invalid`;const created=await admin.auth.admin.createUser({email,password,email_confirm:true});if(created.error||!created.data.user)throw created.error??new Error('Auth user not created');const profile=await admin.from('perfiles').upsert({id:created.data.user.id,nombre_completo:`Phase 4C ${role}`,rol:role});if(profile.error)throw profile.error;const browser=createClient(url!,anon!,{auth:{persistSession:false}});const signed=await browser.auth.signInWithPassword({email,password});if(signed.error||!signed.data.session)throw signed.error??new Error('Session not created');users.push({id:created.data.user.id,role,token:signed.data.session.access_token})}},30_000)
++ afterAll(async()=>{if(!ready)return;const admin=createClient(url!,service!,{auth:{persistSession:false}});for(const user of users)await admin.auth.admin.deleteUser(user.id)},30_000)
++ const mutations=[
++  ['POST','pedidos_compra',{empresa_id:nil,cliente_id:nil,creado_por:nil}],['PATCH',`pedidos_compra?id=eq.${nil}`,{estado:'enviada'}],['DELETE',`pedidos_compra?id=eq.${nil}`,null],['POST','pedidos_compra_items',{pedido_id:nil,articulo_id:nil,cantidad:1}],['PATCH',`pedidos_compra_items?id=eq.${nil}`,{cantidad:2}],['DELETE',`pedidos_compra_items?id=eq.${nil}`,null],
++  ['POST','ordenes_compra',{empresa_id:nil,cliente_id:nil,proveedor_id:nil,creado_por:nil}],['PATCH',`ordenes_compra?id=eq.${nil}`,{estado:'enviada'}],['DELETE',`ordenes_compra?id=eq.${nil}`,null],['POST','ordenes_compra_items',{oc_id:nil,articulo_id:nil,cantidad:1,precio_unitario:1}],['PATCH',`ordenes_compra_items?id=eq.${nil}`,{cantidad:2}],['DELETE',`ordenes_compra_items?id=eq.${nil}`,null],
++  ['POST','pedidos_deposito',{empresa_id:nil,cliente_id:nil,creado_por:nil}],['PATCH',`pedidos_deposito?id=eq.${nil}`,{estado:'enviada'}],['DELETE',`pedidos_deposito?id=eq.${nil}`,null],['POST','pedidos_deposito_items',{pedido_deposito_id:nil,articulo_id:nil,cantidad:1}],['PATCH',`pedidos_deposito_items?id=eq.${nil}`,{cantidad:2}],['DELETE',`pedidos_deposito_items?id=eq.${nil}`,null],
++ ] as const
++ it('denies every 4C DML operation for real authenticated browser roles',async()=>{for(const user of users)for(const [method,resource,payload] of mutations){const response=await fetch(`${url}/rest/v1/${resource}`,{method,headers:{apikey:anon!,authorization:`Bearer ${user.token}`,'content-type':'application/json',prefer:'return=minimal'},...(payload?{body:JSON.stringify(payload)}:{})});expect(response.ok,`${user.role} ${method} ${resource}`).toBe(false);expect([401,403]).toContain(response.status)}},60_000)
++})
+diff --git a/apps/api/tests/purchases-db-validation.integration.test.ts b/apps/api/tests/purchases-db-validation.integration.test.ts
+new file mode 100644
+index 0000000..fc374d8
+--- /dev/null
++++ b/apps/api/tests/purchases-db-validation.integration.test.ts
+@@ -0,0 +1,13 @@
++import { afterAll,beforeAll,describe,expect,it } from 'vitest'
++import pg from 'pg'
++const url=process.env.MIGRATIONS_DATABASE_URL
++const enabled=process.env.RUN_SUPABASE_INTEGRATION==='1'&&Boolean(url)
++describe.skipIf(!enabled)('Phase 4C effective database validation',()=>{
++ let pool:pg.Pool
++ beforeAll(()=>{pool=new pg.Pool({connectionString:url,ssl:{rejectUnauthorized:false},max:2})})
++ afterAll(async()=>pool?.end())
++ it('records every 4C migration with checksum',async()=>{const rows=(await pool.query("select filename,checksum from app_migrations.forward_history where filename like '%phase4c%' order by filename")).rows;expect(rows.map(r=>r.filename)).toEqual(['20260929110000_phase4c_purchases_api.sql','20260929111000_phase4c_company_catalog_access.sql','20260929112000_phase4c_client_catalog_access.sql','20260929113000_phase4c_purchase_item_price_check.sql']);rows.forEach(r=>expect(String(r.checksum)).toMatch(/^[a-f0-9]{64}$/))})
++ it('has effective unique/check/FK constraints, numbering triggers and allocation indexes',async()=>{const constraints=(await pool.query("select conname,contype from pg_constraint where conrelid=any(array['public.pedidos_compra'::regclass,'public.pedidos_compra_items'::regclass,'public.ordenes_compra'::regclass,'public.ordenes_compra_items'::regclass,'public.pedidos_deposito'::regclass,'public.pedidos_deposito_items'::regclass])")).rows;expect(constraints.some(r=>r.contype==='u'&&r.conname==='pedidos_compra_numero_pedido_key')).toBe(true);expect(constraints.filter(r=>r.contype==='f').length).toBeGreaterThanOrEqual(12);expect(constraints.filter(r=>r.contype==='c').length).toBeGreaterThanOrEqual(6);const triggers=(await pool.query("select tgname from pg_trigger where not tgisinternal and tgrelid=any(array['public.pedidos_compra'::regclass,'public.ordenes_compra'::regclass,'public.pedidos_deposito'::regclass])")).rows.map(r=>r.tgname);expect(triggers).toEqual(expect.arrayContaining(['trg_pedidos_compra_set_numero','trg_ordenes_compra_set_numero','trg_pedidos_deposito_set_numero']));const indexes=(await pool.query("select indexname from pg_indexes where schemaname='public' and indexname like '%pedido_compra_item_idx'")).rows.map(r=>r.indexname);expect(indexes).toEqual(expect.arrayContaining(['ordenes_compra_items_pedido_compra_item_idx','pedidos_deposito_items_pedido_compra_item_idx']))})
++ it('keeps RLS on, grants runtime DML, and grants authenticated no DML',async()=>{const tables=['pedidos_compra','pedidos_compra_items','ordenes_compra','ordenes_compra_items','pedidos_deposito','pedidos_deposito_items'];const rls=(await pool.query('select relname,relrowsecurity from pg_class where oid=any($1::regclass[])',[tables.map(t=>`public.${t}`)])).rows;expect(rls).toHaveLength(6);rls.forEach(r=>expect(r.relrowsecurity).toBe(true));const browser=(await pool.query("select count(*)::int n from information_schema.role_table_grants where grantee='authenticated' and table_schema='public' and table_name=any($1) and privilege_type=any(array['INSERT','UPDATE','DELETE'])",[tables])).rows[0].n;expect(browser).toBe(0);const runtime=(await pool.query("select table_name,count(distinct privilege_type)::int n from information_schema.role_table_grants where grantee='dinamic_api' and table_schema='public' and table_name=any($1) and privilege_type=any(array['SELECT','INSERT','UPDATE','DELETE']) group by table_name",[tables])).rows;expect(runtime).toHaveLength(6);runtime.forEach(r=>expect(r.n).toBe(4));const role=(await pool.query("select rolsuper,rolcreatedb,rolcreaterole,rolreplication,rolbypassrls from pg_roles where rolname='dinamic_api'")).rows[0];expect(role).toEqual({rolsuper:false,rolcreatedb:false,rolcreaterole:false,rolreplication:false,rolbypassrls:false})})
++ it('has runtime RLS policies and persistent idempotency',async()=>{const policies=(await pool.query("select tablename,policyname from pg_policies where schemaname='public' and roles @> array['dinamic_api']::name[]")).rows;for(const table of ['pedidos_compra','pedidos_compra_items','ordenes_compra','ordenes_compra_items','pedidos_deposito','pedidos_deposito_items','purchase_operation_idempotency'])expect(policies.some(p=>p.tablename===table)).toBe(true);const columns=(await pool.query("select column_name from information_schema.columns where table_schema='public' and table_name='purchase_operation_idempotency'")).rows.map(r=>r.column_name);expect(columns).toEqual(expect.arrayContaining(['actor_id','operation','idempotency_key','payload_hash','status','response']))})
++})
+diff --git a/apps/api/tests/purchases-http.test.ts b/apps/api/tests/purchases-http.test.ts
+new file mode 100644
+index 0000000..6c0af5e
+--- /dev/null
++++ b/apps/api/tests/purchases-http.test.ts
+@@ -0,0 +1,14 @@
++import { afterEach,describe,expect,it,vi } from 'vitest'
++import type { FastifyInstance } from 'fastify'
++import type { PurchasesRepository } from '../src/infrastructure/db/purchases-repository.js'
++import { buildApp } from '../src/app.js'
++import { createProfileStubDb,signAccessToken,testEnv } from './helpers.js'
++const USER='22222222-2222-4222-8222-222222222222',ID='33333333-3333-4333-8333-333333333333'
++const apps:FastifyInstance[]=[];afterEach(async()=>Promise.all(apps.splice(0).map(a=>a.close())))
++function repo(){const row={id:ID,estado:'borrador'};return{catalogs:vi.fn(async()=>({empresas:[],clientes:[],articulos:[],domicilios:[],proveedores:[],preciosProveedor:[]})),listRequests:vi.fn(async()=>[row]),requestDetail:vi.fn(async()=>row),saveRequest:vi.fn(async()=>row),transition:vi.fn(async()=>row),discard:vi.fn(async()=>row),previewImport:vi.fn(async()=>({total:1,valid:1,invalid:0,errors:[]})),applyImport:vi.fn(async()=>({replayed:false,response:{purchaseRequestIds:[ID]}})),applyAssignments:vi.fn(async()=>({replayed:false,response:{purchaseOrderIds:[ID],warehouseRequestId:null}})),listOrders:vi.fn(async()=>[row]),orderDetail:vi.fn(async()=>row),createOrder:vi.fn(async()=>row),listWarehouses:vi.fn(async()=>[row]),warehouseDetail:vi.fn(async()=>row),duplicate:vi.fn(async()=>row)} as unknown as PurchasesRepository}
++async function app(role:string){const a=await buildApp(testEnv(),{db:createProfileStubDb({profile:{id:USER,nombre_completo:'User',rol:role}}),purchasesRepo:repo()});apps.push(a);await a.ready();return a}async function auth(){return{authorization:`Bearer ${await signAccessToken({sub:USER})}`}}
++describe('Phase 4C HTTP and RBAC',()=>{
++ it('requires authentication and denies supervisor and auditoria mutations',async()=>{expect((await(await app('admin')).inject({method:'GET',url:'/v1/purchase-requests'})).statusCode).toBe(401);for(const role of ['supervisor','auditoria'])expect((await(await app(role)).inject({method:'POST',url:'/v1/purchase-requests',headers:await auth(),payload:{}})).statusCode).toBe(403)})
++ it.each(['admin','gerente','compras'])('allows %s purchase reads and validated creates',async role=>{const a=await app(role),headers=await auth();expect((await a.inject({method:'GET',url:'/v1/purchases/catalogs',headers})).statusCode).toBe(200);expect((await a.inject({method:'POST',url:'/v1/purchase-requests',headers,payload:{empresaId:ID,clienteId:ID,items:[{articuloId:ID,cantidad:1}]}})).statusCode).toBe(201)})
++ it('requires idempotency keys for import apply and assignments',async()=>{const a=await app('compras'),headers=await auth();expect((await a.inject({method:'POST',url:'/v1/purchase-requests/import/apply',headers,payload:{empresaId:ID,orders:[{clienteId:ID,items:[{articuloId:ID,cantidad:1}]}]}})).statusCode).toBe(400);expect((await a.inject({method:'POST',url:`/v1/purchase-requests/${ID}/assignments`,headers,payload:{items:[{pedidoCompraItemId:ID,destino:'deposito',cantidad:1}]}})).statusCode).toBe(400)})
++})
+diff --git a/apps/api/tests/purchases-migration.test.ts b/apps/api/tests/purchases-migration.test.ts
+new file mode 100644
+index 0000000..b9a1b3b
+--- /dev/null
++++ b/apps/api/tests/purchases-migration.test.ts
+@@ -0,0 +1,7 @@
++import { describe,expect,it } from 'vitest'
++import { readFileSync } from 'node:fs'
++const sql=readFileSync(new URL('../../../supabase/migrations/forward/20260929110000_phase4c_purchases_api.sql',import.meta.url),'utf8')
++describe('Phase 4C migration security',()=>{
++ it('removes browser DML and grants the runtime role without admin privileges',()=>{for(const table of ['pedidos_compra','pedidos_compra_items','ordenes_compra','ordenes_compra_items','pedidos_deposito','pedidos_deposito_items'])expect(sql).toContain(`'${table}'`);expect(sql).toContain('revoke all privileges on table');expect(sql).toContain('to dinamic_api');expect(sql).not.toMatch(/grant\s+all/i);expect(sql).not.toMatch(/bypassrls/i)})
++ it('defines persistent idempotency and allocation indexes',()=>{expect(sql).toContain('purchase_operation_idempotency');expect(sql).toContain('purchase_request_import');expect(sql).toContain('purchase_order_generate');expect(sql).toContain('ordenes_compra_items_pedido_compra_item_idx');expect(sql).toContain('pedidos_deposito_items_pedido_compra_item_idx')})
++})
+diff --git a/apps/api/tests/purchases-postgres.integration.test.ts b/apps/api/tests/purchases-postgres.integration.test.ts
+new file mode 100644
+index 0000000..6082ea4
+--- /dev/null
++++ b/apps/api/tests/purchases-postgres.integration.test.ts
+@@ -0,0 +1,21 @@
++import { afterAll,beforeAll,describe,expect,it,vi } from 'vitest'
++import { createDb,type Db } from '../src/infrastructure/db/pool.js'
++import { createPurchasesRepository,type PurchasesRepository } from '../src/infrastructure/db/purchases-repository.js'
++import { testEnv } from './helpers.js'
++const enabled=process.env.RUN_SUPABASE_INTEGRATION==='1'&&Boolean(process.env.DATABASE_URL)
++vi.setConfig({testTimeout:30_000,hookTimeout:30_000})
++describe.skipIf(!enabled)('Phase 4C PostgreSQL real integration',()=>{
++ let db:Db,repo:PurchasesRepository,actor:string,company:string,client:string,article:string,supplier:string
++ const requestIds:string[]=[],orderIds:string[]=[],warehouseIds:string[]=[],keys:string[]=[];const marker=`P4C-${Date.now()}`
++ beforeAll(async()=>{db=createDb(testEnv({DATABASE_URL:process.env.DATABASE_URL!}));repo=createPurchasesRepository(db);const refs=(await db.query("select (select id from public.perfiles order by id limit 1) actor,(select id from public.empresas where activo=true order by id limit 1) company,(select id from public.clientes order by id limit 1) client,(select id from public.articulos where activo=true order by id limit 1) article,(select id from public.proveedores where activo=true order by id limit 1) supplier")).rows[0];actor=String(refs.actor);company=String(refs.company);client=String(refs.client);article=String(refs.article);supplier=String(refs.supplier);expect([actor,company,client,article,supplier].every(x=>x&&x!=='null')).toBe(true)})
++ afterAll(async()=>{if(!db)return;await db.query('delete from public.ordenes_compra_items where oc_id=any($1::uuid[])',[orderIds]);await db.query('delete from public.pedidos_deposito_items where pedido_deposito_id=any($1::uuid[])',[warehouseIds]);await db.query('delete from public.ordenes_compra where id=any($1::uuid[])',[orderIds]);await db.query('delete from public.pedidos_deposito where id=any($1::uuid[])',[warehouseIds]);await db.query('delete from public.pedidos_compra_items where pedido_id=any($1::uuid[])',[requestIds]);await db.query('delete from public.pedidos_compra where id=any($1::uuid[])',[requestIds]);await db.query('delete from public.purchase_operation_idempotency where actor_id=$1 and idempotency_key=any($2::text[])',[actor,keys]);await db.close()})
++ const input=(quantity=5)=>({empresaId:company,clienteId:client,observacionesGenerales:marker,estado:'borrador' as const,items:[{articuloId:article,cantidad:quantity,observaciones:null}]})
++ it('creates and edits header/items atomically and rolls back after deleting old items',async()=>{const created=await repo.saveRequest(input(),actor);requestIds.push(String(created.id));await expect(repo.saveRequest({...input(),items:[{articuloId:article,cantidad:2,observaciones:'invalid\u0000text'}]},actor,String(created.id))).rejects.toBeTruthy();const after=await repo.requestDetail(String(created.id));expect(after.pedidos_compra_items).toHaveLength(1);expect(Number(after.pedidos_compra_items[0]!.cantidad)).toBe(5)})
++ it('generates concurrent-safe unique request numbers',async()=>{const rows=await Promise.all(Array.from({length:6},()=>repo.saveRequest(input(1),actor)));requestIds.push(...rows.map(r=>String(r.id)));const numbers=rows.map(r=>String(r.numero_pedido));expect(new Set(numbers).size).toBe(6);numbers.forEach(n=>expect(n).toMatch(/^PED-\d{4,}$/))})
++ it('generates concurrent-safe OC and warehouse numbers',async()=>{const orders=await Promise.all(Array.from({length:4},()=>repo.createOrder({empresaId:company,proveedorId:supplier,clienteId:client,items:[{articuloId:article,cantidad:1,precioUnitario:10}]},actor)));orderIds.push(...orders.map(o=>String(o.id)));const orderNumbers=orders.map(o=>String(o.numero_oc));expect(new Set(orderNumbers).size).toBe(4);orderNumbers.forEach(n=>expect(n).toMatch(/^OC-\d{4,}$/));const sources=await Promise.all(Array.from({length:4},()=>repo.saveRequest(input(1),actor)));requestIds.push(...sources.map(s=>String(s.id)));await Promise.all(sources.map(s=>repo.transition('pedidos_compra',String(s.id),'enviada')));const generated=await Promise.all(sources.map((s,i)=>{const key=`${marker}-dep-num-${i}`;keys.push(key);return repo.applyAssignments(String(s.id),{items:[{pedidoCompraItemId:String((s.pedidos_compra_items[0] as {id:string}).id),destino:'deposito',cantidad:1}]},key,actor)}));const ids=generated.map(g=>g.response.warehouseRequestId!);warehouseIds.push(...ids);const warehouses=await Promise.all(ids.map(id=>repo.warehouseDetail(id)));const numbers=warehouses.map(w=>String(w.numero_pedido_deposito));expect(new Set(numbers).size).toBe(4);numbers.forEach(n=>expect(n).toMatch(/^DEP-\d{4,}$/))})
++ it('serializes assignments, prevents over-allocation and replays the same key',async()=>{const created=await repo.saveRequest(input(),actor);requestIds.push(String(created.id));await repo.transition('pedidos_compra',String(created.id),'enviada');const item=created.pedidos_compra_items[0] as {id:string};const payload={items:[{pedidoCompraItemId:item.id,destino:'proveedor' as const,proveedorId:supplier,cantidad:5,precioUnitario:10,observaciones:null}]};const key=`${marker}-assign`;keys.push(key);const [a,b]=await Promise.all([repo.applyAssignments(String(created.id),payload,key,actor),repo.applyAssignments(String(created.id),payload,key,actor)]);expect([a.replayed,b.replayed].sort()).toEqual([false,true]);orderIds.push(...a.response.purchaseOrderIds);expect(new Set(a.response.purchaseOrderIds).size).toBe(1);const other=`${marker}-over`;keys.push(other);await expect(repo.applyAssignments(String(created.id),{items:[{...payload.items[0],cantidad:1}]},other,actor)).rejects.toMatchObject({status:409})})
++ it('generates warehouse header/items atomically and enforces state machine',async()=>{const created=await repo.saveRequest(input(3),actor);requestIds.push(String(created.id));await repo.transition('pedidos_compra',String(created.id),'enviada');const item=created.pedidos_compra_items[0] as {id:string};const key=`${marker}-warehouse`;keys.push(key);const result=await repo.applyAssignments(String(created.id),{items:[{pedidoCompraItemId:item.id,destino:'deposito',cantidad:3}]},key,actor);expect(result.response.warehouseRequestId).toBeTruthy();warehouseIds.push(result.response.warehouseRequestId!);await expect(repo.transition('pedidos_deposito',result.response.warehouseRequestId!,'recepcionada')).rejects.toMatchObject({status:409});await repo.transition('pedidos_deposito',result.response.warehouseRequestId!,'enviada');await repo.transition('pedidos_deposito',result.response.warehouseRequestId!,'recepcionada')})
++ it('previews without writes and applies import atomically/idempotently',async()=>{const payload={empresaId:company,orders:[{clienteId:client,lugarEnvioAlias:marker,items:[{articuloId:article,cantidad:2}]}]};const before=Number((await db.query('select count(*) from public.pedidos_compra where lugar_envio_alias=$1',[marker])).rows[0].count);expect((await repo.previewImport(payload)).valid).toBe(1);expect(Number((await db.query('select count(*) from public.pedidos_compra where lugar_envio_alias=$1',[marker])).rows[0].count)).toBe(before);const key=`${marker}-import`;keys.push(key);const [a,b]=await Promise.all([repo.applyImport(payload,key,actor),repo.applyImport(payload,key,actor)]);expect([a.replayed,b.replayed].sort()).toEqual([false,true]);requestIds.push(...a.response.purchaseRequestIds);expect(Number((await db.query('select count(*) from public.pedidos_compra where lugar_envio_alias=$1',[marker])).rows[0].count)).toBe(before+1);await expect(repo.applyImport({...payload,orders:[{...payload.orders[0],items:[{articuloId:article,cantidad:3}]}]},key,actor)).rejects.toMatchObject({status:409})})
++ it('rolls back OC and warehouse headers when an item insert fails',async()=>{const alias=`${marker}-rollback-header`;await expect(repo.createOrder({empresaId:company,proveedorId:supplier,clienteId:client,lugarEnvioAlias:alias,items:[{articuloId:article,cantidad:1,precioUnitario:10,observaciones:'bad\u0000item'}]},actor)).rejects.toBeTruthy();expect(Number((await db.query('select count(*) from public.ordenes_compra where lugar_envio_alias=$1',[alias])).rows[0].count)).toBe(0);const source=await repo.saveRequest(input(1),actor);requestIds.push(String(source.id));await repo.transition('pedidos_compra',String(source.id),'enviada');const key=`${marker}-dep-rollback`;keys.push(key);await expect(repo.applyAssignments(String(source.id),{lugarEnvioAlias:alias,items:[{pedidoCompraItemId:String((source.pedidos_compra_items[0] as {id:string}).id),destino:'deposito',cantidad:1,observaciones:'bad\u0000item'}]},key,actor)).rejects.toBeTruthy();expect(Number((await db.query('select count(*) from public.pedidos_deposito where lugar_envio_alias=$1',[alias])).rows[0].count)).toBe(0)})
++ it('rolls back the complete import after a later item failure',async()=>{const alias=`${marker}-import-rollback`,payload={empresaId:company,orders:[{clienteId:client,lugarEnvioAlias:alias,items:[{articuloId:article,cantidad:1}]},{clienteId:client,lugarEnvioAlias:`${alias}-2`,items:[{articuloId:article,cantidad:1,observaciones:'bad\u0000item'}]}]};const key=`${marker}-import-rollback`;keys.push(key);await expect(repo.applyImport(payload,key,actor)).rejects.toBeTruthy();expect(Number((await db.query('select count(*) from public.pedidos_compra where lugar_envio_alias like $1',[`${alias}%`])).rows[0].count)).toBe(0)})
++})
+diff --git a/evidencia/phase4c-final-corrections-tests.txt b/evidencia/phase4c-final-corrections-tests.txt
+new file mode 100644
+index 0000000..5e836ef
+--- /dev/null
++++ b/evidencia/phase4c-final-corrections-tests.txt
+@@ -0,0 +1,18 @@
++FASE 4C — CORRECCIONES FINALES / TESTS
++
++PASS
++- Integración PostgreSQL real: 2 archivos, 12 tests PASS, 1 skip explícito.
++- Incluye atomicidad/rollback de pedidos, import, OC y depósito; locking de asignaciones; sobreasignación; idempotencia; numeración concurrente; state machine.
++- DB validation: 4 tests PASS.
++- PostgREST/RLS real: 1 test PASS.
++- HTTP/RBAC/OpenAPI/migration tests incluidos en suite API: PASS.
++- `npm run lint --prefix apps/api`: PASS.
++- `npm run typecheck --prefix apps/api`: PASS.
++- `npm run build --prefix apps/api`: PASS.
++- `npm test --prefix apps/api`: PASS — 37 files, 235 passed, 58 skipped.
++- `npm run lint`: PASS.
++- `npx tsc --noEmit`: PASS (ejecutado después del build para evitar carrera sobre `.next/types`).
++- `npx next build --webpack`: PASS.
++- `git diff --check`: PASS.
++
++No hay tests 4C críticos marcados como NOT_EXECUTED.
+diff --git a/evidencia/phase4c-final-corrections-validation.md b/evidencia/phase4c-final-corrections-validation.md
+new file mode 100644
+index 0000000..601c3d4
+--- /dev/null
++++ b/evidencia/phase4c-final-corrections-validation.md
+@@ -0,0 +1,9 @@
++# Correcciones finales Fase 4C
++
++Se restauró la documentación histórica de Fase 0/Fase 1, `docs/migrations-deployment.md` y toda la evidencia `phase4b-suppliers-articles-*`. No se eliminó documentación previa como parte de las correcciones.
++
++La integración real ampliada terminó correctamente: 12 tests PASS y 1 skip explícito. El skip corresponde al test PostgREST del conjunto combinado, que se ejecutó separadamente con `.env.local` y pasó 1/1.
++
++Validaciones de aplicación, frontend, DB, RLS, RBAC, rollback, concurrencia e idempotencia: PASS según `phase4c-final-corrections-tests.txt`.
++
++No se avanzó a Fase 4D ni se declarara cierre de 4C.
+diff --git a/evidencia/phase4c-purchases-db-validation.txt b/evidencia/phase4c-purchases-db-validation.txt
+new file mode 100644
+index 0000000..ffd5740
+--- /dev/null
++++ b/evidencia/phase4c-purchases-db-validation.txt
+@@ -0,0 +1,10 @@
++Validación DB final 4C
++
++PASS
++- `purchases-db-validation.integration.test.ts`: 4/4.
++- Migraciones 4C registradas con checksum; constraints, FK, CHECK, índices, triggers/secuencias e idempotencia verificados.
++- RLS habilitado; DML autenticado directo por PostgREST denegado.
++- Grants mínimos de `dinamic_api` verificados.
++- `postgrest-phase4c-rls.negative.test.ts`: 1/1 con usuarios authenticated reales.
++
++No se incluyen secretos ni URLs de conexión.
+diff --git a/evidencia/phase4c-purchases-direct-access.txt b/evidencia/phase4c-purchases-direct-access.txt
+new file mode 100644
+index 0000000..645bf04
+--- /dev/null
++++ b/evidencia/phase4c-purchases-direct-access.txt
+@@ -0,0 +1,11 @@
++Auditoría final de acceso directo 4C
++
++MIGRADO
++- Pedidos, items, asignaciones, OC, items OC, depósito e items depósito: mutaciones únicamente por API tipada/backend.
++- Las pantallas 4C consumen endpoints de catálogos 4A/4B; no hacen `.from(...).insert/update/delete/upsert` sobre Supabase.
++
++LOCAL/NO AUTORITATIVO
++- Utilidades de presentación como `Array.from` no son acceso a persistencia.
++
++DEFECTO
++- No se encontró escritura browser directa 4C en la auditoría final.
+diff --git a/evidencia/phase4c-purchases-e2e-matrix.md b/evidencia/phase4c-purchases-e2e-matrix.md
+new file mode 100644
+index 0000000..cf29425
+--- /dev/null
++++ b/evidencia/phase4c-purchases-e2e-matrix.md
+@@ -0,0 +1,16 @@
++# Fase 4C — Matriz E2E final
++
++| Funcionalidad | Frontend | API Client | Endpoint | Service | Repository | DB | Test ejecutado |
++|---|---|---|---|---|---|---|---|
++| Pedido list/detail/create/edit | páginas 4C | generado | `/v1/purchase-requests` | purchases-service | purchases-repository | PostgreSQL | PASS — `purchases-http.test.ts`, integración PostgreSQL |
++| Items de pedido | formularios 4C | generado | create/update request | purchases-service | purchases-repository | transacción | PASS — integración PostgreSQL: rollback de edición |
++| Import preview | importar | generado | `/import/preview` | purchases-service | purchases-repository | read-only | PASS — integración PostgreSQL |
++| Import apply | importar | generado | `/import/apply` | purchases-service | purchases-repository | idempotencia/transacción | PASS — integración PostgreSQL: apply + rollback |
++| Asignaciones | panel-compras | generado | `/assignments` | purchases-service | purchases-repository | locking/checks | PASS — integración PostgreSQL: concurrencia y sobreasignación |
++| OC list/detail/generate | órdenes-compra | generado | `/purchase-orders` | purchases-service | purchases-repository | PostgreSQL | PASS — integración PostgreSQL |
++| OC items | formulario OC | generado | create/generate OC | purchases-service | purchases-repository | transacción | PASS — integración PostgreSQL: rollback de items |
++| OC estados | botón de estado | generado | purchase-order transition | purchases-service | purchases-repository | `FOR UPDATE`/state machine | PASS — integración PostgreSQL |
++| Depósito list/detail/generate | pedidos-deposito | generado | `/warehouse-orders` | purchases-service | purchases-repository | PostgreSQL | PASS — integración PostgreSQL |
++| Depósito items | formulario depósito | generado | generate/duplicate warehouse | purchases-service | purchases-repository | transacción | PASS — integración PostgreSQL: rollback de items |
++| Depósito estados | botón de estado | generado | warehouse transition | purchases-service | purchases-repository | `FOR UPDATE`/state machine | PASS — integración PostgreSQL |
++| Catálogos 4A/4B | pantallas 4C | generado | catalogs endpoints | purchases-service | catálogo repos | PostgreSQL | PASS — DB validation + HTTP/RBAC |
+diff --git a/evidencia/phase4c-purchases-state-machines.md b/evidencia/phase4c-purchases-state-machines.md
+new file mode 100644
+index 0000000..cd0a0e8
+--- /dev/null
++++ b/evidencia/phase4c-purchases-state-machines.md
+@@ -0,0 +1,13 @@
++# Fase 4C — State machines finales
++
++| Entidad / origen | Acción | Destino | Validación backend | Permiso | Test final |
++|---|---|---|---|---|---|
++| Pedido `borrador` | enviar | `enviada` | estado actual e items válidos; transición protegida en transacción | `purchase_requests:write` | PASS — PostgreSQL integration |
++| Pedido `enviada` | editar | rechazado | sólo pedidos en borrador son editables | `purchase_requests:write` | PASS — HTTP/integration |
++| Pedido `enviada` | generar asignaciones/OC | OC/depósito `borrador` | pedido bloqueado y asignaciones validadas | `assignments:write` / `purchase_orders:write` | PASS — PostgreSQL integration |
++| OC `borrador` | enviar | `enviada` | transición exacta validada bajo `FOR UPDATE` | `purchase_orders:write` | PASS — PostgreSQL integration |
++| OC `enviada` | recepcionar | `recepcionada` | transición exacta validada bajo `FOR UPDATE` | `purchase_orders:write` | PASS — PostgreSQL integration |
++| Depósito `borrador` | enviar | `enviada` | transición exacta validada bajo `FOR UPDATE` | `warehouse_orders:write` | PASS — PostgreSQL integration |
++| Depósito `enviada` | recepcionar | `recepcionada` | transición exacta validada bajo `FOR UPDATE` | `warehouse_orders:write` | PASS — PostgreSQL integration |
++
++Las transiciones inválidas, retrocesos, repeticiones y estados desconocidos son rechazados por el backend. El CHECK de `pedidos_compra` admite `recepcionada`, pero no existe acción funcional 4C que produzca esa transición y no se agrega.
+diff --git a/evidencia/phase4c-purchases-tests.txt b/evidencia/phase4c-purchases-tests.txt
+new file mode 100644
+index 0000000..9c805c4
+--- /dev/null
++++ b/evidencia/phase4c-purchases-tests.txt
+@@ -0,0 +1,4 @@
++Evidencia histórica 4C conservada.
++
++La validación final se encuentra en `phase4c-final-corrections-tests.txt`.
++Estado actualizado: PASS para las suites ejecutadas; no se declara cierre de Fase 4C.
+diff --git a/evidencia/phase4c-purchases-validation.md b/evidencia/phase4c-purchases-validation.md
+new file mode 100644
+index 0000000..d9500f1
+--- /dev/null
++++ b/evidencia/phase4c-purchases-validation.md
+@@ -0,0 +1,3 @@
++# Validación histórica 4C
++
++La evidencia final y los resultados corregidos están en `phase4c-final-corrections-validation.md` y `phase4c-final-corrections-tests.txt`.
+diff --git a/scripts/apply-forward-migrations.sh b/scripts/apply-forward-migrations.sh
+index 262e85a..b600a5d 100755
+--- a/scripts/apply-forward-migrations.sh
++++ b/scripts/apply-forward-migrations.sh
+@@ -3,6 +3,18 @@ set -euo pipefail
+ 
+ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ FORWARD_DIR="${ROOT}/supabase/migrations/forward"
++ONLY_FILE=""
++
++if [[ "${1:-}" == "--only" ]]; then
++  [[ $# -eq 2 ]] || { echo "Usage: $0 [--only migration.sql]" >&2; exit 2; }
++  ONLY_FILE="$2"
++  [[ "$ONLY_FILE" =~ ^[A-Za-z0-9._-]+\.sql$ && "$ONLY_FILE" != *.rollback.sql ]] || {
++    echo "ERROR: invalid migration filename" >&2; exit 2;
++  }
++elif [[ $# -ne 0 ]]; then
++  echo "Usage: $0 [--only migration.sql]" >&2
++  exit 2
++fi
+ 
+ # CI/CD must inject MIGRATIONS_DATABASE_URL as a deployment-only secret. For
+ # local development, read only that exact key from apps/api/.env when it was
+@@ -53,4 +65,12 @@ while IFS= read -r file; do
+   echo "Applying $name"
+   { echo 'begin;'; cat "$file"; printf "\ninsert into app_migrations.forward_history(filename,checksum) values ('%s','%s');\ncommit;\n" "$name" "$checksum"; } |
+     psql "$MIGRATIONS_DATABASE_URL" -v ON_ERROR_STOP=1 >/dev/null
+-done < <(find "$FORWARD_DIR" -maxdepth 1 -type f -name '*.sql' ! -name '*.rollback.sql' | LC_ALL=C sort)
++done < <(
++  if [[ -n "$ONLY_FILE" ]]; then
++    target="${FORWARD_DIR}/${ONLY_FILE}"
++    [[ -f "$target" ]] || { echo "ERROR: migration not found: $ONLY_FILE" >&2; exit 2; }
++    printf '%s\n' "$target"
++  else
++    find "$FORWARD_DIR" -maxdepth 1 -type f -name '*.sql' ! -name '*.rollback.sql' | LC_ALL=C sort
++  fi
++)
+diff --git a/src/app/ordenes-compra/[id]/page.tsx b/src/app/ordenes-compra/[id]/page.tsx
+index bb87369..8c6950f 100644
+--- a/src/app/ordenes-compra/[id]/page.tsx
++++ b/src/app/ordenes-compra/[id]/page.tsx
+@@ -1,4 +1,4 @@
+-import { createClient } from '@/utils/supabase/server'
++import { createAuthenticatedServerApiClient } from '@/lib/api/server'
+ import Link from 'next/link'
+ import OrdenCompraDetalle from '@/components/OrdenCompraDetalle'
+ import type { OrdenCompraDetalleView } from '@/types/compras'
+@@ -9,15 +9,7 @@ export default async function OrdenCompraDetallePage({
+   params: Promise<{ id: string }>
+ }) {
+   const { id } = await params
+-  const supabase = await createClient()
+-
+-  const { data: orden } = await supabase
+-    .from('ordenes_compra')
+-    .select(
+-      '*, empresas(*), proveedores(id, razon_social, domicilio, provincia, condicion_pago_default), clientes(id, nombre), ordenes_compra_items(*, articulos(id, codigo_interno, nombre, unidad, categoria)), pedidos_compra(numero_pedido)'
+-    )
+-    .eq('id', id)
+-    .single()
++  const orden=await (await createAuthenticatedServerApiClient()).getPurchaseOrder(id).catch(()=>null)
+ 
+   if (!orden) {
+     return (
+@@ -30,25 +22,7 @@ export default async function OrdenCompraDetallePage({
+     )
+   }
+ 
+-  // Código que el proveedor de esta OC usa para cada artículo. No es un join
+-  // real (articulos_proveedor no tiene FK hacia ordenes_compra_items): se
+-  // resuelve con una consulta aparte filtrada por el proveedor_id de la OC,
+-  // igual que preciosProveedor en OrdenCompraForm.
+-  const articuloIds = (orden.ordenes_compra_items ?? []).map((i: { articulo_id: string }) => i.articulo_id)
+-  const { data: codigosProveedor } = await supabase
+-    .from('articulos_proveedor')
+-    .select('articulo_id, codigo_proveedor')
+-    .eq('proveedor_id', orden.proveedor_id)
+-    .in('articulo_id', articuloIds)
+-  const codigoPorArticulo = new Map((codigosProveedor ?? []).map((c) => [c.articulo_id, c.codigo_proveedor]))
+-
+-  const ordenView = {
+-    ...orden,
+-    ordenes_compra_items: (orden.ordenes_compra_items ?? []).map((i: { articulo_id: string }) => ({
+-      ...i,
+-      codigo_proveedor: codigoPorArticulo.get(i.articulo_id) ?? null,
+-    })),
+-  } as unknown as OrdenCompraDetalleView
++  const ordenView = orden as unknown as OrdenCompraDetalleView
+ 
+   return (
+     <div className="max-w-4xl mx-auto px-6 py-10 print:px-0 print:py-0 print:max-w-none">
+diff --git a/src/app/ordenes-compra/imprimir/page.tsx b/src/app/ordenes-compra/imprimir/page.tsx
+index 7429ca0..4618398 100644
+--- a/src/app/ordenes-compra/imprimir/page.tsx
++++ b/src/app/ordenes-compra/imprimir/page.tsx
+@@ -1,4 +1,4 @@
+-import { createClient } from '@/utils/supabase/server'
++import { createAuthenticatedServerApiClient } from '@/lib/api/server'
+ import Link from 'next/link'
+ import ImprimirOrdenesCompraLote from '@/components/ImprimirOrdenesCompraLote'
+ import type { OrdenCompraDetalleView } from '@/types/compras'
+@@ -22,42 +22,8 @@ export default async function ImprimirOrdenesCompraPage({
+     )
+   }
+ 
+-  const supabase = await createClient()
+-  const { data: ordenes } = await supabase
+-    .from('ordenes_compra')
+-    .select(
+-      '*, empresas(*), proveedores(id, razon_social, domicilio, provincia, condicion_pago_default), clientes(id, nombre), ordenes_compra_items(*, articulos(id, codigo_interno, nombre, unidad, categoria)), pedidos_compra(numero_pedido)'
+-    )
+-    .in('id', ids)
+-
+-  // Código que cada proveedor usa para cada artículo (ver comentario
+-  // análogo en ordenes-compra/[id]/page.tsx). Acá puede haber varios
+-  // proveedores a la vez (una OC por fila seleccionada), por eso se busca
+-  // por par proveedor+artículo en vez de un único proveedor_id.
+-  const proveedorIds = [...new Set((ordenes ?? []).map((o) => o.proveedor_id))]
+-  const articuloIds = [
+-    ...new Set((ordenes ?? []).flatMap((o) => (o.ordenes_compra_items ?? []).map((i: { articulo_id: string }) => i.articulo_id))),
+-  ]
+-  const { data: codigosProveedor } = await supabase
+-    .from('articulos_proveedor')
+-    .select('articulo_id, proveedor_id, codigo_proveedor')
+-    .in('proveedor_id', proveedorIds)
+-    .in('articulo_id', articuloIds)
+-  const codigoPorProveedorYArticulo = new Map(
+-    (codigosProveedor ?? []).map((c) => [`${c.proveedor_id}_${c.articulo_id}`, c.codigo_proveedor])
+-  )
+-
+-  // Se reordena según el orden de `ids` (el orden en que se tildaron en el
+-  // listado), ya que `.in()` no garantiza devolver las filas en ese orden.
+-  const ordenesConCodigo = (ordenes ?? []).map((o) => ({
+-    ...o,
+-    ordenes_compra_items: (o.ordenes_compra_items ?? []).map((i: { articulo_id: string }) => ({
+-      ...i,
+-      codigo_proveedor: codigoPorProveedorYArticulo.get(`${o.proveedor_id}_${i.articulo_id}`) ?? null,
+-    })),
+-  }))
+-  const mapa = new Map(ordenesConCodigo.map((o) => [o.id, o]))
+-  const ordenadas = ids.map((id) => mapa.get(id)).filter((o): o is NonNullable<typeof o> => Boolean(o))
++  const api=await createAuthenticatedServerApiClient()
++  const ordenadas=(await Promise.all(ids.map(id=>api.getPurchaseOrder(id).catch(()=>null)))).filter((o):o is NonNullable<typeof o>=>Boolean(o))
+ 
+   const fechaCompacta = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+ 
+diff --git a/src/app/ordenes-compra/nuevo/page.tsx b/src/app/ordenes-compra/nuevo/page.tsx
+index 383c062..5ea40df 100644
+--- a/src/app/ordenes-compra/nuevo/page.tsx
++++ b/src/app/ordenes-compra/nuevo/page.tsx
+@@ -1,24 +1,9 @@
+-import { createClient } from '@/utils/supabase/server'
++import { createAuthenticatedServerApiClient } from '@/lib/api/server'
+ import Link from 'next/link'
+ import OrdenCompraForm from '@/components/OrdenCompraForm'
+ 
+ export default async function NuevaOrdenCompraPage() {
+-  const supabase = await createClient()
+-  const [
+-    { data: empresas },
+-    { data: proveedores },
+-    { data: clientes },
+-    { data: articulos },
+-    { data: preciosProveedor },
+-    { data: domicilios },
+-  ] = await Promise.all([
+-    supabase.from('empresas').select('id, nombre, domicilio').eq('activo', true).order('nombre'),
+-    supabase.from('proveedores').select('id, razon_social, domicilio, provincia, condicion_pago_default').eq('activo', true).order('razon_social'),
+-    supabase.from('clientes').select('id, nombre').order('nombre'),
+-    supabase.from('articulos').select('id, codigo_interno, nombre, unidad, categoria, proveedor_habitual_id').eq('activo', true).order('nombre'),
+-    supabase.from('articulos_proveedor').select('articulo_id, proveedor_id, precio').eq('activo', true),
+-    supabase.from('cliente_domicilios').select('id, cliente_id, alias, direccion, es_principal, activo, horario_atencion').eq('activo', true).order('alias'),
+-  ])
++  const {empresas,proveedores,clientes,articulos,preciosProveedor,domicilios}=await(await createAuthenticatedServerApiClient()).getPurchaseCatalogs()
+ 
+   return (
+     <div className="max-w-4xl mx-auto px-6 py-10">
+@@ -27,12 +12,7 @@ export default async function NuevaOrdenCompraPage() {
+       </Link>
+       <h1 className="text-2xl font-bold text-slate-900 mb-6">Nueva orden de compra</h1>
+       <OrdenCompraForm
+-        empresas={empresas ?? []}
+-        proveedores={proveedores ?? []}
+-        clientes={clientes ?? []}
+-        articulos={articulos ?? []}
+-        preciosProveedor={preciosProveedor ?? []}
+-        domicilios={domicilios ?? []}
++        empresas={empresas} proveedores={proveedores} clientes={clientes} articulos={articulos} preciosProveedor={preciosProveedor} domicilios={domicilios}
+       />
+     </div>
+   )
+diff --git a/src/app/ordenes-compra/page.tsx b/src/app/ordenes-compra/page.tsx
+index cac212e..b8f2225 100644
+--- a/src/app/ordenes-compra/page.tsx
++++ b/src/app/ordenes-compra/page.tsx
+@@ -1,19 +1,10 @@
+ import type { ComponentProps } from 'react'
+-import { createClient } from '@/utils/supabase/server'
++import { createAuthenticatedServerApiClient } from '@/lib/api/server'
+ import Link from 'next/link'
+ import OrdenesCompraTabla from '@/components/OrdenesCompraTabla'
+ 
+ export default async function OrdenesCompraPage() {
+-  const supabase = await createClient()
+-  const [{ data: ordenes }, { data: clientes }, { data: empresas }, { data: proveedores }] = await Promise.all([
+-    supabase
+-      .from('ordenes_compra')
+-      .select('*, empresas(nombre), proveedores(razon_social), clientes(nombre)')
+-      .order('fecha', { ascending: false }),
+-    supabase.from('clientes').select('id, nombre').order('nombre'),
+-    supabase.from('empresas').select('*').order('nombre'),
+-    supabase.from('proveedores').select('id, razon_social, domicilio, provincia, condicion_pago_default').order('razon_social'),
+-  ])
++  const api=await createAuthenticatedServerApiClient();const [ordenes,catalogs]=await Promise.all([api.listPurchaseOrders(),api.getPurchaseCatalogs()])
+ 
+   return (
+     <div className="max-w-5xl mx-auto px-6 py-10">
+@@ -27,10 +18,8 @@ export default async function OrdenesCompraPage() {
+         </Link>
+       </div>
+       <OrdenesCompraTabla
+-        ordenes={(ordenes ?? []) as ComponentProps<typeof OrdenesCompraTabla>['ordenes']}
+-        clientes={clientes ?? []}
+-        empresas={empresas ?? []}
+-        proveedores={proveedores ?? []}
++        ordenes={ordenes as ComponentProps<typeof OrdenesCompraTabla>['ordenes']}
++        clientes={catalogs.clientes} empresas={catalogs.empresas} proveedores={catalogs.proveedores}
+       />
+     </div>
+   )
+diff --git a/src/app/panel-compras/[id]/page.tsx b/src/app/panel-compras/[id]/page.tsx
+index 4b9ce99..20033b9 100644
+--- a/src/app/panel-compras/[id]/page.tsx
++++ b/src/app/panel-compras/[id]/page.tsx
+@@ -1,4 +1,4 @@
+-import { createClient } from '@/utils/supabase/server'
++import { createAuthenticatedServerApiClient } from '@/lib/api/server'
+ import Link from 'next/link'
+ import PanelComprasAsignacion from '@/components/PanelComprasAsignacion'
+ import type { LineaPendiente, PedidoCompraItemConArticulo } from '@/types/compras'
+@@ -9,15 +9,8 @@ export default async function PanelComprasDetallePage({
+   params: Promise<{ id: string }>
+ }) {
+   const { id } = await params
+-  const supabase = await createClient()
+-
+-  const { data: pedido } = await supabase
+-    .from('pedidos_compra')
+-    .select(
+-      '*, empresas(id, nombre, cuit, domicilio), clientes(id, nombre), pedidos_compra_items(*, articulos(id, codigo_interno, nombre, unidad, proveedor_habitual_id))'
+-    )
+-    .eq('id', id)
+-    .single()
++  const api=await createAuthenticatedServerApiClient()
++  const pedido=await api.getPurchaseRequest(id).catch(()=>null) as unknown as (import('@/types/compras').PedidoCompraDetalleView|null)
+ 
+   if (!pedido) {
+     return (
+@@ -44,43 +37,12 @@ export default async function PanelComprasDetallePage({
+   }
+ 
+   const items = (pedido.pedidos_compra_items ?? []) as PedidoCompraItemConArticulo[]
+-  const itemIds = items.map((i) => i.id)
+-  const articuloIds = [...new Set(items.map((i) => i.articulo_id))]
+-
+-  const [{ data: filasOc }, { data: filasDeposito }, { data: proveedores }, { data: preciosProveedor }, { data: domiciliosCliente }] =
+-    await Promise.all([
+-      itemIds.length > 0
+-        ? supabase.from('ordenes_compra_items').select('pedido_compra_item_id, cantidad').in('pedido_compra_item_id', itemIds)
+-        : Promise.resolve({ data: [] as { pedido_compra_item_id: string | null; cantidad: number }[] }),
+-      itemIds.length > 0
+-        ? supabase.from('pedidos_deposito_items').select('pedido_compra_item_id, cantidad').in('pedido_compra_item_id', itemIds)
+-        : Promise.resolve({ data: [] as { pedido_compra_item_id: string | null; cantidad: number }[] }),
+-      supabase.from('proveedores').select('id, razon_social, domicilio, provincia, condicion_pago_default').eq('activo', true).order('razon_social'),
+-      articuloIds.length > 0
+-        ? supabase.from('articulos_proveedor').select('articulo_id, proveedor_id, precio').eq('activo', true).in('articulo_id', articuloIds)
+-        : Promise.resolve({ data: [] as { articulo_id: string; proveedor_id: string; precio: number }[] }),
+-      supabase
+-        .from('cliente_domicilios')
+-        .select('id, cliente_id, alias, direccion, es_principal, activo, horario_atencion')
+-        .eq('cliente_id', pedido.cliente_id)
+-        .eq('activo', true)
+-        .order('alias'),
+-    ])
+-
+-  const asignadoOc = new Map<string, number>()
+-  for (const fila of filasOc ?? []) {
+-    if (!fila.pedido_compra_item_id) continue
+-    asignadoOc.set(fila.pedido_compra_item_id, (asignadoOc.get(fila.pedido_compra_item_id) ?? 0) + fila.cantidad)
+-  }
+-  const asignadoDeposito = new Map<string, number>()
+-  for (const fila of filasDeposito ?? []) {
+-    if (!fila.pedido_compra_item_id) continue
+-    asignadoDeposito.set(fila.pedido_compra_item_id, (asignadoDeposito.get(fila.pedido_compra_item_id) ?? 0) + fila.cantidad)
+-  }
++  const catalogs=await api.getPurchaseCatalogs()
+ 
+   const lineas: LineaPendiente[] = items.map((i) => {
+-    const oc = asignadoOc.get(i.id) ?? 0
+-    const dep = asignadoDeposito.get(i.id) ?? 0
++    const assigned=i as typeof i&{cantidad_asignada_oc:number;cantidad_asignada_deposito:number}
++    const oc = Number(assigned.cantidad_asignada_oc??0)
++    const dep = Number(assigned.cantidad_asignada_deposito??0)
+     return {
+       ...i,
+       cantidad_asignada_oc: oc,
+@@ -116,11 +78,11 @@ export default async function PanelComprasDetallePage({
+         clienteId={pedido.cliente_id}
+         empresaNombre={pedido.empresas?.nombre ?? null}
+         empresaDomicilio={pedido.empresas?.domicilio ?? null}
+-        domicilios={domiciliosCliente ?? []}
++        domicilios={catalogs.domicilios.filter(d=>d.cliente_id===pedido.cliente_id)}
+         lugarEnvioDefault={lugarEnvioDefault}
+         lineas={lineas}
+-        proveedores={proveedores ?? []}
+-        preciosProveedor={preciosProveedor ?? []}
++        proveedores={catalogs.proveedores}
++        preciosProveedor={catalogs.preciosProveedor}
+       />
+     </div>
+   )
+diff --git a/src/app/panel-compras/page.tsx b/src/app/panel-compras/page.tsx
+index 1d8e2c3..592492e 100644
+--- a/src/app/panel-compras/page.tsx
++++ b/src/app/panel-compras/page.tsx
+@@ -1,64 +1,9 @@
+-import { createClient } from '@/utils/supabase/server'
++import { createAuthenticatedServerApiClient } from '@/lib/api/server'
+ import PedidosEnviadosTabla from '@/components/PedidosEnviadosTabla'
+ import type { PedidoEnviado } from '@/types/compras'
+ 
+ export default async function PanelComprasPage() {
+-  const supabase = await createClient()
+-  const [{ data: pedidos }, { data: perfiles }] = await Promise.all([
+-    supabase
+-      .from('pedidos_compra')
+-      .select('*, empresas(nombre), clientes(nombre)')
+-      .eq('estado', 'enviada')
+-      .order('created_at', { ascending: false }),
+-    // perfiles no tiene FK declarada hacia pedidos_compra: se resuelve
+-    // nombre_completo armando este Map en vez de un join real de Supabase.
+-    supabase.from('perfiles').select('id, nombre_completo'),
+-  ])
+-  const nombrePorId = new Map((perfiles ?? []).map((p) => [p.id, p.nombre_completo]))
+-
+-  const pedidoIds = (pedidos ?? []).map((p) => p.id)
+-
+-  const { data: items } = pedidoIds.length > 0
+-    ? await supabase
+-        .from('pedidos_compra_items')
+-        .select('id, pedido_id, cantidad, descartada')
+-        .in('pedido_id', pedidoIds)
+-    : { data: [] as { id: string; pedido_id: string; cantidad: number; descartada: boolean }[] }
+-
+-  const itemIds = (items ?? []).map((i) => i.id)
+-
+-  const [{ data: filasOc }, { data: filasDeposito }] = await Promise.all([
+-    itemIds.length > 0
+-      ? supabase.from('ordenes_compra_items').select('pedido_compra_item_id, cantidad').in('pedido_compra_item_id', itemIds)
+-      : Promise.resolve({ data: [] as { pedido_compra_item_id: string | null; cantidad: number }[] }),
+-    itemIds.length > 0
+-      ? supabase.from('pedidos_deposito_items').select('pedido_compra_item_id, cantidad').in('pedido_compra_item_id', itemIds)
+-      : Promise.resolve({ data: [] as { pedido_compra_item_id: string | null; cantidad: number }[] }),
+-  ])
+-
+-  // Acá no hace falta separar OC de depósito (a diferencia del detalle): el
+-  // listado solo necesita saber si cada línea ya quedó totalmente asignada.
+-  const asignado = new Map<string, number>()
+-  for (const fila of [...(filasOc ?? []), ...(filasDeposito ?? [])]) {
+-    if (!fila.pedido_compra_item_id) continue
+-    asignado.set(fila.pedido_compra_item_id, (asignado.get(fila.pedido_compra_item_id) ?? 0) + fila.cantidad)
+-  }
+-
+-  const itemsPorPedido = new Map<string, { id: string; cantidad: number; descartada: boolean }[]>()
+-  for (const i of items ?? []) {
+-    itemsPorPedido.set(i.pedido_id, [...(itemsPorPedido.get(i.pedido_id) ?? []), i])
+-  }
+-
+-  // Un pedido está "procesado" cuando tiene al menos una línea y todas están
+-  // descartadas o completamente asignadas. Un pedido sin líneas (anomalía de
+-  // datos) queda "pendiente" a propósito, para no desaparecer sin revisión.
+-  const pedidosConEstado: PedidoEnviado[] = (pedidos ?? []).map((p) => {
+-    const itemsDelPedido = itemsPorPedido.get(p.id) ?? []
+-    const procesado =
+-      itemsDelPedido.length > 0 &&
+-      itemsDelPedido.every((i) => i.descartada || i.cantidad - (asignado.get(i.id) ?? 0) <= 0)
+-    return { ...p, procesado, creado_por_nombre: nombrePorId.get(p.creado_por) ?? null }
+-  })
++  const pedidosConEstado=(await (await createAuthenticatedServerApiClient()).listPurchaseRequests()).filter(p=>p.estado==='enviada') as unknown as PedidoEnviado[]
+ 
+   return (
+     <div className="max-w-5xl mx-auto px-6 py-10">
+diff --git a/src/app/pedidos-compra/[id]/page.tsx b/src/app/pedidos-compra/[id]/page.tsx
+index 516f043..81951de 100644
+--- a/src/app/pedidos-compra/[id]/page.tsx
++++ b/src/app/pedidos-compra/[id]/page.tsx
+@@ -1,4 +1,4 @@
+-import { createClient } from '@/utils/supabase/server'
++import { createAuthenticatedServerApiClient } from '@/lib/api/server'
+ import Link from 'next/link'
+ import PedidoCompraForm from '@/components/PedidoCompraForm'
+ import PedidoCompraDetalle from '@/components/PedidoCompraDetalle'
+@@ -11,15 +11,8 @@ export default async function PedidoCompraDetallePage({
+   params: Promise<{ id: string }>
+ }) {
+   const { id } = await params
+-  const supabase = await createClient()
+-
+-  const { data: pedido } = await supabase
+-    .from('pedidos_compra')
+-    .select(
+-      '*, empresas(*), clientes(id, nombre), cliente_domicilios(alias, direccion), pedidos_compra_items(*, articulos(id, codigo_interno, nombre, unidad, categoria, proveedor_habitual_id))'
+-    )
+-    .eq('id', id)
+-    .single()
++  const api=await createAuthenticatedServerApiClient()
++  const pedido=await api.getPurchaseRequest(id).catch(()=>null)
+ 
+   if (!pedido) {
+     return (
+@@ -35,12 +28,7 @@ export default async function PedidoCompraDetallePage({
+   const pedidoView = pedido as unknown as PedidoCompraDetalleView
+ 
+   if (pedidoView.estado === 'borrador') {
+-    const [{ data: empresas }, { data: clientes }, { data: articulos }, { data: domicilios }] = await Promise.all([
+-      supabase.from('empresas').select('id, nombre, domicilio').eq('activo', true).order('nombre'),
+-      supabase.from('clientes').select('id, nombre').order('nombre'),
+-      supabase.from('articulos').select('id, codigo_interno, nombre, unidad, categoria, proveedor_habitual_id').eq('activo', true).order('nombre'),
+-      supabase.from('cliente_domicilios').select('id, cliente_id, alias, direccion, es_principal, activo, horario_atencion').eq('activo', true).order('alias'),
+-    ])
++    const {empresas,clientes,articulos,domicilios}=await api.getPurchaseCatalogs()
+ 
+     return (
+       <div className="max-w-4xl mx-auto px-6 py-10 print:hidden">
+@@ -52,10 +40,7 @@ export default async function PedidoCompraDetallePage({
+           <EstadoBadge estado={pedidoView.estado} />
+         </div>
+         <PedidoCompraForm
+-          empresas={empresas ?? []}
+-          clientes={clientes ?? []}
+-          articulos={articulos ?? []}
+-          domicilios={domicilios ?? []}
++          empresas={empresas} clientes={clientes} articulos={articulos} domicilios={domicilios}
+           pedido={pedidoView}
+           items={pedidoView.pedidos_compra_items}
+         />
+diff --git a/src/app/pedidos-compra/importar/page.tsx b/src/app/pedidos-compra/importar/page.tsx
+index 8b56ec1..6aafb13 100644
+--- a/src/app/pedidos-compra/importar/page.tsx
++++ b/src/app/pedidos-compra/importar/page.tsx
+@@ -1,15 +1,9 @@
+-import { createClient } from '@/utils/supabase/server'
++import { createAuthenticatedServerApiClient } from '@/lib/api/server'
+ import Link from 'next/link'
+ import ImportarPedidosCompraMatriz from '@/components/ImportarPedidosCompraMatriz'
+ 
+ export default async function ImportarPedidosCompraPage() {
+-  const supabase = await createClient()
+-  const [{ data: empresas }, { data: clientes }, { data: articulos }, { data: domicilios }] = await Promise.all([
+-    supabase.from('empresas').select('id, nombre').eq('activo', true).order('nombre'),
+-    supabase.from('clientes').select('id, nombre').order('nombre'),
+-    supabase.from('articulos').select('id, codigo_interno, nombre, unidad, categoria, proveedor_habitual_id').eq('activo', true).order('nombre'),
+-    supabase.from('cliente_domicilios').select('id, cliente_id, alias, direccion, es_principal, activo, horario_atencion').eq('activo', true).order('alias'),
+-  ])
++  const {empresas,clientes,articulos,domicilios}=await (await createAuthenticatedServerApiClient()).getPurchaseCatalogs()
+ 
+   return (
+     <div className="max-w-4xl mx-auto px-6 py-10">
+@@ -18,10 +12,7 @@ export default async function ImportarPedidosCompraPage() {
+       </Link>
+       <h1 className="text-2xl font-bold text-slate-900 mb-6">Importar pedidos de compra (varios clientes)</h1>
+       <ImportarPedidosCompraMatriz
+-        empresas={empresas ?? []}
+-        clientes={clientes ?? []}
+-        articulos={articulos ?? []}
+-        domicilios={domicilios ?? []}
++        empresas={empresas} clientes={clientes} articulos={articulos} domicilios={domicilios}
+       />
+     </div>
+   )
+diff --git a/src/app/pedidos-compra/nuevo/page.tsx b/src/app/pedidos-compra/nuevo/page.tsx
+index aeb6d79..9fc0039 100644
+--- a/src/app/pedidos-compra/nuevo/page.tsx
++++ b/src/app/pedidos-compra/nuevo/page.tsx
+@@ -1,15 +1,9 @@
+-import { createClient } from '@/utils/supabase/server'
++import { createAuthenticatedServerApiClient } from '@/lib/api/server'
+ import Link from 'next/link'
+ import PedidoCompraForm from '@/components/PedidoCompraForm'
+ 
+ export default async function NuevoPedidoCompraPage() {
+-  const supabase = await createClient()
+-  const [{ data: empresas }, { data: clientes }, { data: articulos }, { data: domicilios }] = await Promise.all([
+-    supabase.from('empresas').select('id, nombre, domicilio').eq('activo', true).order('nombre'),
+-    supabase.from('clientes').select('id, nombre').order('nombre'),
+-    supabase.from('articulos').select('id, codigo_interno, nombre, unidad, categoria, proveedor_habitual_id').eq('activo', true).order('nombre'),
+-    supabase.from('cliente_domicilios').select('id, cliente_id, alias, direccion, es_principal, activo, horario_atencion').eq('activo', true).order('alias'),
+-  ])
++  const {empresas,clientes,articulos,domicilios}=await (await createAuthenticatedServerApiClient()).getPurchaseCatalogs()
+ 
+   return (
+     <div className="max-w-4xl mx-auto px-6 py-10">
+@@ -18,10 +12,7 @@ export default async function NuevoPedidoCompraPage() {
+       </Link>
+       <h1 className="text-2xl font-bold text-slate-900 mb-6">Nuevo pedido de compra</h1>
+       <PedidoCompraForm
+-        empresas={empresas ?? []}
+-        clientes={clientes ?? []}
+-        articulos={articulos ?? []}
+-        domicilios={domicilios ?? []}
++        empresas={empresas} clientes={clientes} articulos={articulos} domicilios={domicilios}
+       />
+     </div>
+   )
+diff --git a/src/app/pedidos-compra/page.tsx b/src/app/pedidos-compra/page.tsx
+index 1b0f8a4..2433866 100644
+--- a/src/app/pedidos-compra/page.tsx
++++ b/src/app/pedidos-compra/page.tsx
+@@ -1,27 +1,11 @@
+ import type { ComponentProps } from 'react'
+-import { createClient } from '@/utils/supabase/server'
++import { createAuthenticatedServerApiClient } from '@/lib/api/server'
+ import Link from 'next/link'
+ import PedidosCompraTabla from '@/components/PedidosCompraTabla'
+ 
+ export default async function PedidosCompraPage() {
+-  const supabase = await createClient()
+-  const [{ data: pedidos }, { data: clientes }, { data: empresas }, { data: perfiles }] = await Promise.all([
+-    supabase
+-      .from('pedidos_compra')
+-      .select('*, empresas(nombre), clientes(nombre)')
+-      .order('created_at', { ascending: false }),
+-    supabase.from('clientes').select('id, nombre').order('nombre'),
+-    supabase.from('empresas').select('*').order('nombre'),
+-    // perfiles no tiene FK declarada hacia pedidos_compra: se resuelve
+-    // nombre_completo armando este Map en vez de un join real de Supabase.
+-    supabase.from('perfiles').select('id, nombre_completo'),
+-  ])
+-
+-  const nombrePorId = new Map((perfiles ?? []).map((p) => [p.id, p.nombre_completo]))
+-  const pedidosConNombre = (pedidos ?? []).map((p) => ({
+-    ...p,
+-    creado_por_nombre: nombrePorId.get(p.creado_por) ?? null,
+-  }))
++  const api = await createAuthenticatedServerApiClient()
++  const [pedidos,catalogs] = await Promise.all([api.listPurchaseRequests(),api.getPurchaseCatalogs()])
+ 
+   return (
+     <div className="max-w-5xl mx-auto px-6 py-10">
+@@ -44,9 +28,9 @@ export default async function PedidosCompraPage() {
+       </div>
+ 
+       <PedidosCompraTabla
+-        pedidos={pedidosConNombre as ComponentProps<typeof PedidosCompraTabla>['pedidos']}
+-        clientes={clientes ?? []}
+-        empresas={empresas ?? []}
++        pedidos={pedidos as ComponentProps<typeof PedidosCompraTabla>['pedidos']}
++        clientes={catalogs.clientes}
++        empresas={catalogs.empresas}
+       />
+     </div>
+   )
+diff --git a/src/app/pedidos-deposito/[id]/page.tsx b/src/app/pedidos-deposito/[id]/page.tsx
+index 38450f1..a09a9cc 100644
+--- a/src/app/pedidos-deposito/[id]/page.tsx
++++ b/src/app/pedidos-deposito/[id]/page.tsx
+@@ -1,4 +1,4 @@
+-import { createClient } from '@/utils/supabase/server'
++import { createAuthenticatedServerApiClient } from '@/lib/api/server'
+ import Link from 'next/link'
+ import PedidoDepositoDetalle from '@/components/PedidoDepositoDetalle'
+ import type { PedidoDepositoDetalleView } from '@/types/compras'
+@@ -9,15 +9,7 @@ export default async function PedidoDepositoDetallePage({
+   params: Promise<{ id: string }>
+ }) {
+   const { id } = await params
+-  const supabase = await createClient()
+-
+-  const { data: pedido } = await supabase
+-    .from('pedidos_deposito')
+-    .select(
+-      '*, empresas(*), clientes(id, nombre), pedidos_deposito_items(*, articulos(id, codigo_interno, nombre, unidad, categoria, proveedor_habitual_id)), pedidos_compra(numero_pedido)'
+-    )
+-    .eq('id', id)
+-    .single()
++  const pedido=await (await createAuthenticatedServerApiClient()).getWarehouseRequest(id).catch(()=>null)
+ 
+   if (!pedido) {
+     return (
+@@ -30,40 +22,7 @@ export default async function PedidoDepositoDetallePage({
+     )
+   }
+ 
+-  // Precio de referencia por artículo (articulos_proveedor.precio del
+-  // proveedor habitual), solo para mostrar en pantalla: pedidos_deposito_items
+-  // no tiene precio_unitario porque no es una compra a un proveedor. Se
+-  // resuelve con una consulta aparte, igual que codigoPorArticulo en
+-  // ordenes-compra/[id]/page.tsx.
+-  type ItemDeposito = { articulo_id: string; articulos: { proveedor_habitual_id: string | null } | null }
+-  type ParProveedorArticulo = { proveedorId: string; articuloId: string }
+-  const paresProveedorArticulo: ParProveedorArticulo[] = (pedido.pedidos_deposito_items ?? [])
+-    .map((i: ItemDeposito) => ({ proveedorId: i.articulos?.proveedor_habitual_id ?? null, articuloId: i.articulo_id }))
+-    .filter((p: { proveedorId: string | null; articuloId: string }): p is ParProveedorArticulo => p.proveedorId !== null)
+-  const proveedorHabitualIds = [...new Set(paresProveedorArticulo.map((p: ParProveedorArticulo) => p.proveedorId))]
+-  const articuloIds = [...new Set(paresProveedorArticulo.map((p: ParProveedorArticulo) => p.articuloId))]
+-
+-  let precioPorArticulo = new Map<string, number>()
+-  if (proveedorHabitualIds.length > 0) {
+-    const { data: preciosProveedor } = await supabase
+-      .from('articulos_proveedor')
+-      .select('articulo_id, proveedor_id, precio')
+-      .in('proveedor_id', proveedorHabitualIds)
+-      .in('articulo_id', articuloIds)
+-    precioPorArticulo = new Map(
+-      (preciosProveedor ?? [])
+-        .filter((p) => paresProveedorArticulo.some((par: ParProveedorArticulo) => par.proveedorId === p.proveedor_id && par.articuloId === p.articulo_id))
+-        .map((p) => [p.articulo_id, p.precio])
+-    )
+-  }
+-
+-  const pedidoView = {
+-    ...pedido,
+-    pedidos_deposito_items: (pedido.pedidos_deposito_items ?? []).map((i: ItemDeposito & { articulo_id: string }) => ({
+-      ...i,
+-      precio_referencia: precioPorArticulo.get(i.articulo_id) ?? null,
+-    })),
+-  } as unknown as PedidoDepositoDetalleView
++  const pedidoView = pedido as unknown as PedidoDepositoDetalleView
+ 
+   return (
+     <div className="max-w-4xl mx-auto px-6 py-10 print:px-0 print:py-0 print:max-w-none">
+diff --git a/src/app/pedidos-deposito/page.tsx b/src/app/pedidos-deposito/page.tsx
+index f76c0ed..5cf0cfe 100644
+--- a/src/app/pedidos-deposito/page.tsx
++++ b/src/app/pedidos-deposito/page.tsx
+@@ -1,34 +1,16 @@
+ import type { ComponentProps } from 'react'
+-import { createClient } from '@/utils/supabase/server'
++import { createAuthenticatedServerApiClient } from '@/lib/api/server'
+ import PedidosDepositoTabla from '@/components/PedidosDepositoTabla'
+ 
+ export default async function PedidosDepositoPage() {
+-  const supabase = await createClient()
+-  const [{ data: pedidos }, { data: clientes }, { data: empresas }, { data: perfiles }] = await Promise.all([
+-    supabase
+-      .from('pedidos_deposito')
+-      .select('*, empresas(nombre), clientes(nombre)')
+-      .order('fecha', { ascending: false }),
+-    supabase.from('clientes').select('id, nombre').order('nombre'),
+-    supabase.from('empresas').select('*').order('nombre'),
+-    // perfiles no tiene FK declarada hacia pedidos_deposito: se resuelve
+-    // nombre_completo armando este Map en vez de un join real de Supabase.
+-    supabase.from('perfiles').select('id, nombre_completo'),
+-  ])
+-
+-  const nombrePorId = new Map((perfiles ?? []).map((p) => [p.id, p.nombre_completo]))
+-  const pedidosConNombre = (pedidos ?? []).map((p) => ({
+-    ...p,
+-    creado_por_nombre: nombrePorId.get(p.creado_por) ?? null,
+-  }))
++  const api=await createAuthenticatedServerApiClient();const [pedidosConNombre,catalogs]=await Promise.all([api.listWarehouseRequests(),api.getPurchaseCatalogs()])
+ 
+   return (
+     <div className="max-w-5xl mx-auto px-6 py-10">
+       <h1 className="text-2xl font-bold text-slate-900 mb-6">Pedidos a depósito</h1>
+       <PedidosDepositoTabla
+         pedidos={pedidosConNombre as ComponentProps<typeof PedidosDepositoTabla>['pedidos']}
+-        clientes={clientes ?? []}
+-        empresas={empresas ?? []}
++        clientes={catalogs.clientes} empresas={catalogs.empresas}
+       />
+     </div>
+   )
+diff --git a/src/components/DuplicarOrdenCompraBoton.tsx b/src/components/DuplicarOrdenCompraBoton.tsx
+index d775335..37924d9 100644
+--- a/src/components/DuplicarOrdenCompraBoton.tsx
++++ b/src/components/DuplicarOrdenCompraBoton.tsx
+@@ -1,78 +1,5 @@
+ 'use client'
+-
+ import { useState } from 'react'
+ import { useRouter } from 'next/navigation'
+-import { createClient } from '@/utils/supabase/client'
+-
+-export default function DuplicarOrdenCompraBoton({ id }: { id: string }) {
+-  const [loading, setLoading] = useState(false)
+-  const router = useRouter()
+-  const supabase = createClient()
+-
+-  const handleClick = async () => {
+-    setLoading(true)
+-
+-    const { data: origen } = await supabase.from('ordenes_compra').select('*').eq('id', id).single()
+-    const { data: items } = await supabase.from('ordenes_compra_items').select('*').eq('oc_id', id)
+-
+-    if (!origen) {
+-      setLoading(false)
+-      return
+-    }
+-
+-    const { data: userData } = await supabase.auth.getUser()
+-    const { data: nuevo, error: errInsert } = await supabase
+-      .from('ordenes_compra')
+-      .insert({
+-        empresa_id: origen.empresa_id,
+-        proveedor_id: origen.proveedor_id,
+-        cliente_id: origen.cliente_id,
+-        pedido_id: null, // OC nueva independiente, no arrastra el pedido de origen
+-        observaciones_generales: origen.observaciones_generales,
+-        lugar_envio_texto: origen.lugar_envio_texto,
+-        lugar_envio_alias: origen.lugar_envio_alias,
+-        horario_atencion_texto: origen.horario_atencion_texto,
+-        condicion_pago: origen.condicion_pago,
+-        estado: 'borrador',
+-        creado_por: userData.user?.id,
+-      })
+-      .select('id')
+-      .single()
+-
+-    if (errInsert || !nuevo) {
+-      setLoading(false)
+-      alert('Error al duplicar: ' + (errInsert?.message ?? 'desconocido'))
+-      return
+-    }
+-
+-    if (items && items.length > 0) {
+-      const { error: errItemsInsert } = await supabase.from('ordenes_compra_items').insert(
+-        items.map((i) => ({
+-          oc_id: nuevo.id,
+-          pedido_compra_item_id: null, // OC nueva independiente, no arrastra el origen
+-          articulo_id: i.articulo_id,
+-          cantidad: i.cantidad,
+-          precio_unitario: i.precio_unitario,
+-          observaciones: i.observaciones,
+-        }))
+-      )
+-      if (errItemsInsert) {
+-        setLoading(false)
+-        // No existe una pantalla de edición de OC: si esto falla hay que
+-        // avisar sí o sí, no hay forma de cargar las líneas a mano después.
+-        alert('La OC se duplicó pero hubo un error al copiar las líneas: ' + errItemsInsert.message)
+-        router.push(`/ordenes-compra/${nuevo.id}`)
+-        return
+-      }
+-    }
+-
+-    setLoading(false)
+-    router.push(`/ordenes-compra/${nuevo.id}`)
+-  }
+-
+-  return (
+-    <button onClick={handleClick} disabled={loading} className="print:hidden px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50">
+-      {loading ? 'Duplicando...' : 'Duplicar'}
+-    </button>
+-  )
+-}
++import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
++export default function DuplicarOrdenCompraBoton({id}:{id:string}){const[loading,setLoading]=useState(false);const router=useRouter();async function duplicate(){setLoading(true);try{const row=await(await createAuthenticatedBrowserApiClient()).duplicatePurchaseOrder(id);router.push(`/ordenes-compra/${row.id}`)}catch(e){alert(e instanceof Error?e.message:'Error al duplicar')}finally{setLoading(false)}}return <button onClick={duplicate} disabled={loading} className="print:hidden px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50">{loading?'Duplicando...':'Duplicar'}</button>}
+diff --git a/src/components/DuplicarPedidoCompraBoton.tsx b/src/components/DuplicarPedidoCompraBoton.tsx
+index 11c0bb9..4cce368 100644
+--- a/src/components/DuplicarPedidoCompraBoton.tsx
++++ b/src/components/DuplicarPedidoCompraBoton.tsx
+@@ -1,85 +1,5 @@
+ 'use client'
+-
+ import { useState } from 'react'
+ import { useRouter } from 'next/navigation'
+-import { createClient } from '@/utils/supabase/client'
+-
+-export default function DuplicarPedidoCompraBoton({ id }: { id: string }) {
+-  const [loading, setLoading] = useState(false)
+-  const router = useRouter()
+-  const supabase = createClient()
+-
+-  const handleClick = async () => {
+-    setLoading(true)
+-
+-    const { data: origen, error: errOrigen } = await supabase.from('pedidos_compra').select('*').eq('id', id).single()
+-    if (errOrigen || !origen) {
+-      setLoading(false)
+-      alert('Error al leer el pedido original: ' + (errOrigen?.message ?? 'no encontrado'))
+-      return
+-    }
+-
+-    const { data: items, error: errItemsSelect } = await supabase
+-      .from('pedidos_compra_items')
+-      .select('*')
+-      .eq('pedido_id', id)
+-    if (errItemsSelect) {
+-      setLoading(false)
+-      alert('Error al leer las líneas del pedido original: ' + errItemsSelect.message)
+-      return
+-    }
+-
+-    const { data: userData } = await supabase.auth.getUser()
+-    const { data: nuevo, error: errInsert } = await supabase
+-      .from('pedidos_compra')
+-      .insert({
+-        empresa_id: origen.empresa_id,
+-        cliente_id: origen.cliente_id,
+-        observaciones_generales: origen.observaciones_generales,
+-        // Mismo lugar de envío que el pedido original, congelado igual que
+-        // en el alta manual (antes no se copiaba y se perdía al duplicar).
+-        lugar_envio_empresa: origen.lugar_envio_empresa,
+-        lugar_envio_domicilio_id: origen.lugar_envio_domicilio_id,
+-        lugar_envio_texto: origen.lugar_envio_texto,
+-        lugar_envio_alias: origen.lugar_envio_alias,
+-        estado: 'borrador',
+-        creado_por: userData.user?.id,
+-      })
+-      .select('id')
+-      .single()
+-
+-    if (errInsert || !nuevo) {
+-      setLoading(false)
+-      alert('Error al duplicar: ' + (errInsert?.message ?? 'desconocido'))
+-      return
+-    }
+-
+-    if (items && items.length > 0) {
+-      const { error: errItemsInsert } = await supabase.from('pedidos_compra_items').insert(
+-        items.map((i) => ({
+-          pedido_id: nuevo.id,
+-          articulo_id: i.articulo_id,
+-          cantidad: i.cantidad,
+-          observaciones: i.observaciones,
+-        }))
+-      )
+-      if (errItemsInsert) {
+-        setLoading(false)
+-        // El pedido ya se creó: igual navegamos para no dejarlo huérfano,
+-        // pero avisamos que las líneas no se copiaron para que se carguen a mano.
+-        alert('El pedido se duplicó pero hubo un error al copiar las líneas: ' + errItemsInsert.message)
+-        router.push(`/pedidos-compra/${nuevo.id}`)
+-        return
+-      }
+-    }
+-
+-    setLoading(false)
+-    router.push(`/pedidos-compra/${nuevo.id}`)
+-  }
+-
+-  return (
+-    <button onClick={handleClick} disabled={loading} className="text-teal-600 hover:underline text-sm disabled:opacity-50">
+-      {loading ? 'Duplicando...' : 'Duplicar'}
+-    </button>
+-  )
+-}
++import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
++export default function DuplicarPedidoCompraBoton({id}:{id:string}){const[loading,setLoading]=useState(false);const router=useRouter();async function duplicate(){setLoading(true);try{const row=await(await createAuthenticatedBrowserApiClient()).duplicatePurchaseRequest(id);router.push(`/pedidos-compra/${row.id}`)}catch(e){alert(e instanceof Error?e.message:'Error al duplicar')}finally{setLoading(false)}}return <button onClick={duplicate} disabled={loading} className="text-teal-600 hover:underline text-sm disabled:opacity-50">{loading?'Duplicando...':'Duplicar'}</button>}
+diff --git a/src/components/DuplicarPedidoDepositoBoton.tsx b/src/components/DuplicarPedidoDepositoBoton.tsx
+index be72539..0f8e739 100644
+--- a/src/components/DuplicarPedidoDepositoBoton.tsx
++++ b/src/components/DuplicarPedidoDepositoBoton.tsx
+@@ -1,72 +1,5 @@
+ 'use client'
+-
+ import { useState } from 'react'
+ import { useRouter } from 'next/navigation'
+-import { createClient } from '@/utils/supabase/client'
+-
+-export default function DuplicarPedidoDepositoBoton({ id }: { id: string }) {
+-  const [loading, setLoading] = useState(false)
+-  const router = useRouter()
+-  const supabase = createClient()
+-
+-  const handleClick = async () => {
+-    setLoading(true)
+-
+-    const { data: origen } = await supabase.from('pedidos_deposito').select('*').eq('id', id).single()
+-    const { data: items } = await supabase.from('pedidos_deposito_items').select('*').eq('pedido_deposito_id', id)
+-
+-    if (!origen) {
+-      setLoading(false)
+-      return
+-    }
+-
+-    const { data: userData } = await supabase.auth.getUser()
+-    const { data: nuevo, error: errInsert } = await supabase
+-      .from('pedidos_deposito')
+-      .insert({
+-        empresa_id: origen.empresa_id,
+-        cliente_id: origen.cliente_id,
+-        pedido_id: null, // pedido a depósito nuevo independiente, no arrastra el pedido de origen
+-        observaciones_generales: origen.observaciones_generales,
+-        lugar_envio_texto: origen.lugar_envio_texto,
+-        lugar_envio_alias: origen.lugar_envio_alias,
+-        estado: 'borrador',
+-        creado_por: userData.user?.id,
+-      })
+-      .select('id')
+-      .single()
+-
+-    if (errInsert || !nuevo) {
+-      setLoading(false)
+-      alert('Error al duplicar: ' + (errInsert?.message ?? 'desconocido'))
+-      return
+-    }
+-
+-    if (items && items.length > 0) {
+-      const { error: errItemsInsert } = await supabase.from('pedidos_deposito_items').insert(
+-        items.map((i) => ({
+-          pedido_deposito_id: nuevo.id,
+-          pedido_compra_item_id: null, // pedido a depósito nuevo independiente
+-          articulo_id: i.articulo_id,
+-          cantidad: i.cantidad,
+-          observaciones: i.observaciones,
+-        }))
+-      )
+-      if (errItemsInsert) {
+-        setLoading(false)
+-        alert('El pedido se duplicó pero hubo un error al copiar las líneas: ' + errItemsInsert.message)
+-        router.push(`/pedidos-deposito/${nuevo.id}`)
+-        return
+-      }
+-    }
+-
+-    setLoading(false)
+-    router.push(`/pedidos-deposito/${nuevo.id}`)
+-  }
+-
+-  return (
+-    <button onClick={handleClick} disabled={loading} className="print:hidden px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50">
+-      {loading ? 'Duplicando...' : 'Duplicar'}
+-    </button>
+-  )
+-}
++import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
++export default function DuplicarPedidoDepositoBoton({id}:{id:string}){const[loading,setLoading]=useState(false);const router=useRouter();async function duplicate(){setLoading(true);try{const row=await(await createAuthenticatedBrowserApiClient()).duplicateWarehouseRequest(id);router.push(`/pedidos-deposito/${row.id}`)}catch(e){alert(e instanceof Error?e.message:'Error al duplicar')}finally{setLoading(false)}}return <button onClick={duplicate} disabled={loading} className="print:hidden px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50">{loading?'Duplicando...':'Duplicar'}</button>}
+diff --git a/src/components/EstadoOrdenCompraBoton.tsx b/src/components/EstadoOrdenCompraBoton.tsx
+index 371f807..e5f78a5 100644
+--- a/src/components/EstadoOrdenCompraBoton.tsx
++++ b/src/components/EstadoOrdenCompraBoton.tsx
+@@ -2,7 +2,7 @@
+ 
+ import { useState } from 'react'
+ import { useRouter } from 'next/navigation'
+-import { createClient } from '@/utils/supabase/client'
++import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
+ import type { EstadoOrdenCompra } from '@/types/compras'
+ 
+ const SIGUIENTE: Partial<Record<EstadoOrdenCompra, { estado: EstadoOrdenCompra; etiqueta: string }>> = {
+@@ -13,16 +13,13 @@ const SIGUIENTE: Partial<Record<EstadoOrdenCompra, { estado: EstadoOrdenCompra;
+ export default function EstadoOrdenCompraBoton({ id, estado }: { id: string; estado: EstadoOrdenCompra }) {
+   const [loading, setLoading] = useState(false)
+   const router = useRouter()
+-  const supabase = createClient()
+ 
+   const siguiente = SIGUIENTE[estado]
+   if (!siguiente) return null
+ 
+   const handleClick = async () => {
+     setLoading(true)
+-    await supabase.from('ordenes_compra').update({ estado: siguiente.estado }).eq('id', id)
+-    setLoading(false)
+-    router.refresh()
++    try{await (await createAuthenticatedBrowserApiClient()).transitionPurchaseOrder(id,siguiente.estado as 'enviada'|'recepcionada');router.refresh()}catch(error){alert(error instanceof Error?error.message:'Error al cambiar estado')}finally{setLoading(false)}
+   }
+ 
+   return (
+diff --git a/src/components/EstadoPedidoDepositoBoton.tsx b/src/components/EstadoPedidoDepositoBoton.tsx
+index 0154738..871c010 100644
+--- a/src/components/EstadoPedidoDepositoBoton.tsx
++++ b/src/components/EstadoPedidoDepositoBoton.tsx
+@@ -2,7 +2,7 @@
+ 
+ import { useState } from 'react'
+ import { useRouter } from 'next/navigation'
+-import { createClient } from '@/utils/supabase/client'
++import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
+ import type { EstadoPedidoDeposito } from '@/types/compras'
+ 
+ const SIGUIENTE: Partial<Record<EstadoPedidoDeposito, { estado: EstadoPedidoDeposito; etiqueta: string }>> = {
+@@ -13,16 +13,13 @@ const SIGUIENTE: Partial<Record<EstadoPedidoDeposito, { estado: EstadoPedidoDepo
+ export default function EstadoPedidoDepositoBoton({ id, estado }: { id: string; estado: EstadoPedidoDeposito }) {
+   const [loading, setLoading] = useState(false)
+   const router = useRouter()
+-  const supabase = createClient()
+ 
+   const siguiente = SIGUIENTE[estado]
+   if (!siguiente) return null
+ 
+   const handleClick = async () => {
+     setLoading(true)
+-    await supabase.from('pedidos_deposito').update({ estado: siguiente.estado }).eq('id', id)
+-    setLoading(false)
+-    router.refresh()
++    try{await (await createAuthenticatedBrowserApiClient()).transitionWarehouseRequest(id,siguiente.estado as 'enviada'|'recepcionada');router.refresh()}catch(error){alert(error instanceof Error?error.message:'Error al cambiar estado')}finally{setLoading(false)}
+   }
+ 
+   return (
+diff --git a/src/components/ImportarPedidosCompraMatriz.tsx b/src/components/ImportarPedidosCompraMatriz.tsx
+index a375031..c2cd0c8 100644
+--- a/src/components/ImportarPedidosCompraMatriz.tsx
++++ b/src/components/ImportarPedidosCompraMatriz.tsx
+@@ -1,9 +1,9 @@
+ 'use client'
+-import { useState } from 'react'
++import { useRef, useState } from 'react'
+ import { useRouter } from 'next/navigation'
+ import Link from 'next/link'
+ import * as XLSX from 'xlsx'
+-import { createClient } from '@/utils/supabase/client'
++import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
+ import DescargarPlantillaPedidosCompraMatriz from './DescargarPlantillaPedidosCompraMatriz'
+ import type { EmpresaResumen, ClienteResumen, ArticuloResumen, ClienteDomicilio } from '@/types/compras'
+ 
+@@ -21,15 +21,6 @@ type Resumen = {
+   errores: FilaError[]
+ }
+ 
+-const TAMANO_LOTE = 15
+-
+-async function enLotes<T>(items: T[], tamano: number, fn: (item: T) => Promise<void>) {
+-  for (let i = 0; i < items.length; i += tamano) {
+-    const lote = items.slice(i, i + tamano)
+-    await Promise.allSettled(lote.map(fn))
+-  }
+-}
+-
+ function normalizarCantidad(valor: unknown): number {
+   if (typeof valor === 'number') return valor
+   const texto = String(valor ?? '').trim().replace(',', '.')
+@@ -53,7 +44,7 @@ export default function ImportarPedidosCompraMatriz({
+   const [error, setError] = useState('')
+   const [resumen, setResumen] = useState<Resumen | null>(null)
+   const router = useRouter()
+-  const supabase = createClient()
++  const operationKey=useRef<string|null>(null)
+ 
+   const handleSubmit = async (e: React.FormEvent) => {
+     e.preventDefault()
+@@ -141,57 +132,20 @@ export default function ImportarPedidosCompraMatriz({
+       // Columnas sin ninguna cantidad cargada no generan pedido.
+       const columnasConLineas = columnas.filter((c) => c.lineas.length > 0)
+ 
+-      const { data: userData } = await supabase.auth.getUser()
+-      const pedidosGenerados: PedidoGenerado[] = []
+-
+-      await enLotes(columnasConLineas, TAMANO_LOTE, async (col) => {
+-        const { data: pedidoCreado, error: errInsert } = await supabase
+-          .from('pedidos_compra')
+-          .insert({
+-            empresa_id: empresaId,
+-            cliente_id: col.domicilio.cliente_id,
+-            observaciones_generales: null,
+-            lugar_envio_empresa: false,
+-            lugar_envio_domicilio_id: col.domicilio.id,
+-            lugar_envio_texto: col.domicilio.direccion,
+-            lugar_envio_alias: col.domicilio.alias,
+-            estado: 'borrador',
+-            creado_por: userData.user?.id,
+-          })
+-          .select('id, numero_pedido')
+-          .single()
+-
+-        if (errInsert || !pedidoCreado) {
+-          errores.push({ fila: null, motivo: `Columna "${col.domicilio.alias}": error al crear el pedido: ${errInsert?.message ?? 'desconocido'}` })
+-          return
+-        }
+-
+-        const { error: errItems } = await supabase.from('pedidos_compra_items').insert(
+-          col.lineas.map((l) => ({
+-            pedido_id: pedidoCreado.id,
+-            articulo_id: l.articulo_id,
+-            cantidad: l.cantidad,
+-            observaciones: null,
+-          }))
+-        )
+-        if (errItems) {
+-          errores.push({
+-            fila: null,
+-            motivo: `Columna "${col.domicilio.alias}": pedido ${pedidoCreado.numero_pedido} creado pero error al guardar las líneas: ${errItems.message}`,
+-          })
+-          return
+-        }
+-
+-        pedidosGenerados.push({
+-          id: pedidoCreado.id,
+-          numero_pedido: pedidoCreado.numero_pedido,
+-          cliente: clientes.find((c) => c.id === col.domicilio.cliente_id)?.nombre ?? '-',
+-          alias: col.domicilio.alias,
+-        })
+-      })
++      const payload={empresaId,orders:columnasConLineas.map(col=>({clienteId:col.domicilio.cliente_id,clienteDomicilioId:col.domicilio.id,lugarEnvioTexto:col.domicilio.direccion,lugarEnvioAlias:col.domicilio.alias,items:col.lineas.map(l=>({articuloId:l.articulo_id,cantidad:l.cantidad,observaciones:null}))}))}
++      const api=await createAuthenticatedBrowserApiClient()
++      const preview=await api.previewPurchaseImport(payload)
++      errores.push(...preview.errors.map(e=>({fila:e.row,motivo:e.message})))
++      if(preview.invalid>0||errores.length>0){setResumen({pedidosGenerados:[],errores});return}
++      if(!confirm(`Se crearán ${preview.valid} pedidos en una única operación. ¿Confirmar?`))return
++      operationKey.current??=crypto.randomUUID()
++      const applied=await api.applyPurchaseImport(payload,operationKey.current)
++      const rows=await Promise.all(applied.response.purchaseRequestIds.map(id=>api.getPurchaseRequest(id)))
++      const pedidosGenerados:PedidoGenerado[]=rows.map((row,index)=>({id:row.id,numero_pedido:String(row.numero_pedido),cliente:clientes.find(c=>c.id===columnasConLineas[index]?.domicilio.cliente_id)?.nombre??'-',alias:columnasConLineas[index]?.domicilio.alias??'-'}))
+ 
+       setResumen({ pedidosGenerados, errores })
+       setArchivo(null)
++      operationKey.current=null
+       router.refresh()
+     } catch (err) {
+       setError('Error al procesar el archivo: ' + (err instanceof Error ? err.message : String(err)))
+diff --git a/src/components/OrdenCompraForm.tsx b/src/components/OrdenCompraForm.tsx
+index a7e6779..0687d0e 100644
+--- a/src/components/OrdenCompraForm.tsx
++++ b/src/components/OrdenCompraForm.tsx
+@@ -2,7 +2,7 @@
+ 
+ import { useMemo, useState } from 'react'
+ import { useRouter } from 'next/navigation'
+-import { createClient } from '@/utils/supabase/client'
++import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
+ import BuscadorArticulo from './BuscadorArticulo'
+ import type { EmpresaConDomicilio, ClienteResumen, ProveedorResumen, ArticuloResumen, ClienteDomicilio } from '@/types/compras'
+ 
+@@ -84,7 +84,6 @@ export default function OrdenCompraForm({
+   const [error, setError] = useState('')
+   const [loading, setLoading] = useState(false)
+   const router = useRouter()
+-  const supabase = createClient()
+ 
+   const precioCatalogo = useMemo(() => {
+     if (!proveedorId || !nuevoArticulo) return null
+@@ -143,48 +142,7 @@ export default function OrdenCompraForm({
+     }
+     setLoading(true)
+ 
+-    const { data: userData } = await supabase.auth.getUser()
+-    const { data: nuevo, error: errInsert } = await supabase
+-      .from('ordenes_compra')
+-      .insert({
+-        empresa_id: empresaId,
+-        proveedor_id: proveedorId,
+-        cliente_id: clienteId,
+-        pedido_id: null, // OC generada directamente, sin pedido de compra de origen
+-        observaciones_generales: observaciones || null,
+-        lugar_envio_texto: resolverLugarEnvioTexto(),
+-        lugar_envio_alias: resolverLugarEnvioAlias(),
+-        horario_atencion_texto: resolverHorarioAtencionTexto(),
+-        condicion_pago: condicionPago || null,
+-        estado: 'borrador',
+-        creado_por: userData.user?.id,
+-      })
+-      .select('id')
+-      .single()
+-
+-    if (errInsert || !nuevo) {
+-      setLoading(false)
+-      setError('Error al guardar: ' + (errInsert?.message ?? 'desconocido'))
+-      return
+-    }
+-
+-    const { error: errItems } = await supabase.from('ordenes_compra_items').insert(
+-      lineas.map((l) => ({
+-        oc_id: nuevo.id,
+-        pedido_compra_item_id: null,
+-        articulo_id: l.articuloId,
+-        cantidad: Number(l.cantidad),
+-        precio_unitario: Number(l.precioUnitario),
+-        observaciones: l.observaciones || null,
+-      }))
+-    )
+-    setLoading(false)
+-    if (errItems) {
+-      setError('Error al guardar las líneas: ' + errItems.message)
+-      return
+-    }
+-
+-    router.push(`/ordenes-compra/${nuevo.id}`)
++    try{const nuevo=await (await createAuthenticatedBrowserApiClient()).createPurchaseOrder({empresaId,proveedorId,clienteId,observacionesGenerales:observaciones||null,lugarEnvioTexto:resolverLugarEnvioTexto(),lugarEnvioAlias:resolverLugarEnvioAlias(),horarioAtencionTexto:resolverHorarioAtencionTexto(),condicionPago:condicionPago||null,items:lineas.map(l=>({articuloId:l.articuloId,cantidad:Number(l.cantidad),precioUnitario:Number(l.precioUnitario),observaciones:l.observaciones||null}))});router.push(`/ordenes-compra/${nuevo.id}`)}catch(error){setError('Error al guardar: '+(error instanceof Error?error.message:'desconocido'))}finally{setLoading(false)}
+   }
+ 
+   return (
+diff --git a/src/components/PanelComprasAsignacion.tsx b/src/components/PanelComprasAsignacion.tsx
+index 0966000..a65782e 100644
+--- a/src/components/PanelComprasAsignacion.tsx
++++ b/src/components/PanelComprasAsignacion.tsx
+@@ -1,8 +1,8 @@
+ 'use client'
+ 
+-import { useMemo, useState } from 'react'
++import { useMemo, useRef, useState } from 'react'
+ import { useRouter } from 'next/navigation'
+-import { createClient } from '@/utils/supabase/client'
++import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
+ import type { AsignacionPendiente, DestinoAsignacion, LineaPendiente, ProveedorResumen, ClienteDomicilio } from '@/types/compras'
+ 
+ const inputStyle =
+@@ -224,8 +224,6 @@ function destinoEtiqueta(a: AsignacionPendiente) {
+ 
+ export default function PanelComprasAsignacion({
+   pedidoId,
+-  empresaId,
+-  clienteId,
+   empresaNombre,
+   empresaDomicilio,
+   domicilios,
+@@ -251,38 +249,19 @@ export default function PanelComprasAsignacion({
+   const [error, setError] = useState('')
+   const [lineaDescarteAbiertaId, setLineaDescarteAbiertaId] = useState<string | null>(null)
+   const [descartandoId, setDescartandoId] = useState<string | null>(null)
++  const operationKey=useRef<string|null>(null)
+   const router = useRouter()
+-  const supabase = createClient()
+ 
+   async function descartarLinea(itemId: string, motivo: string) {
+     setDescartandoId(itemId)
+     setError('')
+-    const { error: err } = await supabase
+-      .from('pedidos_compra_items')
+-      .update({ descartada: true, motivo_descarte: motivo || null })
+-      .eq('id', itemId)
+-    setDescartandoId(null)
+-    if (err) {
+-      setError('Error al descartar la línea: ' + err.message)
+-      return
+-    }
+-    setLineaDescarteAbiertaId(null)
+-    router.refresh()
++    try{await(await createAuthenticatedBrowserApiClient()).setPurchaseRequestItemDiscarded(itemId,true,motivo||null);setLineaDescarteAbiertaId(null);router.refresh()}catch(e){setError('Error al descartar la línea: '+(e instanceof Error?e.message:'desconocido'))}finally{setDescartandoId(null)}
+   }
+ 
+   async function revertirDescarte(itemId: string) {
+     setDescartandoId(itemId)
+     setError('')
+-    const { error: err } = await supabase
+-      .from('pedidos_compra_items')
+-      .update({ descartada: false, motivo_descarte: null })
+-      .eq('id', itemId)
+-    setDescartandoId(null)
+-    if (err) {
+-      setError('Error al revertir el descarte: ' + err.message)
+-      return
+-    }
+-    router.refresh()
++    try{await(await createAuthenticatedBrowserApiClient()).setPurchaseRequestItemDiscarded(itemId,false,null);router.refresh()}catch(e){setError('Error al revertir el descarte: '+(e instanceof Error?e.message:'desconocido'))}finally{setDescartandoId(null)}
+   }
+ 
+   function resolverLugarEnvioTexto(): string | null {
+@@ -336,105 +315,12 @@ export default function PanelComprasAsignacion({
+     setError('')
+     setGuardando(true)
+ 
+-    const { data: userData } = await supabase.auth.getUser()
+     const lugarEnvioTexto = resolverLugarEnvioTexto()
+     const lugarEnvioAlias = resolverLugarEnvioAlias()
+     const horarioAtencionTexto = resolverHorarioAtencionTexto()
+ 
+-    // Una asignación 'proveedor_deposito' alimenta DOS grupos a la vez (la OC
+-    // de su proveedor y el único pedido a depósito del pedido de compra),
+-    // sin quedar vinculada entre ambas líneas resultantes.
+-    const gruposProveedor = new Map<string, AsignacionPendiente[]>()
+-    const itemsDeposito: AsignacionPendiente[] = []
+-    for (const a of asignaciones) {
+-      if (a.destino === 'proveedor' || a.destino === 'proveedor_deposito') {
+-        gruposProveedor.set(a.proveedorId!, [...(gruposProveedor.get(a.proveedorId!) ?? []), a])
+-      }
+-      if (a.destino === 'deposito' || a.destino === 'proveedor_deposito') {
+-        itemsDeposito.push(a)
+-      }
+-    }
+-
+-    for (const [proveedorId, items] of gruposProveedor) {
+-      const { data: nuevo, error: errCab } = await supabase
+-        .from('ordenes_compra')
+-        .insert({
+-          empresa_id: empresaId,
+-          proveedor_id: proveedorId,
+-          cliente_id: clienteId,
+-          pedido_id: pedidoId,
+-          lugar_envio_texto: lugarEnvioTexto,
+-          lugar_envio_alias: lugarEnvioAlias,
+-          horario_atencion_texto: horarioAtencionTexto,
+-          condicion_pago: proveedores.find((p) => p.id === proveedorId)?.condicion_pago_default ?? null,
+-          estado: 'borrador',
+-          creado_por: userData.user?.id,
+-        })
+-        .select('id')
+-        .single()
+-      if (errCab || !nuevo) {
+-        setGuardando(false)
+-        setError('Error al crear la orden de compra: ' + (errCab?.message ?? 'desconocido'))
+-        return
+-      }
+-      const { error: errItems } = await supabase.from('ordenes_compra_items').insert(
+-        items.map((i) => ({
+-          oc_id: nuevo.id,
+-          // Si además va a depósito ('proveedor_deposito'), esta línea de OC no
+-          // se vincula al pedido de origen: quien cuenta contra lo pendiente
+-          // del pedido es la línea del pedido a depósito, no esta compra.
+-          pedido_compra_item_id: i.destino === 'proveedor' ? i.pedidoCompraItemId : null,
+-          articulo_id: i.articulo.id,
+-          cantidad: i.cantidad,
+-          precio_unitario: i.precioUnitario,
+-          observaciones: i.observaciones || null,
+-        }))
+-      )
+-      if (errItems) {
+-        setGuardando(false)
+-        setError('Error al guardar las líneas de la orden de compra: ' + errItems.message)
+-        return
+-      }
+-    }
+-
+-    if (itemsDeposito.length > 0) {
+-      const { data: nuevo, error: errCab } = await supabase
+-        .from('pedidos_deposito')
+-        .insert({
+-          empresa_id: empresaId,
+-          cliente_id: clienteId,
+-          pedido_id: pedidoId,
+-          lugar_envio_texto: lugarEnvioTexto,
+-          lugar_envio_alias: lugarEnvioAlias,
+-          estado: 'borrador',
+-          creado_por: userData.user?.id,
+-        })
+-        .select('id')
+-        .single()
+-      if (errCab || !nuevo) {
+-        setGuardando(false)
+-        setError('Error al crear el pedido a depósito: ' + (errCab?.message ?? 'desconocido'))
+-        return
+-      }
+-      const { error: errItems } = await supabase.from('pedidos_deposito_items').insert(
+-        itemsDeposito.map((i) => ({
+-          pedido_deposito_id: nuevo.id,
+-          pedido_compra_item_id: i.pedidoCompraItemId,
+-          articulo_id: i.articulo.id,
+-          cantidad: i.cantidad,
+-          observaciones: i.observaciones || null,
+-        }))
+-      )
+-      if (errItems) {
+-        setGuardando(false)
+-        setError('Error al guardar las líneas del pedido a depósito: ' + errItems.message)
+-        return
+-      }
+-    }
+-
+-    setGuardando(false)
+-    setAsignaciones([])
+-    router.refresh()
++    operationKey.current??=crypto.randomUUID()
++    try{await(await createAuthenticatedBrowserApiClient()).assignPurchaseRequest(pedidoId,{lugarEnvioTexto,lugarEnvioAlias,horarioAtencionTexto,items:asignaciones.map(a=>({pedidoCompraItemId:a.pedidoCompraItemId,destino:a.destino,proveedorId:a.proveedorId,cantidad:a.cantidad,precioUnitario:a.precioUnitario,observaciones:a.observaciones||null}))},operationKey.current);operationKey.current=null;setAsignaciones([]);router.refresh()}catch(e){setError(e instanceof Error?e.message:'Error al confirmar asignaciones')}finally{setGuardando(false)}
+   }
+ 
+   return (
+diff --git a/src/components/PedidoCompraForm.tsx b/src/components/PedidoCompraForm.tsx
+index 0294359..faeea4c 100644
+--- a/src/components/PedidoCompraForm.tsx
++++ b/src/components/PedidoCompraForm.tsx
+@@ -2,7 +2,7 @@
+ 
+ import { useState } from 'react'
+ import { useRouter } from 'next/navigation'
+-import { createClient } from '@/utils/supabase/client'
++import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
+ import GrillaLineasPedido from './GrillaLineasPedido'
+ import type {
+   EmpresaConDomicilio,
+@@ -71,7 +71,6 @@ export default function PedidoCompraForm({
+   const [error, setError] = useState('')
+   const [loading, setLoading] = useState(false)
+   const router = useRouter()
+-  const supabase = createClient()
+ 
+   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+     e.preventDefault()
+@@ -116,68 +115,18 @@ export default function PedidoCompraForm({
+     }
+     setLoading(true)
+ 
+-    const cabecera = {
+-      empresa_id: empresaId,
+-      cliente_id: clienteId,
+-      observaciones_generales: observaciones || null,
+-      lugar_envio_empresa: lugarEnvio === 'empresa',
+-      lugar_envio_domicilio_id: lugarEnvio.startsWith('domicilio:') ? lugarEnvio.slice('domicilio:'.length) : null,
+-      lugar_envio_texto: resolverLugarEnvioTexto(),
+-      lugar_envio_alias: resolverLugarEnvioAlias(),
++    const payload = {
++      empresaId,
++      clienteId,
++      observacionesGenerales: observaciones || null,
++      lugarEnvioEmpresa: lugarEnvio === 'empresa',
++      lugarEnvioDomicilioId: lugarEnvio.startsWith('domicilio:') ? lugarEnvio.slice('domicilio:'.length) : null,
++      lugarEnvioTexto: resolverLugarEnvioTexto(),
++      lugarEnvioAlias: resolverLugarEnvioAlias(),
+       estado: estadoDeseado,
++      items:lineasFinales.map(l=>({articuloId:l.articulo_id,cantidad:l.cantidad,observaciones:l.observaciones})),
+     }
+-
+-    let pedidoId = pedido?.id
+-
+-    if (pedido) {
+-      const { error: errUpdate } = await supabase.from('pedidos_compra').update(cabecera).eq('id', pedido.id)
+-      if (errUpdate) {
+-        setLoading(false)
+-        setError('Error al guardar: ' + errUpdate.message)
+-        return
+-      }
+-      // Se reemplazan todas las líneas: más simple que diffear altas/bajas/cambios,
+-      // y seguro porque solo se puede editar mientras el pedido sigue en borrador.
+-      const { error: errDelete } = await supabase.from('pedidos_compra_items').delete().eq('pedido_id', pedido.id)
+-      if (errDelete) {
+-        setLoading(false)
+-        setError('Error al guardar las líneas: ' + errDelete.message)
+-        return
+-      }
+-    } else {
+-      const { data: userData } = await supabase.auth.getUser()
+-      const { data, error: errInsert } = await supabase
+-        .from('pedidos_compra')
+-        .insert({ ...cabecera, creado_por: userData.user?.id })
+-        .select('id')
+-        .single()
+-      if (errInsert || !data) {
+-        setLoading(false)
+-        setError('Error al guardar: ' + (errInsert?.message ?? 'desconocido'))
+-        return
+-      }
+-      pedidoId = data.id
+-    }
+-
+-    const { error: errItems } = await supabase.from('pedidos_compra_items').insert(
+-      lineasFinales.map((l) => ({
+-        pedido_id: pedidoId,
+-        articulo_id: l.articulo_id,
+-        cantidad: l.cantidad,
+-        observaciones: l.observaciones,
+-      }))
+-    )
+-    setLoading(false)
+-    if (errItems) {
+-      setError('Error al guardar las líneas: ' + errItems.message)
+-      return
+-    }
+-
+-    if (pedido) {
+-      router.refresh()
+-    } else {
+-      router.push(`/pedidos-compra/${pedidoId}`)
+-    }
++    try{const api=await createAuthenticatedBrowserApiClient();const saved=pedido?await api.updatePurchaseRequest(pedido.id,payload):await api.createPurchaseRequest(payload);if(pedido)router.refresh();else router.push(`/pedidos-compra/${saved.id}`)}catch(error){setError('Error al guardar: '+(error instanceof Error?error.message:'desconocido'))}finally{setLoading(false)}
+   }
+ 
+   return (
+diff --git a/src/lib/api/generated/client.ts b/src/lib/api/generated/client.ts
+index 96cb14d..4400610 100644
+--- a/src/lib/api/generated/client.ts
++++ b/src/lib/api/generated/client.ts
+@@ -40,7 +40,7 @@ import type {
+   UpdateClientAddressBody,
+   QuoteUploadBody,
+   QuoteDownload,
+-  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow,
++  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord,
+   UsersListResponse,
+ } from './types'
+ 
+@@ -138,6 +138,26 @@ export type DinamicApiClient = {
+   listSupplierArticlePending: () => Promise<SupplierArticlePending[]>
+   resolveSupplierArticlePending: (id:string,articuloId:string) => Promise<SupplierArticle>
+   listSupplierCatalog: (id:string) => Promise<SupplierCatalogRow[]>
++  getPurchaseCatalogs: () => Promise<PurchaseCatalogs>
++  listPurchaseRequests: () => Promise<PurchaseRecord[]>
++  getPurchaseRequest: (id:string) => Promise<PurchaseRecord>
++  createPurchaseRequest: (body:PurchaseRequestBody) => Promise<PurchaseRecord>
++  updatePurchaseRequest: (id:string,body:PurchaseRequestBody) => Promise<PurchaseRecord>
++  transitionPurchaseRequest: (id:string,estado:'enviada') => Promise<PurchaseRecord>
++  duplicatePurchaseRequest: (id:string) => Promise<PurchaseRecord>
++  setPurchaseRequestItemDiscarded: (id:string,descartada:boolean,motivo?:string|null) => Promise<PurchaseRecord>
++  previewPurchaseImport: (body:PurchaseImportBody) => Promise<{total:number;valid:number;invalid:number;errors:Array<{row:number;message:string}>}>
++  applyPurchaseImport: (body:PurchaseImportBody,key:string) => Promise<{replayed:boolean;response:{purchaseRequestIds:string[]}}>
++  assignPurchaseRequest: (id:string,body:PurchaseAssignmentBody,key:string) => Promise<{replayed:boolean;response:{purchaseOrderIds:string[];warehouseRequestId:string|null}}>
++  listPurchaseOrders: () => Promise<PurchaseRecord[]>
++  getPurchaseOrder: (id:string) => Promise<PurchaseRecord>
++  createPurchaseOrder: (body:PurchaseOrderBody) => Promise<PurchaseRecord>
++  transitionPurchaseOrder: (id:string,estado:'enviada'|'recepcionada') => Promise<PurchaseRecord>
++  duplicatePurchaseOrder: (id:string) => Promise<PurchaseRecord>
++  listWarehouseRequests: () => Promise<PurchaseRecord[]>
++  getWarehouseRequest: (id:string) => Promise<PurchaseRecord>
++  transitionWarehouseRequest: (id:string,estado:'enviada'|'recepcionada') => Promise<PurchaseRecord>
++  duplicateWarehouseRequest: (id:string) => Promise<PurchaseRecord>
+   getClientQuoteDownload: (clientId:string,quoteId:string) => Promise<QuoteDownload>
+   deleteClientQuote: (clientId:string,quoteId:string) => Promise<void>
+ }
+@@ -300,5 +320,9 @@ export function createDinamicApiClient(options: DinamicApiClientOptions): Dinami
+     listArticles(){return requestJson<Article[]>('/v1/articles')},getArticle(id){return requestJson<Article>(`/v1/articles/${id}`)},createArticle(body){return requestJson<Article>('/v1/articles',{method:'POST',body:JSON.stringify(body)})},updateArticle(id,body){return requestJson<Article>(`/v1/articles/${id}`,{method:'PATCH',body:JSON.stringify(body)})},updateArticleStatus(id,activo){return requestJson<Article>(`/v1/articles/${id}/status`,{method:'PATCH',body:JSON.stringify({activo})},)},listArticleSuppliers(id){return requestJson<SupplierArticle[]>(`/v1/articles/${id}/suppliers`)},createArticleSupplier(id,body){return requestJson<SupplierArticle>(`/v1/articles/${id}/suppliers`,{method:'POST',body:JSON.stringify(body)})},updateArticleSupplier(id,relationId,body){return requestJson<SupplierArticle>(`/v1/articles/${id}/suppliers/${relationId}`,{method:'PATCH',body:JSON.stringify(body)})},previewArticleImport(body){return requestJson<ArticleImportPreview>('/v1/articles/import/preview',{method:'POST',body:JSON.stringify(body)})},importArticles(body,idempotencyKey){return requestJson('/v1/articles/import',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':idempotencyKey}})},previewPriceList(body){return requestJson<PriceListPreview>('/v1/price-lists/preview',{method:'POST',body:JSON.stringify(body)})},applyPriceList(body,idempotencyKey){return requestJson('/v1/price-lists/apply',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':idempotencyKey}})},
+     listSupplierArticlePending(){return requestJson<SupplierArticlePending[]>('/v1/supplier-article-pending')},resolveSupplierArticlePending(id,articuloId){return requestJson<SupplierArticle>(`/v1/supplier-article-pending/${id}/resolve`,{method:'POST',body:JSON.stringify({articuloId})})},
+     listSupplierCatalog(id){return requestJson<SupplierCatalogRow[]>(`/v1/suppliers/${id}/articles`)},
++    getPurchaseCatalogs(){return requestJson<PurchaseCatalogs>('/v1/purchases/catalogs')},
++    listPurchaseRequests(){return requestJson<PurchaseRecord[]>('/v1/purchase-requests')},getPurchaseRequest(id){return requestJson<PurchaseRecord>(`/v1/purchase-requests/${id}`)},createPurchaseRequest(body){return requestJson<PurchaseRecord>('/v1/purchase-requests',{method:'POST',body:JSON.stringify(body)})},updatePurchaseRequest(id,body){return requestJson<PurchaseRecord>(`/v1/purchase-requests/${id}`,{method:'PUT',body:JSON.stringify(body)})},transitionPurchaseRequest(id,estado){return requestJson<PurchaseRecord>(`/v1/purchase-requests/${id}/state`,{method:'PATCH',body:JSON.stringify({estado})})},duplicatePurchaseRequest(id){return requestJson<PurchaseRecord>(`/v1/purchase-requests/${id}/duplicate`,{method:'POST'})},setPurchaseRequestItemDiscarded(id,descartada,motivo){return requestJson<PurchaseRecord>(`/v1/purchase-request-items/${id}/discard`,{method:'PATCH',body:JSON.stringify({descartada,motivo})})},previewPurchaseImport(body){return requestJson('/v1/purchase-requests/import/preview',{method:'POST',body:JSON.stringify(body)})},applyPurchaseImport(body,key){return requestJson('/v1/purchase-requests/import/apply',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},assignPurchaseRequest(id,body,key){return requestJson(`/v1/purchase-requests/${id}/assignments`,{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},
++    listPurchaseOrders(){return requestJson<PurchaseRecord[]>('/v1/purchase-orders')},getPurchaseOrder(id){return requestJson<PurchaseRecord>(`/v1/purchase-orders/${id}`)},createPurchaseOrder(body){return requestJson<PurchaseRecord>('/v1/purchase-orders',{method:'POST',body:JSON.stringify(body)})},transitionPurchaseOrder(id,estado){return requestJson<PurchaseRecord>(`/v1/purchase-orders/${id}/state`,{method:'PATCH',body:JSON.stringify({estado})})},duplicatePurchaseOrder(id){return requestJson<PurchaseRecord>(`/v1/purchase-orders/${id}/duplicate`,{method:'POST'})},
++    listWarehouseRequests(){return requestJson<PurchaseRecord[]>('/v1/warehouse-requests')},getWarehouseRequest(id){return requestJson<PurchaseRecord>(`/v1/warehouse-requests/${id}`)},transitionWarehouseRequest(id,estado){return requestJson<PurchaseRecord>(`/v1/warehouse-requests/${id}/state`,{method:'PATCH',body:JSON.stringify({estado})})},duplicateWarehouseRequest(id){return requestJson<PurchaseRecord>(`/v1/warehouse-requests/${id}/duplicate`,{method:'POST'})},
+   }
+ }
+diff --git a/src/lib/api/generated/index.ts b/src/lib/api/generated/index.ts
+index 05d7677..8ab990c 100644
+--- a/src/lib/api/generated/index.ts
++++ b/src/lib/api/generated/index.ts
+@@ -43,7 +43,7 @@ export type {
+   UpdateClientAddressBody,
+   QuoteUploadBody,
+   QuoteDownload,
+-  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow,
++  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord,
+   ProblemDetails,
+ } from './types'
+ export {
+diff --git a/src/lib/api/generated/types.ts b/src/lib/api/generated/types.ts
+index c90d5ff..241cb57 100644
+--- a/src/lib/api/generated/types.ts
++++ b/src/lib/api/generated/types.ts
+@@ -205,6 +205,13 @@ export type PriceListPreview = { proveedorId:string;total:number;validas:number;
+ export type PriceListApplyResult = { actualizados:number;vinculadosPorCodigoInterno:number;pendientesNuevas:number;pendientesActualizadas:number }
+ export type SupplierArticlePending = { id:string; proveedor_id:string; codigo_proveedor:string|null; nombre_proveedor:string|null; precio:number|null; archivo_origen:string|null; motivo:string|null; sugerencias:unknown; created_at:string; razon_social:string }
+ export type SupplierCatalogRow = { codigo_proveedor:string|null;nombre_proveedor:string|null;precio:number;codigo_interno:string }
++export type PurchaseRequestItemBody = { articuloId:string;cantidad:number;observaciones?:string|null }
++export type PurchaseRequestBody = { empresaId:string;clienteId:string;observacionesGenerales?:string|null;lugarEnvioDomicilioId?:string|null;lugarEnvioEmpresa?:boolean;lugarEnvioTexto?:string|null;lugarEnvioAlias?:string|null;estado?:'borrador'|'enviada';items:PurchaseRequestItemBody[] }
++export type PurchaseOrderBody = { empresaId:string;proveedorId:string;clienteId:string;observacionesGenerales?:string|null;lugarEnvioTexto?:string|null;lugarEnvioAlias?:string|null;condicionPago?:string|null;horarioAtencionTexto?:string|null;items:Array<PurchaseRequestItemBody&{precioUnitario:number}> }
++export type PurchaseAssignmentBody = { lugarEnvioTexto?:string|null;lugarEnvioAlias?:string|null;horarioAtencionTexto?:string|null;items:Array<{pedidoCompraItemId:string;destino:'proveedor'|'deposito'|'proveedor_deposito';proveedorId?:string|null;cantidad:number;precioUnitario?:number|null;observaciones?:string|null}> }
++export type PurchaseImportBody = { empresaId:string;orders:Array<{clienteId:string;clienteDomicilioId?:string|null;lugarEnvioTexto?:string|null;lugarEnvioAlias?:string|null;items:PurchaseRequestItemBody[]}> }
++export type PurchaseCatalogs = { empresas:Array<{id:string;nombre:string;cuit:string;domicilio:string|null;activo:boolean}>;clientes:Array<{id:string;nombre:string}>;articulos:Array<{id:string;codigo_interno:string;nombre:string;unidad:string|null;categoria:string|null;proveedor_habitual_id:string|null}>;domicilios:Array<{id:string;cliente_id:string;alias:string;direccion:string|null;es_principal:boolean;activo:boolean;horario_atencion:string|null}>;proveedores:Array<{id:string;razon_social:string;domicilio:string|null;provincia:string|null;condicion_pago_default:string|null}>;preciosProveedor:Array<{articulo_id:string;proveedor_id:string;precio:number}> }
++export type PurchaseRecord = Record<string,unknown>&{id:string;estado:string}
+ 
+ /** GET /v1/employees query (optional fields omitted when unset) */
+ export type ListEmployeesQuery = {
+diff --git a/supabase/migrations/forward/20260929110000_phase4c_purchases_api.sql b/supabase/migrations/forward/20260929110000_phase4c_purchases_api.sql
+new file mode 100644
+index 0000000..48be3ae
+--- /dev/null
++++ b/supabase/migrations/forward/20260929110000_phase4c_purchases_api.sql
+@@ -0,0 +1,63 @@
++-- Phase 4C: purchase writes are authoritative in the API only.  Browser
++-- clients retain no DML privilege; dinamic_api is intentionally the runtime
++-- role used by the repository, never the migration/deployment connection.
++do $$ declare t text; begin
++  foreach t in array array[
++    'pedidos_compra','pedidos_compra_items','ordenes_compra','ordenes_compra_items',
++    'pedidos_deposito','pedidos_deposito_items'
++  ] loop
++    execute format('revoke all privileges on table public.%I from authenticated', t);
++    execute format('grant select on table public.%I to authenticated', t);
++    execute format('grant select, insert, update, delete on table public.%I to dinamic_api', t);
++    execute format('drop policy if exists %I on public.%I', t || '_authenticated_all', t);
++    execute format('drop policy if exists %I on public.%I', t || '_insert_authenticated', t);
++    execute format('drop policy if exists %I on public.%I', t || '_update_authenticated', t);
++    execute format('drop policy if exists %I on public.%I', t || '_delete_authenticated', t);
++    execute format('drop policy if exists %I on public.%I', t || '_dinamic_api_all', t);
++    execute format('create policy %I on public.%I for all to dinamic_api using (true) with check (true)', t || '_dinamic_api_all', t);
++  end loop;
++end $$;
++
++drop policy if exists ordenes_compra_insert_admin on public.ordenes_compra;
++drop policy if exists ordenes_compra_update_admin on public.ordenes_compra;
++drop policy if exists ordenes_compra_items_insert_admin on public.ordenes_compra_items;
++drop policy if exists ordenes_compra_items_update_admin on public.ordenes_compra_items;
++drop policy if exists pedidos_compra_insert_logged on public.pedidos_compra;
++drop policy if exists pedidos_compra_update_admin_or_creador on public.pedidos_compra;
++drop policy if exists pedidos_compra_items_insert_logged on public.pedidos_compra_items;
++drop policy if exists pedidos_compra_items_update_admin on public.pedidos_compra_items;
++drop policy if exists pedidos_compra_items_update_authenticated on public.pedidos_compra_items;
++drop policy if exists pedidos_deposito_insert_admin on public.pedidos_deposito;
++drop policy if exists pedidos_deposito_update_admin on public.pedidos_deposito;
++drop policy if exists pedidos_deposito_items_insert_admin on public.pedidos_deposito_items;
++drop policy if exists pedidos_deposito_items_update_admin on public.pedidos_deposito_items;
++
++grant usage, select on sequence public.pedidos_compra_numero_seq,
++  public.ordenes_compra_numero_seq, public.pedidos_deposito_numero_seq to dinamic_api;
++
++-- Allocation reads and row locks always start from an item of a purchase
++-- request.  These indexes keep the critical transaction bounded.
++create index if not exists ordenes_compra_items_pedido_compra_item_idx
++  on public.ordenes_compra_items(pedido_compra_item_id) where pedido_compra_item_id is not null;
++create index if not exists pedidos_deposito_items_pedido_compra_item_idx
++  on public.pedidos_deposito_items(pedido_compra_item_id) where pedido_compra_item_id is not null;
++
++-- Persistent replay protection for operations which can commit before the
++-- caller receives a response.  A single key is serialized by its primary key.
++create table if not exists public.purchase_operation_idempotency (
++  actor_id uuid not null references auth.users(id) on delete cascade,
++  operation text not null check (operation in ('purchase_request_import','purchase_order_generate')),
++  idempotency_key text not null check (length(idempotency_key) between 1 and 255),
++  payload_hash text not null,
++  status text not null check (status in ('PROCESSING','COMPLETED','FAILED')),
++  response jsonb,
++  created_at timestamptz not null default now(),
++  updated_at timestamptz not null default now(),
++  primary key (actor_id, operation, idempotency_key)
++);
++alter table public.purchase_operation_idempotency enable row level security;
++revoke all on public.purchase_operation_idempotency from authenticated;
++grant select, insert, update, delete on public.purchase_operation_idempotency to dinamic_api;
++drop policy if exists purchase_operation_idempotency_dinamic_api_all on public.purchase_operation_idempotency;
++create policy purchase_operation_idempotency_dinamic_api_all on public.purchase_operation_idempotency
++  for all to dinamic_api using (true) with check (true);
+diff --git a/supabase/migrations/forward/20260929111000_phase4c_company_catalog_access.sql b/supabase/migrations/forward/20260929111000_phase4c_company_catalog_access.sql
+new file mode 100644
+index 0000000..76adfcf
+--- /dev/null
++++ b/supabase/migrations/forward/20260929111000_phase4c_company_catalog_access.sql
+@@ -0,0 +1,7 @@
++-- Phase 4C correction: purchases needs the active company catalog at runtime.
++-- Read-only grant; no browser or runtime DML is introduced.
++grant select on table public.empresas to dinamic_api;
++alter table public.empresas enable row level security;
++drop policy if exists empresas_dinamic_api_select on public.empresas;
++create policy empresas_dinamic_api_select on public.empresas
++  for select to dinamic_api using (true);
+diff --git a/supabase/migrations/forward/20260929112000_phase4c_client_catalog_access.sql b/supabase/migrations/forward/20260929112000_phase4c_client_catalog_access.sql
+new file mode 100644
+index 0000000..0312924
+--- /dev/null
++++ b/supabase/migrations/forward/20260929112000_phase4c_client_catalog_access.sql
+@@ -0,0 +1,8 @@
++-- Phase 4C correction: read-only client/address catalogs consumed by purchases.
++grant select on table public.clientes, public.cliente_domicilios to dinamic_api;
++alter table public.clientes enable row level security;
++alter table public.cliente_domicilios enable row level security;
++drop policy if exists clientes_dinamic_api_select on public.clientes;
++create policy clientes_dinamic_api_select on public.clientes for select to dinamic_api using (true);
++drop policy if exists cliente_domicilios_dinamic_api_select on public.cliente_domicilios;
++create policy cliente_domicilios_dinamic_api_select on public.cliente_domicilios for select to dinamic_api using (true);
+diff --git a/supabase/migrations/forward/20260929113000_phase4c_purchase_item_price_check.sql b/supabase/migrations/forward/20260929113000_phase4c_purchase_item_price_check.sql
+new file mode 100644
+index 0000000..e38f757
+--- /dev/null
++++ b/supabase/migrations/forward/20260929113000_phase4c_purchase_item_price_check.sql
+@@ -0,0 +1,6 @@
++-- Phase 4C invariant: an order line cannot carry a zero/negative price.
++alter table public.ordenes_compra_items
++  add constraint ordenes_compra_items_precio_unitario_check
++  check (precio_unitario > 0) not valid;
++alter table public.ordenes_compra_items
++  validate constraint ordenes_compra_items_precio_unitario_check;
+diff --git a/supabase/migrations/forward/README.md b/supabase/migrations/forward/README.md
+index 1f2b500..2cc8fac 100644
+--- a/supabase/migrations/forward/README.md
++++ b/supabase/migrations/forward/README.md
+@@ -26,5 +26,11 @@ administrative deployment connection.
+ The runner records filename + checksum in `app_migrations.forward_history` and
+ fails if an already-applied file changes.
+ 
++For an already provisioned database whose pre-runner baseline is known to be
++present, an operator may apply one new migration without adopting historical
++files: `./scripts/apply-forward-migrations.sh --only <filename.sql>`. This still
++uses the same transaction, checksum and persistent history. It is not a
++replacement for a complete fresh-deployment validation.
++
+ Duplicate historical names (`0002_compras_numeracion.sql` and `0002_proveedor_habitual.sql`)
+ are already folded into the baseline dump — restores never re-run them.
