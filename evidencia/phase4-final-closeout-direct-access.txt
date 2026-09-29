@@ -10,4 +10,4 @@ LEGACY JUSTIFICADO / LOCAL-NO-AUTORITATIVO
 - Accesos de módulos fuera de Fase 4 (auditorías, CRM, login y utilidades de presentación) quedan fuera del alcance.
 
 PASS
-- PostgREST real bloquea SELECT financiero y DML 4A–4D probados.
+- PostgREST real 4A (12/12), 4B–4D bloquea los DML y el SELECT financiero probados.

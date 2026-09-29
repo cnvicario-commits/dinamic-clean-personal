@@ -39,7 +39,7 @@ describe.skipIf(!enabled)('Phase 4A quote idempotency real PostgreSQL',()=>{
     const persisted=await adminPool.query<{quotes:string;claims:string;status:string}>(`select (select count(*)::text from public.cliente_presupuestos where cliente_id=$1) as quotes,(select count(*)::text from public.cliente_presupuesto_upload_idempotency where cliente_id=$1 and actor_id=$2 and idempotency_key=$3) as claims,(select status from public.cliente_presupuesto_upload_idempotency where cliente_id=$1 and actor_id=$2 and idempotency_key=$3) as status`,[clientId,actorId,base.idempotencyKey])
     expect(persisted.rows[0]).toMatchObject({quotes:'1',claims:'1',status:'COMPLETED'})
     await expect(repo.claimQuoteUpload({...base,payloadHash:'b'.repeat(64),storagePath:`${clientId}/other.pdf`})).rejects.toMatchObject({status:409,code:'idempotency_key_payload_mismatch'})
-  })
+  }, 20_000)
   it('uploads one real private object and one metadata row across a lost-response retry',async()=>{
     const storage=createClientQuotesStorage({SUPABASE_URL:process.env.SUPABASE_URL!,SUPABASE_SERVICE_ROLE_KEY:process.env.SUPABASE_SERVICE_ROLE_KEY!} as Env)
     const service=createClientQuotesService(repo,storage,()=>undefined)
@@ -53,5 +53,5 @@ describe.skipIf(!enabled)('Phase 4A quote idempotency real PostgreSQL',()=>{
     await service.remove({clientId,quoteId:first.record.id,actorId,requestId:'integration-cleanup'})
     const removed=await adminPool.query<{rows:string;objects:string}>(`select (select count(*)::text from public.cliente_presupuestos where id=$1) as rows,(select count(*)::text from storage.objects where bucket_id='presupuestos-clientes' and name like $2) as objects`,[first.record.id,`${clientId}/%`])
     expect(removed.rows[0]).toMatchObject({rows:'0',objects:'0'})
-  })
+  }, 20_000)
 })

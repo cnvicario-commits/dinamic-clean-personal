@@ -1,295 +1,487 @@
-diff --git a/apps/api/scripts/export-contracts.mjs b/apps/api/scripts/export-contracts.mjs
-index b8ad85c..177217f 100644
---- a/apps/api/scripts/export-contracts.mjs
-+++ b/apps/api/scripts/export-contracts.mjs
-@@ -300,7 +300,7 @@ import type {
-   UpdateClientAddressBody,
-   QuoteUploadBody,
-   QuoteDownload,
--  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord, ResultRow, ResultsImportBody, ResultRecord,
-+  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord, ResultsImportBody, ResultRecord,
-   UsersListResponse,
- } from './types'
- 
-@@ -421,7 +421,7 @@ export type DinamicApiClient = {
-   listResults: (query?:{anio?:number;mes?:number}) => Promise<ResultRecord[]>
-   getResult: (id:string) => Promise<ResultRecord & {details:unknown[]}>
-   previewResultsImport: (body:ResultsImportBody) => Promise<Record<string,unknown>>
--  applyResultsImport: (body:ResultsImportBody,key:string) => Promise<{resultIds:string[]}>
-+  applyResultsImport: (body:ResultsImportBody,key:string) => Promise<{resultIds:string[];createdPeriods:string[];updatedPeriods:string[]}>
-   getClientQuoteDownload: (clientId:string,quoteId:string) => Promise<QuoteDownload>
-   deleteClientQuote: (clientId:string,quoteId:string) => Promise<void>
- }
-@@ -588,7 +588,7 @@ export function createDinamicApiClient(options: DinamicApiClientOptions): Dinami
-     listPurchaseRequests(){return requestJson<PurchaseRecord[]>('/v1/purchase-requests')},getPurchaseRequest(id){return requestJson<PurchaseRecord>(\`/v1/purchase-requests/\${id}\`)},createPurchaseRequest(body){return requestJson<PurchaseRecord>('/v1/purchase-requests',{method:'POST',body:JSON.stringify(body)})},updatePurchaseRequest(id,body){return requestJson<PurchaseRecord>(\`/v1/purchase-requests/\${id}\`,{method:'PUT',body:JSON.stringify(body)})},transitionPurchaseRequest(id,estado){return requestJson<PurchaseRecord>(\`/v1/purchase-requests/\${id}/state\`,{method:'PATCH',body:JSON.stringify({estado})})},duplicatePurchaseRequest(id){return requestJson<PurchaseRecord>(\`/v1/purchase-requests/\${id}/duplicate\`,{method:'POST'})},setPurchaseRequestItemDiscarded(id,descartada,motivo){return requestJson<PurchaseRecord>(\`/v1/purchase-request-items/\${id}/discard\`,{method:'PATCH',body:JSON.stringify({descartada,motivo})})},previewPurchaseImport(body){return requestJson('/v1/purchase-requests/import/preview',{method:'POST',body:JSON.stringify(body)})},applyPurchaseImport(body,key){return requestJson('/v1/purchase-requests/import/apply',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},assignPurchaseRequest(id,body,key){return requestJson(\`/v1/purchase-requests/\${id}/assignments\`,{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},
-     listPurchaseOrders(){return requestJson<PurchaseRecord[]>('/v1/purchase-orders')},getPurchaseOrder(id){return requestJson<PurchaseRecord>(\`/v1/purchase-orders/\${id}\`)},createPurchaseOrder(body){return requestJson<PurchaseRecord>('/v1/purchase-orders',{method:'POST',body:JSON.stringify(body)})},transitionPurchaseOrder(id,estado){return requestJson<PurchaseRecord>(\`/v1/purchase-orders/\${id}/state\`,{method:'PATCH',body:JSON.stringify({estado})})},duplicatePurchaseOrder(id){return requestJson<PurchaseRecord>(\`/v1/purchase-orders/\${id}/duplicate\`,{method:'POST'})},
-     listWarehouseRequests(){return requestJson<PurchaseRecord[]>('/v1/warehouse-requests')},getWarehouseRequest(id){return requestJson<PurchaseRecord>(\`/v1/warehouse-requests/\${id}\`)},transitionWarehouseRequest(id,estado){return requestJson<PurchaseRecord>(\`/v1/warehouse-requests/\${id}/state\`,{method:'PATCH',body:JSON.stringify({estado})})},duplicateWarehouseRequest(id){return requestJson<PurchaseRecord>(\`/v1/warehouse-requests/\${id}/duplicate\`,{method:'POST'})},
--    listResults(query){const q=query?new URLSearchParams(Object.entries(query).filter(([,v])=>v!==undefined).map(([k,v])=>[k,String(v)])).toString():'';return requestJson<ResultRecord[]>('/v1/results'+(q?'?'+q:''))},getResult(id){return requestJson<ResultRecord&{details:unknown[]}>('/v1/results/'+id)},previewResultsImport(body){return requestJson('/v1/results/import/preview',{method:'POST',body:JSON.stringify(body)})},applyResultsImport(body,key){return requestJson('/v1/results/import/apply',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},
-+    listResults(query){const q=query?new URLSearchParams(Object.entries(query).filter(([,v])=>v!==undefined).map(([k,v])=>[k,String(v)])).toString():'';return requestJson<ResultRecord[]>('/v1/results'+(q?'?'+q:''))},getResult(id){return requestJson<ResultRecord&{details:unknown[]}>('/v1/results/'+id)},previewResultsImport(body){return requestJson('/v1/results/import/preview',{method:'POST',body:JSON.stringify(body)})},applyResultsImport(body,key){return requestJson<{resultIds:string[];createdPeriods:string[];updatedPeriods:string[]}>('/v1/results/import/apply',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},
-   }
- }
- `
-diff --git a/apps/api/src/app.ts b/apps/api/src/app.ts
-index dafa4da..2a16331 100644
---- a/apps/api/src/app.ts
-+++ b/apps/api/src/app.ts
-@@ -87,6 +87,7 @@ export type BuildAppOptions = {
-   clientQuotesStorage?: ClientQuotesStorage
-   catalogRepo?: CatalogRepository
-   purchasesRepo?: PurchasesRepository
-+  resultsRepo?: ResultsRepository
- }
- 
- /**
-@@ -196,7 +197,7 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
-   app.decorate('catalogService',createCatalogService(app.catalogRepo,(data,message)=>app.log.info(data,message)))
-   app.decorate('purchasesRepo',options.purchasesRepo??createPurchasesRepository(db))
-   app.decorate('purchasesService',createPurchasesService(app.purchasesRepo,(data,message)=>app.log.info(data,message)))
--  app.decorate('resultsRepo',createResultsRepository(db))
-+  app.decorate('resultsRepo',options.resultsRepo ?? createResultsRepository(db))
-   app.decorate('resultsService',createResultsService(app.resultsRepo,(data,message)=>app.log.info(data,message)))
-   app.decorate('db', db)
-   app.decorate('jwtVerifier', jwtVerifier)
-diff --git a/apps/api/src/infrastructure/db/results-repository.ts b/apps/api/src/infrastructure/db/results-repository.ts
-index 4705988..b15f511 100644
---- a/apps/api/src/infrastructure/db/results-repository.ts
-+++ b/apps/api/src/infrastructure/db/results-repository.ts
-@@ -1,3 +1,4 @@
-+import { createHash } from 'node:crypto'
- import type pg from 'pg'
- import type { Db } from './pool.js'
- import { AppError, badRequest, notFound } from '../../http/errors/app-error.js'
-@@ -5,15 +6,16 @@ import type { ResultsImport } from '../../http/schemas/results.js'
- 
- const fields = 'id,anio,mes,ventas_dinamic,ventas_moral,total_ventas,total_costos_directos,resultado_bruto,total_rrhh,total_estructura_servicios,total_honorarios_abonos,total_gastos_financieros,total_gastos_comerciales,total_otros_gastos,total_impuestos,resultado_periodo,created_at,updated_at'
- const columns = ['ventas_dinamic','ventas_moral','total_ventas','total_costos_directos','resultado_bruto','total_rrhh','total_estructura_servicios','total_honorarios_abonos','total_gastos_financieros','total_gastos_comerciales','total_otros_gastos','total_impuestos','resultado_periodo'] as const
--function tx<T>(db:Db, fn:(c:pg.PoolClient)=>Promise<T>) { return (async()=>{const c=await db.pool.connect();try{await c.query('begin');const v=await fn(c);await c.query('commit');return v}catch(e){await c.query('rollback');if(e instanceof AppError)throw e;throw new AppError(502,'results_persistence_failed','Results persistence failed')}finally{c.release()}})() }
-+type ImportRow = ResultsImport['rows'][number]
-+function transaction<T>(db:Db, fn:(c:pg.PoolClient)=>Promise<T>):Promise<T>{return (async()=>{const c=await db.pool.connect();try{await c.query('begin');const v=await fn(c);await c.query('commit');return v}catch(e){await c.query('rollback');if(e instanceof AppError)throw e;throw new AppError(502,'results_persistence_failed','Results persistence failed')}finally{c.release()}})()}
-+function validateRow(row:ImportRow){for(const key of Object.keys(row.values))if(!(columns as readonly string[]).includes(key))throw badRequest(`Unknown result field: ${key}`);return row}
-+function duplicatePeriods(rows:ImportRow[]){const seen=new Set<string>(),duplicates=new Set<string>();for(const row of rows){const p=`${row.anio}-${row.mes}`;if(seen.has(p))duplicates.add(p);seen.add(p)}return [...duplicates]}
-+function rejectDuplicatePeriods(rows:ImportRow[]){const duplicates=duplicatePeriods(rows);if(duplicates.length)throw new AppError(409,'duplicate_result_period',`Duplicate result period(s): ${duplicates.join(', ')}`,{duplicates})}
- export function createResultsRepository(db:Db){
-- async function list(filter:{anio?:number;mes?:number}){const where:string[]=[];const p:unknown[]=[];if(filter.anio!==undefined){p.push(filter.anio);where.push(`anio=$${p.length}`)}if(filter.mes!==undefined){p.push(filter.mes);where.push(`mes=$${p.length}`)}return (await db.query(`select ${fields} from public.resultados_mensuales ${where.length?'where '+where.join(' and '):''} order by anio,mes`,p)).rows}
-- async function detail(id:string){const h=(await db.query(`select ${fields} from public.resultados_mensuales where id=$1`,[id])).rows[0];if(!h)throw notFound('Result not found');const d=await db.query('select id,resultados_mensuales_id,anio,mes,rubro,concepto,monto from public.resultados_mensuales_detalle where resultados_mensuales_id=$1 order by rubro,concepto,id',[id]);return { ...h, details:d.rows }}
-- function validate(row:ResultsImport['rows'][number]){const duplicate=`${row.anio}-${row.mes}`;if(!duplicate)return badRequest('Invalid period');for(const key of Object.keys(row.values))if(!(columns as readonly string[]).includes(key))throw badRequest('Unknown result field');return row}
-- async function preview(input:ResultsImport){const seen=new Set<string>();const conflicts:string[]=[];for(const row of input.rows){validate(row);const k=`${row.anio}-${row.mes}`;if(seen.has(k))conflicts.push(k);seen.add(k)}const existing=await db.query('select anio,mes from public.resultados_mensuales where (anio,mes) in ('+input.rows.map((_,i)=>`($${i*2+1},$${i*2+2})`).join(',')+')',input.rows.flatMap(r=>[r.anio,r.mes]));const existingSet=new Set(existing.rows.map(r=>`${r.anio}-${r.mes}`));return {total:input.rows.length,valid:input.rows.length-conflicts.length,invalid:0,newRows:input.rows.filter(r=>!existingSet.has(`${r.anio}-${r.mes}`)).length,updates:input.rows.filter(r=>existingSet.has(`${r.anio}-${r.mes}`)).length,duplicates:conflicts,errors:[]}}
-- async function apply(input:ResultsImport,key:string,actorId:string){const payload=JSON.stringify(input);return tx(db,async c=>{const hash=(await import('node:crypto')).createHash('sha256').update(payload).digest('hex');const claim=await c.query(`insert into public.resultados_import_idempotency(actor_id,idempotency_key,payload_hash,status,response) values($1,$2,$3,'PROCESSING',null) on conflict(actor_id,idempotency_key) do nothing returning id`,[actorId,key,hash]);if(!claim.rows[0]){const old=(await c.query('select payload_hash,status,response from public.resultados_import_idempotency where actor_id=$1 and idempotency_key=$2 for update',[actorId,key])).rows[0];if(old.payload_hash!==hash)throw new AppError(409,'idempotency_key_payload_mismatch','Idempotency-Key payload mismatch');if(old.status==='COMPLETED')return old.response;}
--   const resultIds:string[]=[];for(const row of input.rows){validate(row);const vals=columns.map(k=>row.values[k]??null);const h=(await c.query(`insert into public.resultados_mensuales(anio,mes,${columns.join(',')}) values($1,$2,${columns.map((_,i)=>`$${i+3}`).join(',')}) on conflict(anio,mes) do update set ${columns.map(k=>`${k}=excluded.${k}`).join(',')} returning id`,[row.anio,row.mes,...vals])).rows[0];if(!h)throw new AppError(502,'results_create_failed','Result persistence failed');resultIds.push(String(h.id));await c.query('delete from public.resultados_mensuales_detalle where resultados_mensuales_id=$1',[h.id]);for(const d of row.details)await c.query('insert into public.resultados_mensuales_detalle(resultados_mensuales_id,anio,mes,rubro,concepto,monto) values($1,$2,$3,$4,$5,$6)',[h.id,row.anio,row.mes,d.rubro,d.concepto,d.monto])}
--   const response={resultIds};await c.query(`update public.resultados_import_idempotency set status='COMPLETED',response=$3,updated_at=now() where actor_id=$1 and idempotency_key=$2`,[actorId,key,response]);return response})}
-- return {list,detail,preview,apply}
-+ async function list(filter:{anio?:number|undefined;mes?:number|undefined}){const where:string[]=[];const p:unknown[]=[];if(filter.anio!==undefined){p.push(filter.anio);where.push(`anio=$${p.length}`)}if(filter.mes!==undefined){p.push(filter.mes);where.push(`mes=$${p.length}`)}return(await db.query(`select ${fields} from public.resultados_mensuales ${where.length?`where ${where.join(' and ')}`:''} order by anio,mes`,p)).rows}
-+ async function detail(id:string){const h=(await db.query(`select ${fields} from public.resultados_mensuales where id=$1`,[id])).rows[0];if(!h)throw notFound('Result not found');const d=await db.query('select id,resultados_mensuales_id,anio,mes,rubro,concepto,monto from public.resultados_mensuales_detalle where resultados_mensuales_id=$1 order by rubro,concepto,id',[id]);return{...h,details:d.rows}}
-+ async function preview(input:ResultsImport){input.rows.forEach(validateRow);const duplicates=duplicatePeriods(input.rows);const tuples=input.rows.map((_,i)=>`($${i*2+1},$${i*2+2})`).join(',');const existing=await db.query(`select anio,mes from public.resultados_mensuales where (anio,mes) in (${tuples})`,input.rows.flatMap(r=>[r.anio,r.mes]));const set=new Set(existing.rows.map(r=>`${r.anio}-${r.mes}`));return{total:input.rows.length,valid:input.rows.length-duplicates.length,invalid:duplicates.length,newRows:input.rows.filter(r=>!set.has(`${r.anio}-${r.mes}`)).length,updates:input.rows.filter(r=>set.has(`${r.anio}-${r.mes}`)).length,duplicates,errors:duplicates.map(period=>({period,message:'Duplicate period in import payload'}))}}
-+ async function apply(input:ResultsImport,key:string,actorId:string){input.rows.forEach(validateRow);rejectDuplicatePeriods(input.rows);const hash=createHash('sha256').update(JSON.stringify(input)).digest('hex');return transaction(db,async c=>{const claim=await c.query(`insert into public.resultados_import_idempotency(actor_id,idempotency_key,payload_hash,status,response) values($1,$2,$3,'PROCESSING',null) on conflict(actor_id,idempotency_key) do nothing returning id`,[actorId,key,hash]);if(!claim.rows[0]){const old=(await c.query('select payload_hash,status,response from public.resultados_import_idempotency where actor_id=$1 and idempotency_key=$2 for update',[actorId,key])).rows[0];if(!old||old.payload_hash!==hash)throw new AppError(409,'idempotency_key_payload_mismatch','Idempotency-Key payload mismatch');if(old.status==='COMPLETED')return old.response}const resultIds:string[]=[],createdPeriods:string[]=[],updatedPeriods:string[]=[];for(const row of input.rows){const period=`${row.anio}-${row.mes}`,vals=columns.map(k=>row.values[k]??null);const h=(await c.query(`insert into public.resultados_mensuales(anio,mes,${columns.join(',')}) values($1,$2,${columns.map((_,i)=>`$${i+3}`).join(',')}) on conflict(anio,mes) do update set ${columns.map(k=>`${k}=excluded.${k}`).join(',')} returning id,xmax`,[row.anio,row.mes,...vals])).rows[0];if(!h)throw new AppError(502,'results_create_failed','Result persistence failed');resultIds.push(String(h.id));(String(h.xmax)==='0'?createdPeriods:updatedPeriods).push(period);await c.query('delete from public.resultados_mensuales_detalle where resultados_mensuales_id=$1',[h.id]);for(const d of row.details)await c.query('insert into public.resultados_mensuales_detalle(resultados_mensuales_id,anio,mes,rubro,concepto,monto) values($1,$2,$3,$4,$5,$6)',[h.id,row.anio,row.mes,d.rubro,d.concepto,d.monto])}const response={resultIds,createdPeriods,updatedPeriods};await c.query("update public.resultados_import_idempotency set status='COMPLETED',response=$3,updated_at=now() where actor_id=$1 and idempotency_key=$2",[actorId,key,response]);return response})}
-+ return{list,detail,preview,apply}
- }
- export type ResultsRepository=ReturnType<typeof createResultsRepository>
-diff --git a/apps/api/tests/catalog-postgres.integration.test.ts b/apps/api/tests/catalog-postgres.integration.test.ts
-index 744d78d..3e19cf0 100644
---- a/apps/api/tests/catalog-postgres.integration.test.ts
-+++ b/apps/api/tests/catalog-postgres.integration.test.ts
-@@ -3,10 +3,10 @@ import { createDb,type Db } from '../src/infrastructure/db/pool.js'
- import { createCatalogRepository,type CatalogRepository } from '../src/infrastructure/db/catalog-repository.js'
- import { testEnv } from './helpers.js'
- const enabled=process.env.RUN_SUPABASE_INTEGRATION==='1'&&Boolean(process.env.DATABASE_URL)
--const actor='d2922e19-bfbc-4a15-9a51-af40336ce9da'
-+let actor=''
- describe.skipIf(!enabled)('Phase 4B PostgreSQL real integration',()=>{
-  let db:Db,repo:CatalogRepository,supplierId:string;const marker=`P4B-${Date.now()}`
-- beforeAll(async()=>{db=createDb(testEnv({DATABASE_URL:process.env.DATABASE_URL!}));repo=createCatalogRepository(db);supplierId=String((await repo.createSupplier({razonSocial:marker,cuit:marker,domicilio:null,telefono:null,provincia:null,condicionPagoDefault:null})).id)})
-+ beforeAll(async()=>{db=createDb(testEnv({DATABASE_URL:process.env.DATABASE_URL!}));repo=createCatalogRepository(db);actor=String((await db.query('select id from public.perfiles order by id limit 1')).rows[0]?.id);supplierId=String((await repo.createSupplier({razonSocial:marker,cuit:marker,domicilio:null,telefono:null,provincia:null,condicionPagoDefault:null})).id)})
-  afterAll(async()=>{if(db){await db.query("delete from public.catalog_operation_idempotency where actor_id=$1 and idempotency_key like $2",[actor,`${marker}%`]);await db.query('delete from public.articulos_proveedor_pendientes where proveedor_id=$1',[supplierId]);await db.query('delete from public.articulos_proveedor where proveedor_id=$1',[supplierId]);await db.query('delete from public.articulos where nombre like $1',[`${marker}%`]);await db.query('delete from public.proveedores where id=$1',[supplierId]);await db.close()}})
-  it('generates unique ART codes concurrently in the real DB',async()=>{const created=await Promise.all(Array.from({length:8},(_,i)=>repo.createArticle({nombre:`${marker}-concurrent-${i}`,categoria:null,unidad:null,proveedorHabitualId:null})));const codes=created.map(r=>String(r.codigo_interno));expect(new Set(codes).size).toBe(8);codes.forEach(code=>expect(code).toMatch(/^ART-\d{4,}$/))})
-  it('same idempotency key is one effective import and replays after response loss',async()=>{const rows=[{fila:2,codigoInterno:`${marker}-I`,nombre:`${marker}-import`,categoria:null,unidad:null}];const key=`${marker}-import`;const payloadHash='same';const [a,b]=await Promise.all([repo.importArticles(rows,{actorId:actor,key,payloadHash}),repo.importArticles(rows,{actorId:actor,key,payloadHash})]);expect([a.replayed,b.replayed].sort()).toEqual([false,true]);const retry=await repo.importArticles(rows,{actorId:actor,key,payloadHash});expect(retry).toEqual(expect.objectContaining({replayed:true,response:a.response}));expect(Number((await db.query('select count(*) from public.articulos where codigo_interno=$1',[`${marker}-I`])).rows[0].count)).toBe(1);await expect(repo.importArticles([{...rows[0],nombre:'different'}],{actorId:actor,key,payloadHash:'different'})).rejects.toMatchObject({status:409})})
-diff --git a/apps/api/tests/results-http.test.ts b/apps/api/tests/results-http.test.ts
-index 37f2215..8316c3c 100644
---- a/apps/api/tests/results-http.test.ts
-+++ b/apps/api/tests/results-http.test.ts
-@@ -10,5 +10,5 @@ async function app(role:string){const a=await buildApp(testEnv(),{db:createProfi
- async function auth(){return{authorization:`Bearer ${await signAccessToken({sub:USER})}`}}
- describe('Phase 4D Results HTTP/RBAC',()=>{
-  it('requires auth and denies non-finance roles',async()=>{expect((await(await app('admin')).inject({method:'GET',url:'/v1/results'})).statusCode).toBe(401);for(const role of ['gerente','compras','supervisor','auditoria'])expect((await(await app(role)).inject({method:'GET',url:'/v1/results',headers:await auth()})).statusCode).toBe(403)})
-- it('allows admin read and requires idempotency for apply',async()=>{const a=await app('admin'),headers=await auth();expect((await a.inject({method:'GET',url:'/v1/results',headers})).statusCode).toBe(200);expect((await a.inject({method:'POST',url:'/v1/results/import/apply',headers,payload:{rows:[]}})).statusCode).toBe(400)})
-+ it('covers admin read/preview/apply and deny-by-default for every other role',async()=>{const payload={rows:[{anio:2026,mes:1,values:{total_ventas:1},details:[]}]};const admin=await app('admin'),headers=await auth();expect((await admin.inject({method:'GET',url:'/v1/results',headers})).statusCode).toBe(200);expect((await admin.inject({method:'POST',url:'/v1/results/import/preview',headers,payload})).statusCode).toBe(200);const applied=await admin.inject({method:'POST',url:'/v1/results/import/apply',headers:{...headers,'idempotency-key':'results-http-key'},payload});expect(applied.statusCode,applied.body).toBe(200);for(const role of ['gerente','compras','supervisor','auditoria']){const a=await app(role),h=await auth();for(const url of ['/v1/results','/v1/results/import/preview','/v1/results/import/apply'])expect((await a.inject({method:url.startsWith('/v1/results/import')?'POST':'GET',url,headers:h,payload})).statusCode).toBe(403)}expect((await admin.inject({method:'POST',url:'/v1/results/import/apply',headers,payload})).statusCode).toBe(400)})
+diff --git a/apps/api/tests/phase4a-quote-idempotency.integration.test.ts b/apps/api/tests/phase4a-quote-idempotency.integration.test.ts
+index 8db6080..6b7291c 100644
+--- a/apps/api/tests/phase4a-quote-idempotency.integration.test.ts
++++ b/apps/api/tests/phase4a-quote-idempotency.integration.test.ts
+@@ -39,7 +39,7 @@ describe.skipIf(!enabled)('Phase 4A quote idempotency real PostgreSQL',()=>{
+     const persisted=await adminPool.query<{quotes:string;claims:string;status:string}>(`select (select count(*)::text from public.cliente_presupuestos where cliente_id=$1) as quotes,(select count(*)::text from public.cliente_presupuesto_upload_idempotency where cliente_id=$1 and actor_id=$2 and idempotency_key=$3) as claims,(select status from public.cliente_presupuesto_upload_idempotency where cliente_id=$1 and actor_id=$2 and idempotency_key=$3) as status`,[clientId,actorId,base.idempotencyKey])
+     expect(persisted.rows[0]).toMatchObject({quotes:'1',claims:'1',status:'COMPLETED'})
+     await expect(repo.claimQuoteUpload({...base,payloadHash:'b'.repeat(64),storagePath:`${clientId}/other.pdf`})).rejects.toMatchObject({status:409,code:'idempotency_key_payload_mismatch'})
+-  })
++  }, 20_000)
+   it('uploads one real private object and one metadata row across a lost-response retry',async()=>{
+     const storage=createClientQuotesStorage({SUPABASE_URL:process.env.SUPABASE_URL!,SUPABASE_SERVICE_ROLE_KEY:process.env.SUPABASE_SERVICE_ROLE_KEY!} as Env)
+     const service=createClientQuotesService(repo,storage,()=>undefined)
+@@ -53,5 +53,5 @@ describe.skipIf(!enabled)('Phase 4A quote idempotency real PostgreSQL',()=>{
+     await service.remove({clientId,quoteId:first.record.id,actorId,requestId:'integration-cleanup'})
+     const removed=await adminPool.query<{rows:string;objects:string}>(`select (select count(*)::text from public.cliente_presupuestos where id=$1) as rows,(select count(*)::text from storage.objects where bucket_id='presupuestos-clientes' and name like $2) as objects`,[first.record.id,`${clientId}/%`])
+     expect(removed.rows[0]).toMatchObject({rows:'0',objects:'0'})
+-  })
++  }, 20_000)
  })
-diff --git a/apps/api/tests/results-postgres.integration.test.ts b/apps/api/tests/results-postgres.integration.test.ts
-index 4a70719..2e83062 100644
---- a/apps/api/tests/results-postgres.integration.test.ts
-+++ b/apps/api/tests/results-postgres.integration.test.ts
-@@ -2,20 +2,34 @@ import { describe,expect,it,afterAll } from 'vitest'
- import { createDb } from '../src/infrastructure/db/pool.js'
- import { createResultsRepository } from '../src/infrastructure/db/results-repository.js'
- import { loadEnv } from '../src/config/env.js'
-+import { randomUUID } from 'node:crypto'
- 
- const enabled=process.env.RUN_SUPABASE_INTEGRATION==='1'
- const db=enabled?createDb(loadEnv()):null
- const repo=db?createResultsRepository(db):null
- const actor='00000000-0000-0000-0000-000000000001'
- const rows=[{anio:2199,mes:12,values:{total_ventas:1234.56,resultado_periodo:-2.5},details:[{rubro:'costos',concepto:'Ajuste',monto:-2.5}]}]
-+const row=(anio:number,concepto:string)=>({anio,mes:12,values:{total_ventas:1234.56,resultado_periodo:-2.5},details:[{rubro:'costos',concepto,monto:-2.5}]})
- describe.skipIf(!enabled)('Phase 4D PostgreSQL real integration',()=>{
-- afterAll(async()=>{if(db){await db.query('delete from public.resultados_mensuales_detalle where anio=2199 and mes=12');await db.query('delete from public.resultados_mensuales where anio=2199 and mes=12');await db.close()}})
-+ afterAll(async()=>{if(db){await db.query('delete from public.resultados_mensuales_detalle where anio between 2196 and 2199');await db.query('delete from public.resultados_mensuales where anio between 2196 and 2199');await db.query("delete from public.resultados_import_idempotency where actor_id=$1",[actor]);await db.close()}})
-  it('preview is read-only and apply is atomic/idempotent',async()=>{
-   const before=await db!.query('select count(*)::int as n from public.resultados_mensuales where anio=2199 and mes=12')
--  const preview=await repo!.preview({rows});expect(preview.valid).toBe(1)
-+  const preview=await repo!.preview({rows});expect(preview.valid).toBe(1);expect(preview.newRows).toBe(1)
-   const afterPreview=await db!.query('select count(*)::int as n from public.resultados_mensuales where anio=2199 and mes=12');expect(afterPreview.rows[0].n).toBe(before.rows[0].n)
--  const first=await repo!.apply({rows},'results-4d-integration-key',actor);const replay=await repo!.apply({rows},'results-4d-integration-key',actor);expect(replay).toEqual(first)
-+  const baseKey=randomUUID();const first=await repo!.apply({rows},baseKey,actor);const replay=await repo!.apply({rows},baseKey,actor);expect(replay).toEqual(first);expect(first.createdPeriods).toEqual(['2199-12']);expect(first.updatedPeriods).toEqual([])
-+  const mixed=await repo!.apply({rows:[row(2199,'Ajuste'),row(2198,'Nuevo')]},randomUUID(),actor);expect(mixed.createdPeriods).toEqual(['2198-12']);expect(mixed.updatedPeriods).toEqual(['2199-12'])
-   await expect(repo!.apply({rows:[{...rows[0],values:{total_ventas:9}}]},'results-4d-integration-key',actor)).rejects.toMatchObject({statusCode:409})
-   const detail=await repo!.detail(first.resultIds[0]);expect(detail.details).toHaveLength(1);expect(detail.resultado_periodo).toBe('-2.5')
-  },30_000)
-+ it('rejects duplicate periods and rolls back after a detail constraint failure',async()=>{
-+  await expect(repo!.apply({rows:[row(2197,'A'),row(2197,'B') ]},'results-4d-duplicate-key',actor)).rejects.toMatchObject({statusCode:409})
-+  await repo!.apply({rows:[row(2196,'Original')]},randomUUID(),actor)
-+  const broken={...row(2196,'Broken'),details:[{rubro:'costos',concepto:'Dup',monto:1},{rubro:'costos',concepto:'Dup',monto:2}]}
-+  await expect(repo!.apply({rows:[broken]},randomUUID(),actor)).rejects.toMatchObject({statusCode:502})
-+  const persisted=await db!.query('select total_ventas from public.resultados_mensuales where anio=2196 and mes=12');const details=await db!.query('select concepto from public.resultados_mensuales_detalle where anio=2196 and mes=12');expect(persisted.rows[0].total_ventas).toBe('1234.56');expect(details.rows.map(r=>r.concepto)).toEqual(['Original'])
-+ },30_000)
-+ it('protects concurrent imports with same and different idempotency keys',async()=>{
-+  const sameKey=randomUUID();const same=await Promise.all([repo!.apply({rows:[row(2197,'Same')]},sameKey,actor),repo!.apply({rows:[row(2197,'Same')]},sameKey,actor)]);expect(same[0]).toEqual(same[1]);
-+  const different=await Promise.all([repo!.apply({rows:[row(2197,'Left')]},randomUUID(),actor),repo!.apply({rows:[row(2197,'Right')]},randomUUID(),actor)]);expect(different).toHaveLength(2);const persisted=await db!.query('select count(*)::int as n from public.resultados_mensuales where anio=2197 and mes=12');const details=await db!.query('select concepto from public.resultados_mensuales_detalle where anio=2197 and mes=12');expect(persisted.rows[0].n).toBe(1);expect(details.rows).toHaveLength(1);expect(['Left','Right']).toContain(details.rows[0].concepto)
-+ },30_000)
- })
+diff --git a/evidencia/phase4-final-4a-root-cause.md b/evidencia/phase4-final-4a-root-cause.md
+new file mode 100644
+index 0000000..b7d707b
+--- /dev/null
++++ b/evidencia/phase4-final-4a-root-cause.md
+@@ -0,0 +1,31 @@
++# Fase 4A — causa raíz y corrección
++
++## Error reproducido
++
++La integración real `phase4a-quote-idempotency.integration.test.ts` fallaba en `Client persistence failed` al ejecutar `claimQuoteUpload`/`insertQuoteAndCompleteUpload`.
++
++El diagnóstico directo contra PostgreSQL, sin imprimir secretos, mostró inicialmente:
++
++- `42P01`: `relation public.cliente_presupuesto_upload_idempotency does not exist`.
++- Después de aplicar esa migration, `42501`: `permission denied for table cliente_presupuestos`.
++
++## Clasificación
++
++`CONFIGURATION_DEFECT`.
++
++El código productivo y el fixture usan un actor válido de `public.perfiles` y un cliente creado en la misma base. La base efectiva no tenía registradas ni aplicadas las migrations forward 4A de clientes y de idempotencia de presupuestos, por lo que faltaban el objeto y los grants runtime requeridos por `dinamic_api`.
++
++## Corrección aplicada
++
++Se ejecutó el runner oficial con `MIGRATIONS_DATABASE_URL` y `--only` para las migrations existentes:
++
++- `20260928120000_phase4a_clients.sql`
++- `20260928130000_phase4a_quote_upload_idempotency.sql`
++
++No se modificaron migrations históricas ni se relajaron RLS, grants browser, FKs o constraints. El modo `--only` fue necesario porque el recorrido completo se detiene antes en la migration histórica `0001_phase2d_perfiles_hardening.sql`, que contiene `ALTER ROLE`, operación que Supabase administrado rechaza.
++
++También se ajustó únicamente el timeout de los tests opt-in de integración para tolerar la latencia real de Supabase; no cambia la lógica ni la garantía probada.
++
++## Verificación
++
++La integración real terminó `2/2 PASS`, incluyendo concurrencia same-key, replay, payload mismatch, Storage y limpieza. Las migrations 4A figuran en `app_migrations.forward_history` y el runtime continúa conectándose como `dinamic_api`.
 diff --git a/evidencia/phase4-final-closeout-db-validation.txt b/evidencia/phase4-final-closeout-db-validation.txt
-new file mode 100644
-index 0000000..3212d71
---- /dev/null
+index 3212d71..0e4b057 100644
+--- a/evidencia/phase4-final-closeout-db-validation.txt
 +++ b/evidencia/phase4-final-closeout-db-validation.txt
-@@ -0,0 +1,12 @@
-+# DB efectiva Fase 4
-+
-+PASS
-+- `app_migrations.forward_history` contiene migrations 4A, 4B, 4C y 4D aplicadas.
-+- 4B: `catalog_operation_idempotency`, secuencia/trigger ART, grants/RLS verificados por integración.
-+- 4C: constraints, numeración, idempotencia y RLS/grants verificados por `purchases-db-validation.integration.test.ts`.
-+- 4D: FK `resultados_mensuales_detalle_resultado_fk`, índice de FK, UNIQUE `(anio,mes)`, `resultados_import_idempotency`, RLS y grants `dinamic_api` verificados.
-+- PostgREST authenticated real: SELECT y DML sobre Resultados denegados.
-+
-+4A conserva un bloqueo de certificación en la prueba opt-in de presupuestos: el fixture de identidad usado por el test no logra persistir el cliente con la configuración actual. No se modificó la DB 4A para ocultarlo.
-+
-+No se incluyen secretos.
+@@ -1,12 +1,12 @@
+ # DB efectiva Fase 4
+ 
+ PASS
+-- `app_migrations.forward_history` contiene migrations 4A, 4B, 4C y 4D aplicadas.
++- `app_migrations.forward_history` contiene `20260928120000_phase4a_clients.sql` y `20260928130000_phase4a_quote_upload_idempotency.sql`, además de las migrations 4B, 4C y 4D.
+ - 4B: `catalog_operation_idempotency`, secuencia/trigger ART, grants/RLS verificados por integración.
+ - 4C: constraints, numeración, idempotencia y RLS/grants verificados por `purchases-db-validation.integration.test.ts`.
+ - 4D: FK `resultados_mensuales_detalle_resultado_fk`, índice de FK, UNIQUE `(anio,mes)`, `resultados_import_idempotency`, RLS y grants `dinamic_api` verificados.
+ - PostgREST authenticated real: SELECT y DML sobre Resultados denegados.
+ 
+-4A conserva un bloqueo de certificación en la prueba opt-in de presupuestos: el fixture de identidad usado por el test no logra persistir el cliente con la configuración actual. No se modificó la DB 4A para ocultarlo.
++4A: objetos, grants `dinamic_api` y policies de clientes/presupuestos/idempotencia quedaron materializados por las migrations existentes; la integración real 2/2 PASS confirmó persistencia y replay.
+ 
+ No se incluyen secretos.
+diff --git a/evidencia/phase4-final-closeout-diff.txt b/evidencia/phase4-final-closeout-diff.txt
+index b0acbff..8255ea0 100644
+--- a/evidencia/phase4-final-closeout-diff.txt
++++ b/evidencia/phase4-final-closeout-diff.txt
+@@ -1,295 +0,0 @@
+-diff --git a/apps/api/scripts/export-contracts.mjs b/apps/api/scripts/export-contracts.mjs
+-index b8ad85c..177217f 100644
+---- a/apps/api/scripts/export-contracts.mjs
+-+++ b/apps/api/scripts/export-contracts.mjs
+-@@ -300,7 +300,7 @@ import type {
+-   UpdateClientAddressBody,
+-   QuoteUploadBody,
+-   QuoteDownload,
+--  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord, ResultRow, ResultsImportBody, ResultRecord,
+-+  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord, ResultsImportBody, ResultRecord,
+-   UsersListResponse,
+- } from './types'
+- 
+-@@ -421,7 +421,7 @@ export type DinamicApiClient = {
+-   listResults: (query?:{anio?:number;mes?:number}) => Promise<ResultRecord[]>
+-   getResult: (id:string) => Promise<ResultRecord & {details:unknown[]}>
+-   previewResultsImport: (body:ResultsImportBody) => Promise<Record<string,unknown>>
+--  applyResultsImport: (body:ResultsImportBody,key:string) => Promise<{resultIds:string[]}>
+-+  applyResultsImport: (body:ResultsImportBody,key:string) => Promise<{resultIds:string[];createdPeriods:string[];updatedPeriods:string[]}>
+-   getClientQuoteDownload: (clientId:string,quoteId:string) => Promise<QuoteDownload>
+-   deleteClientQuote: (clientId:string,quoteId:string) => Promise<void>
+- }
+-@@ -588,7 +588,7 @@ export function createDinamicApiClient(options: DinamicApiClientOptions): Dinami
+-     listPurchaseRequests(){return requestJson<PurchaseRecord[]>('/v1/purchase-requests')},getPurchaseRequest(id){return requestJson<PurchaseRecord>(\`/v1/purchase-requests/\${id}\`)},createPurchaseRequest(body){return requestJson<PurchaseRecord>('/v1/purchase-requests',{method:'POST',body:JSON.stringify(body)})},updatePurchaseRequest(id,body){return requestJson<PurchaseRecord>(\`/v1/purchase-requests/\${id}\`,{method:'PUT',body:JSON.stringify(body)})},transitionPurchaseRequest(id,estado){return requestJson<PurchaseRecord>(\`/v1/purchase-requests/\${id}/state\`,{method:'PATCH',body:JSON.stringify({estado})})},duplicatePurchaseRequest(id){return requestJson<PurchaseRecord>(\`/v1/purchase-requests/\${id}/duplicate\`,{method:'POST'})},setPurchaseRequestItemDiscarded(id,descartada,motivo){return requestJson<PurchaseRecord>(\`/v1/purchase-request-items/\${id}/discard\`,{method:'PATCH',body:JSON.stringify({descartada,motivo})})},previewPurchaseImport(body){return requestJson('/v1/purchase-requests/import/preview',{method:'POST',body:JSON.stringify(body)})},applyPurchaseImport(body,key){return requestJson('/v1/purchase-requests/import/apply',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},assignPurchaseRequest(id,body,key){return requestJson(\`/v1/purchase-requests/\${id}/assignments\`,{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},
+-     listPurchaseOrders(){return requestJson<PurchaseRecord[]>('/v1/purchase-orders')},getPurchaseOrder(id){return requestJson<PurchaseRecord>(\`/v1/purchase-orders/\${id}\`)},createPurchaseOrder(body){return requestJson<PurchaseRecord>('/v1/purchase-orders',{method:'POST',body:JSON.stringify(body)})},transitionPurchaseOrder(id,estado){return requestJson<PurchaseRecord>(\`/v1/purchase-orders/\${id}/state\`,{method:'PATCH',body:JSON.stringify({estado})})},duplicatePurchaseOrder(id){return requestJson<PurchaseRecord>(\`/v1/purchase-orders/\${id}/duplicate\`,{method:'POST'})},
+-     listWarehouseRequests(){return requestJson<PurchaseRecord[]>('/v1/warehouse-requests')},getWarehouseRequest(id){return requestJson<PurchaseRecord>(\`/v1/warehouse-requests/\${id}\`)},transitionWarehouseRequest(id,estado){return requestJson<PurchaseRecord>(\`/v1/warehouse-requests/\${id}/state\`,{method:'PATCH',body:JSON.stringify({estado})})},duplicateWarehouseRequest(id){return requestJson<PurchaseRecord>(\`/v1/warehouse-requests/\${id}/duplicate\`,{method:'POST'})},
+--    listResults(query){const q=query?new URLSearchParams(Object.entries(query).filter(([,v])=>v!==undefined).map(([k,v])=>[k,String(v)])).toString():'';return requestJson<ResultRecord[]>('/v1/results'+(q?'?'+q:''))},getResult(id){return requestJson<ResultRecord&{details:unknown[]}>('/v1/results/'+id)},previewResultsImport(body){return requestJson('/v1/results/import/preview',{method:'POST',body:JSON.stringify(body)})},applyResultsImport(body,key){return requestJson('/v1/results/import/apply',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},
+-+    listResults(query){const q=query?new URLSearchParams(Object.entries(query).filter(([,v])=>v!==undefined).map(([k,v])=>[k,String(v)])).toString():'';return requestJson<ResultRecord[]>('/v1/results'+(q?'?'+q:''))},getResult(id){return requestJson<ResultRecord&{details:unknown[]}>('/v1/results/'+id)},previewResultsImport(body){return requestJson('/v1/results/import/preview',{method:'POST',body:JSON.stringify(body)})},applyResultsImport(body,key){return requestJson<{resultIds:string[];createdPeriods:string[];updatedPeriods:string[]}>('/v1/results/import/apply',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},
+-   }
+- }
+- `
+-diff --git a/apps/api/src/app.ts b/apps/api/src/app.ts
+-index dafa4da..2a16331 100644
+---- a/apps/api/src/app.ts
+-+++ b/apps/api/src/app.ts
+-@@ -87,6 +87,7 @@ export type BuildAppOptions = {
+-   clientQuotesStorage?: ClientQuotesStorage
+-   catalogRepo?: CatalogRepository
+-   purchasesRepo?: PurchasesRepository
+-+  resultsRepo?: ResultsRepository
+- }
+- 
+- /**
+-@@ -196,7 +197,7 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
+-   app.decorate('catalogService',createCatalogService(app.catalogRepo,(data,message)=>app.log.info(data,message)))
+-   app.decorate('purchasesRepo',options.purchasesRepo??createPurchasesRepository(db))
+-   app.decorate('purchasesService',createPurchasesService(app.purchasesRepo,(data,message)=>app.log.info(data,message)))
+--  app.decorate('resultsRepo',createResultsRepository(db))
+-+  app.decorate('resultsRepo',options.resultsRepo ?? createResultsRepository(db))
+-   app.decorate('resultsService',createResultsService(app.resultsRepo,(data,message)=>app.log.info(data,message)))
+-   app.decorate('db', db)
+-   app.decorate('jwtVerifier', jwtVerifier)
+-diff --git a/apps/api/src/infrastructure/db/results-repository.ts b/apps/api/src/infrastructure/db/results-repository.ts
+-index 4705988..b15f511 100644
+---- a/apps/api/src/infrastructure/db/results-repository.ts
+-+++ b/apps/api/src/infrastructure/db/results-repository.ts
+-@@ -1,3 +1,4 @@
+-+import { createHash } from 'node:crypto'
+- import type pg from 'pg'
+- import type { Db } from './pool.js'
+- import { AppError, badRequest, notFound } from '../../http/errors/app-error.js'
+-@@ -5,15 +6,16 @@ import type { ResultsImport } from '../../http/schemas/results.js'
+- 
+- const fields = 'id,anio,mes,ventas_dinamic,ventas_moral,total_ventas,total_costos_directos,resultado_bruto,total_rrhh,total_estructura_servicios,total_honorarios_abonos,total_gastos_financieros,total_gastos_comerciales,total_otros_gastos,total_impuestos,resultado_periodo,created_at,updated_at'
+- const columns = ['ventas_dinamic','ventas_moral','total_ventas','total_costos_directos','resultado_bruto','total_rrhh','total_estructura_servicios','total_honorarios_abonos','total_gastos_financieros','total_gastos_comerciales','total_otros_gastos','total_impuestos','resultado_periodo'] as const
+--function tx<T>(db:Db, fn:(c:pg.PoolClient)=>Promise<T>) { return (async()=>{const c=await db.pool.connect();try{await c.query('begin');const v=await fn(c);await c.query('commit');return v}catch(e){await c.query('rollback');if(e instanceof AppError)throw e;throw new AppError(502,'results_persistence_failed','Results persistence failed')}finally{c.release()}})() }
+-+type ImportRow = ResultsImport['rows'][number]
+-+function transaction<T>(db:Db, fn:(c:pg.PoolClient)=>Promise<T>):Promise<T>{return (async()=>{const c=await db.pool.connect();try{await c.query('begin');const v=await fn(c);await c.query('commit');return v}catch(e){await c.query('rollback');if(e instanceof AppError)throw e;throw new AppError(502,'results_persistence_failed','Results persistence failed')}finally{c.release()}})()}
+-+function validateRow(row:ImportRow){for(const key of Object.keys(row.values))if(!(columns as readonly string[]).includes(key))throw badRequest(`Unknown result field: ${key}`);return row}
+-+function duplicatePeriods(rows:ImportRow[]){const seen=new Set<string>(),duplicates=new Set<string>();for(const row of rows){const p=`${row.anio}-${row.mes}`;if(seen.has(p))duplicates.add(p);seen.add(p)}return [...duplicates]}
+-+function rejectDuplicatePeriods(rows:ImportRow[]){const duplicates=duplicatePeriods(rows);if(duplicates.length)throw new AppError(409,'duplicate_result_period',`Duplicate result period(s): ${duplicates.join(', ')}`,{duplicates})}
+- export function createResultsRepository(db:Db){
+-- async function list(filter:{anio?:number;mes?:number}){const where:string[]=[];const p:unknown[]=[];if(filter.anio!==undefined){p.push(filter.anio);where.push(`anio=$${p.length}`)}if(filter.mes!==undefined){p.push(filter.mes);where.push(`mes=$${p.length}`)}return (await db.query(`select ${fields} from public.resultados_mensuales ${where.length?'where '+where.join(' and '):''} order by anio,mes`,p)).rows}
+-- async function detail(id:string){const h=(await db.query(`select ${fields} from public.resultados_mensuales where id=$1`,[id])).rows[0];if(!h)throw notFound('Result not found');const d=await db.query('select id,resultados_mensuales_id,anio,mes,rubro,concepto,monto from public.resultados_mensuales_detalle where resultados_mensuales_id=$1 order by rubro,concepto,id',[id]);return { ...h, details:d.rows }}
+-- function validate(row:ResultsImport['rows'][number]){const duplicate=`${row.anio}-${row.mes}`;if(!duplicate)return badRequest('Invalid period');for(const key of Object.keys(row.values))if(!(columns as readonly string[]).includes(key))throw badRequest('Unknown result field');return row}
+-- async function preview(input:ResultsImport){const seen=new Set<string>();const conflicts:string[]=[];for(const row of input.rows){validate(row);const k=`${row.anio}-${row.mes}`;if(seen.has(k))conflicts.push(k);seen.add(k)}const existing=await db.query('select anio,mes from public.resultados_mensuales where (anio,mes) in ('+input.rows.map((_,i)=>`($${i*2+1},$${i*2+2})`).join(',')+')',input.rows.flatMap(r=>[r.anio,r.mes]));const existingSet=new Set(existing.rows.map(r=>`${r.anio}-${r.mes}`));return {total:input.rows.length,valid:input.rows.length-conflicts.length,invalid:0,newRows:input.rows.filter(r=>!existingSet.has(`${r.anio}-${r.mes}`)).length,updates:input.rows.filter(r=>existingSet.has(`${r.anio}-${r.mes}`)).length,duplicates:conflicts,errors:[]}}
+-- async function apply(input:ResultsImport,key:string,actorId:string){const payload=JSON.stringify(input);return tx(db,async c=>{const hash=(await import('node:crypto')).createHash('sha256').update(payload).digest('hex');const claim=await c.query(`insert into public.resultados_import_idempotency(actor_id,idempotency_key,payload_hash,status,response) values($1,$2,$3,'PROCESSING',null) on conflict(actor_id,idempotency_key) do nothing returning id`,[actorId,key,hash]);if(!claim.rows[0]){const old=(await c.query('select payload_hash,status,response from public.resultados_import_idempotency where actor_id=$1 and idempotency_key=$2 for update',[actorId,key])).rows[0];if(old.payload_hash!==hash)throw new AppError(409,'idempotency_key_payload_mismatch','Idempotency-Key payload mismatch');if(old.status==='COMPLETED')return old.response;}
+--   const resultIds:string[]=[];for(const row of input.rows){validate(row);const vals=columns.map(k=>row.values[k]??null);const h=(await c.query(`insert into public.resultados_mensuales(anio,mes,${columns.join(',')}) values($1,$2,${columns.map((_,i)=>`$${i+3}`).join(',')}) on conflict(anio,mes) do update set ${columns.map(k=>`${k}=excluded.${k}`).join(',')} returning id`,[row.anio,row.mes,...vals])).rows[0];if(!h)throw new AppError(502,'results_create_failed','Result persistence failed');resultIds.push(String(h.id));await c.query('delete from public.resultados_mensuales_detalle where resultados_mensuales_id=$1',[h.id]);for(const d of row.details)await c.query('insert into public.resultados_mensuales_detalle(resultados_mensuales_id,anio,mes,rubro,concepto,monto) values($1,$2,$3,$4,$5,$6)',[h.id,row.anio,row.mes,d.rubro,d.concepto,d.monto])}
+--   const response={resultIds};await c.query(`update public.resultados_import_idempotency set status='COMPLETED',response=$3,updated_at=now() where actor_id=$1 and idempotency_key=$2`,[actorId,key,response]);return response})}
+-- return {list,detail,preview,apply}
+-+ async function list(filter:{anio?:number|undefined;mes?:number|undefined}){const where:string[]=[];const p:unknown[]=[];if(filter.anio!==undefined){p.push(filter.anio);where.push(`anio=$${p.length}`)}if(filter.mes!==undefined){p.push(filter.mes);where.push(`mes=$${p.length}`)}return(await db.query(`select ${fields} from public.resultados_mensuales ${where.length?`where ${where.join(' and ')}`:''} order by anio,mes`,p)).rows}
+-+ async function detail(id:string){const h=(await db.query(`select ${fields} from public.resultados_mensuales where id=$1`,[id])).rows[0];if(!h)throw notFound('Result not found');const d=await db.query('select id,resultados_mensuales_id,anio,mes,rubro,concepto,monto from public.resultados_mensuales_detalle where resultados_mensuales_id=$1 order by rubro,concepto,id',[id]);return{...h,details:d.rows}}
+-+ async function preview(input:ResultsImport){input.rows.forEach(validateRow);const duplicates=duplicatePeriods(input.rows);const tuples=input.rows.map((_,i)=>`($${i*2+1},$${i*2+2})`).join(',');const existing=await db.query(`select anio,mes from public.resultados_mensuales where (anio,mes) in (${tuples})`,input.rows.flatMap(r=>[r.anio,r.mes]));const set=new Set(existing.rows.map(r=>`${r.anio}-${r.mes}`));return{total:input.rows.length,valid:input.rows.length-duplicates.length,invalid:duplicates.length,newRows:input.rows.filter(r=>!set.has(`${r.anio}-${r.mes}`)).length,updates:input.rows.filter(r=>set.has(`${r.anio}-${r.mes}`)).length,duplicates,errors:duplicates.map(period=>({period,message:'Duplicate period in import payload'}))}}
+-+ async function apply(input:ResultsImport,key:string,actorId:string){input.rows.forEach(validateRow);rejectDuplicatePeriods(input.rows);const hash=createHash('sha256').update(JSON.stringify(input)).digest('hex');return transaction(db,async c=>{const claim=await c.query(`insert into public.resultados_import_idempotency(actor_id,idempotency_key,payload_hash,status,response) values($1,$2,$3,'PROCESSING',null) on conflict(actor_id,idempotency_key) do nothing returning id`,[actorId,key,hash]);if(!claim.rows[0]){const old=(await c.query('select payload_hash,status,response from public.resultados_import_idempotency where actor_id=$1 and idempotency_key=$2 for update',[actorId,key])).rows[0];if(!old||old.payload_hash!==hash)throw new AppError(409,'idempotency_key_payload_mismatch','Idempotency-Key payload mismatch');if(old.status==='COMPLETED')return old.response}const resultIds:string[]=[],createdPeriods:string[]=[],updatedPeriods:string[]=[];for(const row of input.rows){const period=`${row.anio}-${row.mes}`,vals=columns.map(k=>row.values[k]??null);const h=(await c.query(`insert into public.resultados_mensuales(anio,mes,${columns.join(',')}) values($1,$2,${columns.map((_,i)=>`$${i+3}`).join(',')}) on conflict(anio,mes) do update set ${columns.map(k=>`${k}=excluded.${k}`).join(',')} returning id,xmax`,[row.anio,row.mes,...vals])).rows[0];if(!h)throw new AppError(502,'results_create_failed','Result persistence failed');resultIds.push(String(h.id));(String(h.xmax)==='0'?createdPeriods:updatedPeriods).push(period);await c.query('delete from public.resultados_mensuales_detalle where resultados_mensuales_id=$1',[h.id]);for(const d of row.details)await c.query('insert into public.resultados_mensuales_detalle(resultados_mensuales_id,anio,mes,rubro,concepto,monto) values($1,$2,$3,$4,$5,$6)',[h.id,row.anio,row.mes,d.rubro,d.concepto,d.monto])}const response={resultIds,createdPeriods,updatedPeriods};await c.query("update public.resultados_import_idempotency set status='COMPLETED',response=$3,updated_at=now() where actor_id=$1 and idempotency_key=$2",[actorId,key,response]);return response})}
+-+ return{list,detail,preview,apply}
+- }
+- export type ResultsRepository=ReturnType<typeof createResultsRepository>
+-diff --git a/apps/api/tests/catalog-postgres.integration.test.ts b/apps/api/tests/catalog-postgres.integration.test.ts
+-index 744d78d..3e19cf0 100644
+---- a/apps/api/tests/catalog-postgres.integration.test.ts
+-+++ b/apps/api/tests/catalog-postgres.integration.test.ts
+-@@ -3,10 +3,10 @@ import { createDb,type Db } from '../src/infrastructure/db/pool.js'
+- import { createCatalogRepository,type CatalogRepository } from '../src/infrastructure/db/catalog-repository.js'
+- import { testEnv } from './helpers.js'
+- const enabled=process.env.RUN_SUPABASE_INTEGRATION==='1'&&Boolean(process.env.DATABASE_URL)
+--const actor='d2922e19-bfbc-4a15-9a51-af40336ce9da'
+-+let actor=''
+- describe.skipIf(!enabled)('Phase 4B PostgreSQL real integration',()=>{
+-  let db:Db,repo:CatalogRepository,supplierId:string;const marker=`P4B-${Date.now()}`
+-- beforeAll(async()=>{db=createDb(testEnv({DATABASE_URL:process.env.DATABASE_URL!}));repo=createCatalogRepository(db);supplierId=String((await repo.createSupplier({razonSocial:marker,cuit:marker,domicilio:null,telefono:null,provincia:null,condicionPagoDefault:null})).id)})
+-+ beforeAll(async()=>{db=createDb(testEnv({DATABASE_URL:process.env.DATABASE_URL!}));repo=createCatalogRepository(db);actor=String((await db.query('select id from public.perfiles order by id limit 1')).rows[0]?.id);supplierId=String((await repo.createSupplier({razonSocial:marker,cuit:marker,domicilio:null,telefono:null,provincia:null,condicionPagoDefault:null})).id)})
+-  afterAll(async()=>{if(db){await db.query("delete from public.catalog_operation_idempotency where actor_id=$1 and idempotency_key like $2",[actor,`${marker}%`]);await db.query('delete from public.articulos_proveedor_pendientes where proveedor_id=$1',[supplierId]);await db.query('delete from public.articulos_proveedor where proveedor_id=$1',[supplierId]);await db.query('delete from public.articulos where nombre like $1',[`${marker}%`]);await db.query('delete from public.proveedores where id=$1',[supplierId]);await db.close()}})
+-  it('generates unique ART codes concurrently in the real DB',async()=>{const created=await Promise.all(Array.from({length:8},(_,i)=>repo.createArticle({nombre:`${marker}-concurrent-${i}`,categoria:null,unidad:null,proveedorHabitualId:null})));const codes=created.map(r=>String(r.codigo_interno));expect(new Set(codes).size).toBe(8);codes.forEach(code=>expect(code).toMatch(/^ART-\d{4,}$/))})
+-  it('same idempotency key is one effective import and replays after response loss',async()=>{const rows=[{fila:2,codigoInterno:`${marker}-I`,nombre:`${marker}-import`,categoria:null,unidad:null}];const key=`${marker}-import`;const payloadHash='same';const [a,b]=await Promise.all([repo.importArticles(rows,{actorId:actor,key,payloadHash}),repo.importArticles(rows,{actorId:actor,key,payloadHash})]);expect([a.replayed,b.replayed].sort()).toEqual([false,true]);const retry=await repo.importArticles(rows,{actorId:actor,key,payloadHash});expect(retry).toEqual(expect.objectContaining({replayed:true,response:a.response}));expect(Number((await db.query('select count(*) from public.articulos where codigo_interno=$1',[`${marker}-I`])).rows[0].count)).toBe(1);await expect(repo.importArticles([{...rows[0],nombre:'different'}],{actorId:actor,key,payloadHash:'different'})).rejects.toMatchObject({status:409})})
+-diff --git a/apps/api/tests/results-http.test.ts b/apps/api/tests/results-http.test.ts
+-index 37f2215..8316c3c 100644
+---- a/apps/api/tests/results-http.test.ts
+-+++ b/apps/api/tests/results-http.test.ts
+-@@ -10,5 +10,5 @@ async function app(role:string){const a=await buildApp(testEnv(),{db:createProfi
+- async function auth(){return{authorization:`Bearer ${await signAccessToken({sub:USER})}`}}
+- describe('Phase 4D Results HTTP/RBAC',()=>{
+-  it('requires auth and denies non-finance roles',async()=>{expect((await(await app('admin')).inject({method:'GET',url:'/v1/results'})).statusCode).toBe(401);for(const role of ['gerente','compras','supervisor','auditoria'])expect((await(await app(role)).inject({method:'GET',url:'/v1/results',headers:await auth()})).statusCode).toBe(403)})
+-- it('allows admin read and requires idempotency for apply',async()=>{const a=await app('admin'),headers=await auth();expect((await a.inject({method:'GET',url:'/v1/results',headers})).statusCode).toBe(200);expect((await a.inject({method:'POST',url:'/v1/results/import/apply',headers,payload:{rows:[]}})).statusCode).toBe(400)})
+-+ it('covers admin read/preview/apply and deny-by-default for every other role',async()=>{const payload={rows:[{anio:2026,mes:1,values:{total_ventas:1},details:[]}]};const admin=await app('admin'),headers=await auth();expect((await admin.inject({method:'GET',url:'/v1/results',headers})).statusCode).toBe(200);expect((await admin.inject({method:'POST',url:'/v1/results/import/preview',headers,payload})).statusCode).toBe(200);const applied=await admin.inject({method:'POST',url:'/v1/results/import/apply',headers:{...headers,'idempotency-key':'results-http-key'},payload});expect(applied.statusCode,applied.body).toBe(200);for(const role of ['gerente','compras','supervisor','auditoria']){const a=await app(role),h=await auth();for(const url of ['/v1/results','/v1/results/import/preview','/v1/results/import/apply'])expect((await a.inject({method:url.startsWith('/v1/results/import')?'POST':'GET',url,headers:h,payload})).statusCode).toBe(403)}expect((await admin.inject({method:'POST',url:'/v1/results/import/apply',headers,payload})).statusCode).toBe(400)})
+- })
+-diff --git a/apps/api/tests/results-postgres.integration.test.ts b/apps/api/tests/results-postgres.integration.test.ts
+-index 4a70719..2e83062 100644
+---- a/apps/api/tests/results-postgres.integration.test.ts
+-+++ b/apps/api/tests/results-postgres.integration.test.ts
+-@@ -2,20 +2,34 @@ import { describe,expect,it,afterAll } from 'vitest'
+- import { createDb } from '../src/infrastructure/db/pool.js'
+- import { createResultsRepository } from '../src/infrastructure/db/results-repository.js'
+- import { loadEnv } from '../src/config/env.js'
+-+import { randomUUID } from 'node:crypto'
+- 
+- const enabled=process.env.RUN_SUPABASE_INTEGRATION==='1'
+- const db=enabled?createDb(loadEnv()):null
+- const repo=db?createResultsRepository(db):null
+- const actor='00000000-0000-0000-0000-000000000001'
+- const rows=[{anio:2199,mes:12,values:{total_ventas:1234.56,resultado_periodo:-2.5},details:[{rubro:'costos',concepto:'Ajuste',monto:-2.5}]}]
+-+const row=(anio:number,concepto:string)=>({anio,mes:12,values:{total_ventas:1234.56,resultado_periodo:-2.5},details:[{rubro:'costos',concepto,monto:-2.5}]})
+- describe.skipIf(!enabled)('Phase 4D PostgreSQL real integration',()=>{
+-- afterAll(async()=>{if(db){await db.query('delete from public.resultados_mensuales_detalle where anio=2199 and mes=12');await db.query('delete from public.resultados_mensuales where anio=2199 and mes=12');await db.close()}})
+-+ afterAll(async()=>{if(db){await db.query('delete from public.resultados_mensuales_detalle where anio between 2196 and 2199');await db.query('delete from public.resultados_mensuales where anio between 2196 and 2199');await db.query("delete from public.resultados_import_idempotency where actor_id=$1",[actor]);await db.close()}})
+-  it('preview is read-only and apply is atomic/idempotent',async()=>{
+-   const before=await db!.query('select count(*)::int as n from public.resultados_mensuales where anio=2199 and mes=12')
+--  const preview=await repo!.preview({rows});expect(preview.valid).toBe(1)
+-+  const preview=await repo!.preview({rows});expect(preview.valid).toBe(1);expect(preview.newRows).toBe(1)
+-   const afterPreview=await db!.query('select count(*)::int as n from public.resultados_mensuales where anio=2199 and mes=12');expect(afterPreview.rows[0].n).toBe(before.rows[0].n)
+--  const first=await repo!.apply({rows},'results-4d-integration-key',actor);const replay=await repo!.apply({rows},'results-4d-integration-key',actor);expect(replay).toEqual(first)
+-+  const baseKey=randomUUID();const first=await repo!.apply({rows},baseKey,actor);const replay=await repo!.apply({rows},baseKey,actor);expect(replay).toEqual(first);expect(first.createdPeriods).toEqual(['2199-12']);expect(first.updatedPeriods).toEqual([])
+-+  const mixed=await repo!.apply({rows:[row(2199,'Ajuste'),row(2198,'Nuevo')]},randomUUID(),actor);expect(mixed.createdPeriods).toEqual(['2198-12']);expect(mixed.updatedPeriods).toEqual(['2199-12'])
+-   await expect(repo!.apply({rows:[{...rows[0],values:{total_ventas:9}}]},'results-4d-integration-key',actor)).rejects.toMatchObject({statusCode:409})
+-   const detail=await repo!.detail(first.resultIds[0]);expect(detail.details).toHaveLength(1);expect(detail.resultado_periodo).toBe('-2.5')
+-  },30_000)
+-+ it('rejects duplicate periods and rolls back after a detail constraint failure',async()=>{
+-+  await expect(repo!.apply({rows:[row(2197,'A'),row(2197,'B') ]},'results-4d-duplicate-key',actor)).rejects.toMatchObject({statusCode:409})
+-+  await repo!.apply({rows:[row(2196,'Original')]},randomUUID(),actor)
+-+  const broken={...row(2196,'Broken'),details:[{rubro:'costos',concepto:'Dup',monto:1},{rubro:'costos',concepto:'Dup',monto:2}]}
+-+  await expect(repo!.apply({rows:[broken]},randomUUID(),actor)).rejects.toMatchObject({statusCode:502})
+-+  const persisted=await db!.query('select total_ventas from public.resultados_mensuales where anio=2196 and mes=12');const details=await db!.query('select concepto from public.resultados_mensuales_detalle where anio=2196 and mes=12');expect(persisted.rows[0].total_ventas).toBe('1234.56');expect(details.rows.map(r=>r.concepto)).toEqual(['Original'])
+-+ },30_000)
+-+ it('protects concurrent imports with same and different idempotency keys',async()=>{
+-+  const sameKey=randomUUID();const same=await Promise.all([repo!.apply({rows:[row(2197,'Same')]},sameKey,actor),repo!.apply({rows:[row(2197,'Same')]},sameKey,actor)]);expect(same[0]).toEqual(same[1]);
+-+  const different=await Promise.all([repo!.apply({rows:[row(2197,'Left')]},randomUUID(),actor),repo!.apply({rows:[row(2197,'Right')]},randomUUID(),actor)]);expect(different).toHaveLength(2);const persisted=await db!.query('select count(*)::int as n from public.resultados_mensuales where anio=2197 and mes=12');const details=await db!.query('select concepto from public.resultados_mensuales_detalle where anio=2197 and mes=12');expect(persisted.rows[0].n).toBe(1);expect(details.rows).toHaveLength(1);expect(['Left','Right']).toContain(details.rows[0].concepto)
+-+ },30_000)
+- })
+-diff --git a/evidencia/phase4-final-closeout-db-validation.txt b/evidencia/phase4-final-closeout-db-validation.txt
+-new file mode 100644
+-index 0000000..3212d71
+---- /dev/null
+-+++ b/evidencia/phase4-final-closeout-db-validation.txt
+-@@ -0,0 +1,12 @@
+-+# DB efectiva Fase 4
+-+
+-+PASS
+-+- `app_migrations.forward_history` contiene migrations 4A, 4B, 4C y 4D aplicadas.
+-+- 4B: `catalog_operation_idempotency`, secuencia/trigger ART, grants/RLS verificados por integración.
+-+- 4C: constraints, numeración, idempotencia y RLS/grants verificados por `purchases-db-validation.integration.test.ts`.
+-+- 4D: FK `resultados_mensuales_detalle_resultado_fk`, índice de FK, UNIQUE `(anio,mes)`, `resultados_import_idempotency`, RLS y grants `dinamic_api` verificados.
+-+- PostgREST authenticated real: SELECT y DML sobre Resultados denegados.
+-+
+-+4A conserva un bloqueo de certificación en la prueba opt-in de presupuestos: el fixture de identidad usado por el test no logra persistir el cliente con la configuración actual. No se modificó la DB 4A para ocultarlo.
+-+
+-+No se incluyen secretos.
+-diff --git a/evidencia/phase4-final-closeout-direct-access.txt b/evidencia/phase4-final-closeout-direct-access.txt
+-new file mode 100644
+-index 0000000..85d872f
+---- /dev/null
+-+++ b/evidencia/phase4-final-closeout-direct-access.txt
+-@@ -0,0 +1,13 @@
+-+# Auditoría transversal de acceso directo
+-+
+-+MIGRADO
+-+- 4A: clientes/domicilios/presupuestos migrados a API en las pantallas cerradas.
+-+- 4B: proveedores/artículos/relaciones/listas de precios consumen API.
+-+- 4C: pedidos/asignaciones/OC/depósito consumen API.
+-+- 4D: Resultados e importación consumen API; no quedan `.from('resultados_mensuales')` en frontend.
+-+
+-+LEGACY JUSTIFICADO / LOCAL-NO-AUTORITATIVO
+-+- Accesos de módulos fuera de Fase 4 (auditorías, CRM, login y utilidades de presentación) quedan fuera del alcance.
+-+
+-+PASS
+-+- PostgREST real bloquea SELECT financiero y DML 4A–4D probados.
+-diff --git a/evidencia/phase4-final-closeout-tests.txt b/evidencia/phase4-final-closeout-tests.txt
+-new file mode 100644
+-index 0000000..80cd91e
+---- /dev/null
+-+++ b/evidencia/phase4-final-closeout-tests.txt
+-@@ -0,0 +1,30 @@
+-+# Certificación transversal Fase 4
+-+
+-+## Static/build
+-+
+-+PASS: `npm run lint --prefix apps/api`, `npm run typecheck --prefix apps/api`, `npm run build --prefix apps/api`, `npm test --prefix apps/api` (38 files, 237 PASS, 61 skipped), `npm run lint`, `npx tsc --noEmit`, `npx next build --webpack`, `git diff --check`.
+-+
+-+## Unit/HTTP
+-+
+-+PASS: HTTP/RBAC Resultados 2/2; suite API 237 PASS.
+-+
+-+## PostgreSQL integration
+-+
+-+- 4A: FAIL — `phase4a-quote-idempotency.integration.test.ts` (2 tests; fixture/identity persistence fails with `Client persistence failed`).
+-+- 4B: PASS — catalog integration 8/8.
+-+- 4C: PASS — purchase integration + DB validation 12/12.
+-+- 4D: PASS — results integration 3/3.
+-+
+-+## Concurrency
+-+
+-+PASS: ART (4B), asignaciones/numeración/OC/depósito (4C), período Resultados con keys distintas y misma key (4D).
+-+
+-+## Rollback
+-+
+-+PASS: 4B imports/price list; 4C headers/items/import/generación; 4D fallo intermedio real después de modificar cabecera.
+-+
+-+## Security
+-+
+-+PASS: RBAC 4D admin versus gerente/compras/supervisor/auditoria; PostgREST real 4A–4D DML y SELECT financiero denegados.
+-+
+-+NOT_EXECUTED: 4A opt-in PostgREST/quote completa requiere credenciales de identidad/fixture válidas; la corrida intentada terminó FAIL, no se convierte en PASS.
+-diff --git a/evidencia/phase4-final-closeout-validation.md b/evidencia/phase4-final-closeout-validation.md
+-new file mode 100644
+-index 0000000..0c18a8c
+---- /dev/null
+-+++ b/evidencia/phase4-final-closeout-validation.md
+-@@ -0,0 +1,12 @@
+-+# Validación final Fase 4
+-+
+-+| Fase | Dominio | Backend | Frontend migrado | DB | RLS/PostgREST | Transactions | Idempotency | Concurrency | Tests | Estado |
+-+|---|---|---|---|---|---|---|---|---|---|---|
+-+| 4A | clientes/domicilios/presupuestos | PASS | PASS | PASS | PASS histórico | PASS histórico | FAIL en corrida opt-in actual | NOT_CERTIFIED | FAIL |
+-+| 4B | catálogo/proveedores | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+-+| 4C | compras | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+-+| 4D | resultados | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+-+
+-+Bloqueante real restante: la integración opt-in 4A de presupuestos falla al crear el fixture de cliente con `Client persistence failed`, por lo que no es válido certificar el cierre transversal aunque 4B–4D estén verdes.
+-+
+-+Estado: `PHASE_4_NOT_READY_TO_CLOSE`.
+-diff --git a/src/components/ImportarResultadosMensuales.tsx b/src/components/ImportarResultadosMensuales.tsx
+-index 50b387f..2f36127 100644
+---- a/src/components/ImportarResultadosMensuales.tsx
+-+++ b/src/components/ImportarResultadosMensuales.tsx
+-@@ -230,9 +230,9 @@ export default function ImportarResultadosMensuales() {
+-       if (Number(preview.invalid ?? 0) > 0) throw new Error('El preview rechazó filas inválidas')
+-       const operationKey = idempotencyKey ?? crypto.randomUUID()
+-       setIdempotencyKey(operationKey)
+--      await api.applyResultsImport({ rows }, operationKey)
+--      const creados = registros
+--      const actualizados: typeof registros = []
+-+      const applied = await api.applyResultsImport({ rows }, operationKey)
+-+      const creados = registros.filter((r) => applied.createdPeriods.includes(`${r.anio}-${r.mes}`))
+-+      const actualizados = registros.filter((r) => applied.updatedPeriods.includes(`${r.anio}-${r.mes}`))
+- 
+-       setResumen({
+-         creados: creados.map((r) => formatearMesAnio(r.anio, r.mes)),
+-diff --git a/src/lib/api/generated/client.ts b/src/lib/api/generated/client.ts
+-index 9d75fd6..8021382 100644
+---- a/src/lib/api/generated/client.ts
+-+++ b/src/lib/api/generated/client.ts
+-@@ -40,7 +40,7 @@ import type {
+-   UpdateClientAddressBody,
+-   QuoteUploadBody,
+-   QuoteDownload,
+--  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord, ResultRow, ResultsImportBody, ResultRecord,
+-+  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord, ResultsImportBody, ResultRecord,
+-   UsersListResponse,
+- } from './types'
+- 
+-@@ -161,7 +161,7 @@ export type DinamicApiClient = {
+-   listResults: (query?:{anio?:number;mes?:number}) => Promise<ResultRecord[]>
+-   getResult: (id:string) => Promise<ResultRecord & {details:unknown[]}>
+-   previewResultsImport: (body:ResultsImportBody) => Promise<Record<string,unknown>>
+--  applyResultsImport: (body:ResultsImportBody,key:string) => Promise<{resultIds:string[]}>
+-+  applyResultsImport: (body:ResultsImportBody,key:string) => Promise<{resultIds:string[];createdPeriods:string[];updatedPeriods:string[]}>
+-   getClientQuoteDownload: (clientId:string,quoteId:string) => Promise<QuoteDownload>
+-   deleteClientQuote: (clientId:string,quoteId:string) => Promise<void>
+- }
+-@@ -328,6 +328,6 @@ export function createDinamicApiClient(options: DinamicApiClientOptions): Dinami
+-     listPurchaseRequests(){return requestJson<PurchaseRecord[]>('/v1/purchase-requests')},getPurchaseRequest(id){return requestJson<PurchaseRecord>(`/v1/purchase-requests/${id}`)},createPurchaseRequest(body){return requestJson<PurchaseRecord>('/v1/purchase-requests',{method:'POST',body:JSON.stringify(body)})},updatePurchaseRequest(id,body){return requestJson<PurchaseRecord>(`/v1/purchase-requests/${id}`,{method:'PUT',body:JSON.stringify(body)})},transitionPurchaseRequest(id,estado){return requestJson<PurchaseRecord>(`/v1/purchase-requests/${id}/state`,{method:'PATCH',body:JSON.stringify({estado})})},duplicatePurchaseRequest(id){return requestJson<PurchaseRecord>(`/v1/purchase-requests/${id}/duplicate`,{method:'POST'})},setPurchaseRequestItemDiscarded(id,descartada,motivo){return requestJson<PurchaseRecord>(`/v1/purchase-request-items/${id}/discard`,{method:'PATCH',body:JSON.stringify({descartada,motivo})})},previewPurchaseImport(body){return requestJson('/v1/purchase-requests/import/preview',{method:'POST',body:JSON.stringify(body)})},applyPurchaseImport(body,key){return requestJson('/v1/purchase-requests/import/apply',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},assignPurchaseRequest(id,body,key){return requestJson(`/v1/purchase-requests/${id}/assignments`,{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},
+-     listPurchaseOrders(){return requestJson<PurchaseRecord[]>('/v1/purchase-orders')},getPurchaseOrder(id){return requestJson<PurchaseRecord>(`/v1/purchase-orders/${id}`)},createPurchaseOrder(body){return requestJson<PurchaseRecord>('/v1/purchase-orders',{method:'POST',body:JSON.stringify(body)})},transitionPurchaseOrder(id,estado){return requestJson<PurchaseRecord>(`/v1/purchase-orders/${id}/state`,{method:'PATCH',body:JSON.stringify({estado})})},duplicatePurchaseOrder(id){return requestJson<PurchaseRecord>(`/v1/purchase-orders/${id}/duplicate`,{method:'POST'})},
+-     listWarehouseRequests(){return requestJson<PurchaseRecord[]>('/v1/warehouse-requests')},getWarehouseRequest(id){return requestJson<PurchaseRecord>(`/v1/warehouse-requests/${id}`)},transitionWarehouseRequest(id,estado){return requestJson<PurchaseRecord>(`/v1/warehouse-requests/${id}/state`,{method:'PATCH',body:JSON.stringify({estado})})},duplicateWarehouseRequest(id){return requestJson<PurchaseRecord>(`/v1/warehouse-requests/${id}/duplicate`,{method:'POST'})},
+--    listResults(query){const q=query?new URLSearchParams(Object.entries(query).filter(([,v])=>v!==undefined).map(([k,v])=>[k,String(v)])).toString():'';return requestJson<ResultRecord[]>('/v1/results'+(q?'?'+q:''))},getResult(id){return requestJson<ResultRecord&{details:unknown[]}>('/v1/results/'+id)},previewResultsImport(body){return requestJson('/v1/results/import/preview',{method:'POST',body:JSON.stringify(body)})},applyResultsImport(body,key){return requestJson('/v1/results/import/apply',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},
+-+    listResults(query){const q=query?new URLSearchParams(Object.entries(query).filter(([,v])=>v!==undefined).map(([k,v])=>[k,String(v)])).toString():'';return requestJson<ResultRecord[]>('/v1/results'+(q?'?'+q:''))},getResult(id){return requestJson<ResultRecord&{details:unknown[]}>('/v1/results/'+id)},previewResultsImport(body){return requestJson('/v1/results/import/preview',{method:'POST',body:JSON.stringify(body)})},applyResultsImport(body,key){return requestJson<{resultIds:string[];createdPeriods:string[];updatedPeriods:string[]}>('/v1/results/import/apply',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},
+-   }
+- }
+diff --git a/evidencia/phase4-final-closeout-diffstat.txt b/evidencia/phase4-final-closeout-diffstat.txt
+index 7c47a17..85720da 100644
+--- a/evidencia/phase4-final-closeout-diffstat.txt
++++ b/evidencia/phase4-final-closeout-diffstat.txt
+@@ -1,13 +1,10 @@
+- apps/api/scripts/export-contracts.mjs              |  6 ++---
+- apps/api/src/app.ts                                |  3 ++-
+- .../src/infrastructure/db/results-repository.ts    | 20 ++++++++-------
+- .../api/tests/catalog-postgres.integration.test.ts |  4 +--
+- apps/api/tests/results-http.test.ts                |  2 +-
+- .../api/tests/results-postgres.integration.test.ts | 20 ++++++++++++---
+- evidencia/phase4-final-closeout-db-validation.txt  | 12 +++++++++
+- evidencia/phase4-final-closeout-direct-access.txt  | 13 ++++++++++
+- evidencia/phase4-final-closeout-tests.txt          | 30 ++++++++++++++++++++++
+- evidencia/phase4-final-closeout-validation.md      | 12 +++++++++
+- src/components/ImportarResultadosMensuales.tsx     |  6 ++---
+- src/lib/api/generated/client.ts                    |  6 ++---
+- 12 files changed, 109 insertions(+), 25 deletions(-)
++ .../phase4a-quote-idempotency.integration.test.ts  |   4 +-
++ evidencia/phase4-final-4a-root-cause.md            |  31 +
++ evidencia/phase4-final-closeout-db-validation.txt  |   4 +-
++ evidencia/phase4-final-closeout-diff.txt           | 679 ++++++++++++---------
++ evidencia/phase4-final-closeout-diffstat.txt       |  13 -
++ evidencia/phase4-final-closeout-direct-access.txt  |   2 +-
++ evidencia/phase4-final-closeout-status.txt         |  26 +-
++ evidencia/phase4-final-closeout-tests.txt          |   8 +-
++ evidencia/phase4-final-closeout-validation.md      |   6 +-
++ 9 files changed, 461 insertions(+), 312 deletions(-)
 diff --git a/evidencia/phase4-final-closeout-direct-access.txt b/evidencia/phase4-final-closeout-direct-access.txt
-new file mode 100644
-index 0000000..85d872f
---- /dev/null
+index 85d872f..8a4cf44 100644
+--- a/evidencia/phase4-final-closeout-direct-access.txt
 +++ b/evidencia/phase4-final-closeout-direct-access.txt
-@@ -0,0 +1,13 @@
-+# Auditoría transversal de acceso directo
-+
-+MIGRADO
-+- 4A: clientes/domicilios/presupuestos migrados a API en las pantallas cerradas.
-+- 4B: proveedores/artículos/relaciones/listas de precios consumen API.
-+- 4C: pedidos/asignaciones/OC/depósito consumen API.
-+- 4D: Resultados e importación consumen API; no quedan `.from('resultados_mensuales')` en frontend.
-+
-+LEGACY JUSTIFICADO / LOCAL-NO-AUTORITATIVO
-+- Accesos de módulos fuera de Fase 4 (auditorías, CRM, login y utilidades de presentación) quedan fuera del alcance.
-+
-+PASS
-+- PostgREST real bloquea SELECT financiero y DML 4A–4D probados.
+@@ -10,4 +10,4 @@ LEGACY JUSTIFICADO / LOCAL-NO-AUTORITATIVO
+ - Accesos de módulos fuera de Fase 4 (auditorías, CRM, login y utilidades de presentación) quedan fuera del alcance.
+ 
+ PASS
+-- PostgREST real bloquea SELECT financiero y DML 4A–4D probados.
++- PostgREST real 4A (12/12), 4B–4D bloquea los DML y el SELECT financiero probados.
+diff --git a/evidencia/phase4-final-closeout-status.txt b/evidencia/phase4-final-closeout-status.txt
+index 8f950ca..9f6387c 100644
+--- a/evidencia/phase4-final-closeout-status.txt
++++ b/evidencia/phase4-final-closeout-status.txt
+@@ -1,17 +1,9 @@
+- M apps/api/scripts/export-contracts.mjs
+- M apps/api/src/app.ts
+- M apps/api/src/infrastructure/db/results-repository.ts
+- M apps/api/tests/catalog-postgres.integration.test.ts
+- M apps/api/tests/results-http.test.ts
+- M apps/api/tests/results-postgres.integration.test.ts
+- A evidencia/phase4-final-closeout-db-validation.txt
+- A evidencia/phase4-final-closeout-direct-access.txt
+- A evidencia/phase4-final-closeout-tests.txt
+- A evidencia/phase4-final-closeout-validation.md
+- M src/components/ImportarResultadosMensuales.tsx
+- M src/lib/api/generated/client.ts
+-?? evidencia/phase4-final-closeout-diff.txt
+-?? evidencia/phase4-final-closeout-diffstat.txt
+-?? evidencia/phase4-final-closeout-status.txt
+-Estado de certificación: PHASE_4_NOT_READY_TO_CLOSE
+-Bloqueante: integración opt-in 4A de presupuestos fallida por fixture/identidad (`Client persistence failed`).
++ M apps/api/tests/phase4a-quote-idempotency.integration.test.ts
++ A evidencia/phase4-final-4a-root-cause.md
++ M evidencia/phase4-final-closeout-db-validation.txt
++ M evidencia/phase4-final-closeout-diff.txt
++ M evidencia/phase4-final-closeout-diffstat.txt
++ M evidencia/phase4-final-closeout-direct-access.txt
++ M evidencia/phase4-final-closeout-status.txt
++ M evidencia/phase4-final-closeout-tests.txt
++ M evidencia/phase4-final-closeout-validation.md
 diff --git a/evidencia/phase4-final-closeout-tests.txt b/evidencia/phase4-final-closeout-tests.txt
-new file mode 100644
-index 0000000..80cd91e
---- /dev/null
+index 80cd91e..d6751ab 100644
+--- a/evidencia/phase4-final-closeout-tests.txt
 +++ b/evidencia/phase4-final-closeout-tests.txt
-@@ -0,0 +1,30 @@
-+# Certificación transversal Fase 4
+@@ -10,7 +10,7 @@ PASS: HTTP/RBAC Resultados 2/2; suite API 237 PASS.
+ 
+ ## PostgreSQL integration
+ 
+-- 4A: FAIL — `phase4a-quote-idempotency.integration.test.ts` (2 tests; fixture/identity persistence fails with `Client persistence failed`).
++- 4A: PASS — `phase4a-quote-idempotency.integration.test.ts` (2/2; concurrent same-key/replay/payload mismatch y Storage real).
+ - 4B: PASS — catalog integration 8/8.
+ - 4C: PASS — purchase integration + DB validation 12/12.
+ - 4D: PASS — results integration 3/3.
+@@ -27,4 +27,8 @@ PASS: 4B imports/price list; 4C headers/items/import/generación; 4D fallo inter
+ 
+ PASS: RBAC 4D admin versus gerente/compras/supervisor/auditoria; PostgREST real 4A–4D DML y SELECT financiero denegados.
+ 
+-NOT_EXECUTED: 4A opt-in PostgREST/quote completa requiere credenciales de identidad/fixture válidas; la corrida intentada terminó FAIL, no se convierte en PASS.
++PASS: PostgREST 4A opt-in (12/12) con usuario efímero autenticado; SELECT/DML de clientes, domicilios, presupuestos y Storage fueron denegados y el usuario fue eliminado al finalizar.
 +
-+## Static/build
++## Causa raíz 4A
 +
-+PASS: `npm run lint --prefix apps/api`, `npm run typecheck --prefix apps/api`, `npm run build --prefix apps/api`, `npm test --prefix apps/api` (38 files, 237 PASS, 61 skipped), `npm run lint`, `npx tsc --noEmit`, `npx next build --webpack`, `git diff --check`.
-+
-+## Unit/HTTP
-+
-+PASS: HTTP/RBAC Resultados 2/2; suite API 237 PASS.
-+
-+## PostgreSQL integration
-+
-+- 4A: FAIL — `phase4a-quote-idempotency.integration.test.ts` (2 tests; fixture/identity persistence fails with `Client persistence failed`).
-+- 4B: PASS — catalog integration 8/8.
-+- 4C: PASS — purchase integration + DB validation 12/12.
-+- 4D: PASS — results integration 3/3.
-+
-+## Concurrency
-+
-+PASS: ART (4B), asignaciones/numeración/OC/depósito (4C), período Resultados con keys distintas y misma key (4D).
-+
-+## Rollback
-+
-+PASS: 4B imports/price list; 4C headers/items/import/generación; 4D fallo intermedio real después de modificar cabecera.
-+
-+## Security
-+
-+PASS: RBAC 4D admin versus gerente/compras/supervisor/auditoria; PostgREST real 4A–4D DML y SELECT financiero denegados.
-+
-+NOT_EXECUTED: 4A opt-in PostgREST/quote completa requiere credenciales de identidad/fixture válidas; la corrida intentada terminó FAIL, no se convierte en PASS.
++CONFIGURATION_DEFECT: las migrations forward 4A no estaban registradas/aplicadas en la DB efectiva. Se aplicaron con `MIGRATIONS_DATABASE_URL` y el runner oficial `--only`; no hubo bypass de seguridad.
 diff --git a/evidencia/phase4-final-closeout-validation.md b/evidencia/phase4-final-closeout-validation.md
-new file mode 100644
-index 0000000..0c18a8c
---- /dev/null
+index 0c18a8c..2124d60 100644
+--- a/evidencia/phase4-final-closeout-validation.md
 +++ b/evidencia/phase4-final-closeout-validation.md
-@@ -0,0 +1,12 @@
-+# Validación final Fase 4
-+
-+| Fase | Dominio | Backend | Frontend migrado | DB | RLS/PostgREST | Transactions | Idempotency | Concurrency | Tests | Estado |
-+|---|---|---|---|---|---|---|---|---|---|---|
-+| 4A | clientes/domicilios/presupuestos | PASS | PASS | PASS | PASS histórico | PASS histórico | FAIL en corrida opt-in actual | NOT_CERTIFIED | FAIL |
-+| 4B | catálogo/proveedores | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
-+| 4C | compras | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
-+| 4D | resultados | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
-+
-+Bloqueante real restante: la integración opt-in 4A de presupuestos falla al crear el fixture de cliente con `Client persistence failed`, por lo que no es válido certificar el cierre transversal aunque 4B–4D estén verdes.
-+
-+Estado: `PHASE_4_NOT_READY_TO_CLOSE`.
-diff --git a/src/components/ImportarResultadosMensuales.tsx b/src/components/ImportarResultadosMensuales.tsx
-index 50b387f..2f36127 100644
---- a/src/components/ImportarResultadosMensuales.tsx
-+++ b/src/components/ImportarResultadosMensuales.tsx
-@@ -230,9 +230,9 @@ export default function ImportarResultadosMensuales() {
-       if (Number(preview.invalid ?? 0) > 0) throw new Error('El preview rechazó filas inválidas')
-       const operationKey = idempotencyKey ?? crypto.randomUUID()
-       setIdempotencyKey(operationKey)
--      await api.applyResultsImport({ rows }, operationKey)
--      const creados = registros
--      const actualizados: typeof registros = []
-+      const applied = await api.applyResultsImport({ rows }, operationKey)
-+      const creados = registros.filter((r) => applied.createdPeriods.includes(`${r.anio}-${r.mes}`))
-+      const actualizados = registros.filter((r) => applied.updatedPeriods.includes(`${r.anio}-${r.mes}`))
+@@ -2,11 +2,11 @@
  
-       setResumen({
-         creados: creados.map((r) => formatearMesAnio(r.anio, r.mes)),
-diff --git a/src/lib/api/generated/client.ts b/src/lib/api/generated/client.ts
-index 9d75fd6..8021382 100644
---- a/src/lib/api/generated/client.ts
-+++ b/src/lib/api/generated/client.ts
-@@ -40,7 +40,7 @@ import type {
-   UpdateClientAddressBody,
-   QuoteUploadBody,
-   QuoteDownload,
--  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord, ResultRow, ResultsImportBody, ResultRecord,
-+  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord, ResultsImportBody, ResultRecord,
-   UsersListResponse,
- } from './types'
+ | Fase | Dominio | Backend | Frontend migrado | DB | RLS/PostgREST | Transactions | Idempotency | Concurrency | Tests | Estado |
+ |---|---|---|---|---|---|---|---|---|---|---|
+-| 4A | clientes/domicilios/presupuestos | PASS | PASS | PASS | PASS histórico | PASS histórico | FAIL en corrida opt-in actual | NOT_CERTIFIED | FAIL |
++| 4A | clientes/domicilios/presupuestos | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+ | 4B | catálogo/proveedores | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+ | 4C | compras | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+ | 4D | resultados | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
  
-@@ -161,7 +161,7 @@ export type DinamicApiClient = {
-   listResults: (query?:{anio?:number;mes?:number}) => Promise<ResultRecord[]>
-   getResult: (id:string) => Promise<ResultRecord & {details:unknown[]}>
-   previewResultsImport: (body:ResultsImportBody) => Promise<Record<string,unknown>>
--  applyResultsImport: (body:ResultsImportBody,key:string) => Promise<{resultIds:string[]}>
-+  applyResultsImport: (body:ResultsImportBody,key:string) => Promise<{resultIds:string[];createdPeriods:string[];updatedPeriods:string[]}>
-   getClientQuoteDownload: (clientId:string,quoteId:string) => Promise<QuoteDownload>
-   deleteClientQuote: (clientId:string,quoteId:string) => Promise<void>
- }
-@@ -328,6 +328,6 @@ export function createDinamicApiClient(options: DinamicApiClientOptions): Dinami
-     listPurchaseRequests(){return requestJson<PurchaseRecord[]>('/v1/purchase-requests')},getPurchaseRequest(id){return requestJson<PurchaseRecord>(`/v1/purchase-requests/${id}`)},createPurchaseRequest(body){return requestJson<PurchaseRecord>('/v1/purchase-requests',{method:'POST',body:JSON.stringify(body)})},updatePurchaseRequest(id,body){return requestJson<PurchaseRecord>(`/v1/purchase-requests/${id}`,{method:'PUT',body:JSON.stringify(body)})},transitionPurchaseRequest(id,estado){return requestJson<PurchaseRecord>(`/v1/purchase-requests/${id}/state`,{method:'PATCH',body:JSON.stringify({estado})})},duplicatePurchaseRequest(id){return requestJson<PurchaseRecord>(`/v1/purchase-requests/${id}/duplicate`,{method:'POST'})},setPurchaseRequestItemDiscarded(id,descartada,motivo){return requestJson<PurchaseRecord>(`/v1/purchase-request-items/${id}/discard`,{method:'PATCH',body:JSON.stringify({descartada,motivo})})},previewPurchaseImport(body){return requestJson('/v1/purchase-requests/import/preview',{method:'POST',body:JSON.stringify(body)})},applyPurchaseImport(body,key){return requestJson('/v1/purchase-requests/import/apply',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},assignPurchaseRequest(id,body,key){return requestJson(`/v1/purchase-requests/${id}/assignments`,{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},
-     listPurchaseOrders(){return requestJson<PurchaseRecord[]>('/v1/purchase-orders')},getPurchaseOrder(id){return requestJson<PurchaseRecord>(`/v1/purchase-orders/${id}`)},createPurchaseOrder(body){return requestJson<PurchaseRecord>('/v1/purchase-orders',{method:'POST',body:JSON.stringify(body)})},transitionPurchaseOrder(id,estado){return requestJson<PurchaseRecord>(`/v1/purchase-orders/${id}/state`,{method:'PATCH',body:JSON.stringify({estado})})},duplicatePurchaseOrder(id){return requestJson<PurchaseRecord>(`/v1/purchase-orders/${id}/duplicate`,{method:'POST'})},
-     listWarehouseRequests(){return requestJson<PurchaseRecord[]>('/v1/warehouse-requests')},getWarehouseRequest(id){return requestJson<PurchaseRecord>(`/v1/warehouse-requests/${id}`)},transitionWarehouseRequest(id,estado){return requestJson<PurchaseRecord>(`/v1/warehouse-requests/${id}/state`,{method:'PATCH',body:JSON.stringify({estado})})},duplicateWarehouseRequest(id){return requestJson<PurchaseRecord>(`/v1/warehouse-requests/${id}/duplicate`,{method:'POST'})},
--    listResults(query){const q=query?new URLSearchParams(Object.entries(query).filter(([,v])=>v!==undefined).map(([k,v])=>[k,String(v)])).toString():'';return requestJson<ResultRecord[]>('/v1/results'+(q?'?'+q:''))},getResult(id){return requestJson<ResultRecord&{details:unknown[]}>('/v1/results/'+id)},previewResultsImport(body){return requestJson('/v1/results/import/preview',{method:'POST',body:JSON.stringify(body)})},applyResultsImport(body,key){return requestJson('/v1/results/import/apply',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},
-+    listResults(query){const q=query?new URLSearchParams(Object.entries(query).filter(([,v])=>v!==undefined).map(([k,v])=>[k,String(v)])).toString():'';return requestJson<ResultRecord[]>('/v1/results'+(q?'?'+q:''))},getResult(id){return requestJson<ResultRecord&{details:unknown[]}>('/v1/results/'+id)},previewResultsImport(body){return requestJson('/v1/results/import/preview',{method:'POST',body:JSON.stringify(body)})},applyResultsImport(body,key){return requestJson<{resultIds:string[];createdPeriods:string[];updatedPeriods:string[]}>('/v1/results/import/apply',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},
-   }
- }
+-Bloqueante real restante: la integración opt-in 4A de presupuestos falla al crear el fixture de cliente con `Client persistence failed`, por lo que no es válido certificar el cierre transversal aunque 4B–4D estén verdes.
++La integración real 4A fue repetida después de aplicar las migrations faltantes y terminó 2/2 PASS. El runner completo continúa documentado como incompatible con la migration histórica `ALTER ROLE`; las migrations 4A se aplicaron de forma explícita con `--only`, sin modificar históricos.
+ 
+-Estado: `PHASE_4_NOT_READY_TO_CLOSE`.
++Estado: `PHASE_4_READY_TO_CLOSE`.

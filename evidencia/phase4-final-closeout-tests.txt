@@ -10,7 +10,7 @@ PASS: HTTP/RBAC Resultados 2/2; suite API 237 PASS.
 
 ## PostgreSQL integration
 
-- 4A: FAIL — `phase4a-quote-idempotency.integration.test.ts` (2 tests; fixture/identity persistence fails with `Client persistence failed`).
+- 4A: PASS — `phase4a-quote-idempotency.integration.test.ts` (2/2; concurrent same-key/replay/payload mismatch y Storage real).
 - 4B: PASS — catalog integration 8/8.
 - 4C: PASS — purchase integration + DB validation 12/12.
 - 4D: PASS — results integration 3/3.
@@ -27,4 +27,8 @@ PASS: 4B imports/price list; 4C headers/items/import/generación; 4D fallo inter
 
 PASS: RBAC 4D admin versus gerente/compras/supervisor/auditoria; PostgREST real 4A–4D DML y SELECT financiero denegados.
 
-NOT_EXECUTED: 4A opt-in PostgREST/quote completa requiere credenciales de identidad/fixture válidas; la corrida intentada terminó FAIL, no se convierte en PASS.
+PASS: PostgREST 4A opt-in (12/12) con usuario efímero autenticado; SELECT/DML de clientes, domicilios, presupuestos y Storage fueron denegados y el usuario fue eliminado al finalizar.
+
+## Causa raíz 4A
+
+CONFIGURATION_DEFECT: las migrations forward 4A no estaban registradas/aplicadas en la DB efectiva. Se aplicaron con `MIGRATIONS_DATABASE_URL` y el runner oficial `--only`; no hubo bypass de seguridad.
