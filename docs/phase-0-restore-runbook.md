@@ -24,6 +24,10 @@ export I_CONFIRM_DISPOSABLE=yes                 # required for non-local/prod-li
 New deltas: `supabase/migrations/forward/*.sql` (lexical order).  
 Archive: `supabase/migrations_archive/` (do not re-apply).
 
+`RESTORE_TARGET_DB_URL` is deliberately specific to this destructive,
+disposable restore workflow. It is not used by the forward-migration runner;
+that runner uses `MIGRATIONS_DATABASE_URL` instead.
+
 ## Baseline files
 
 | File | Contents |

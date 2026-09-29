@@ -195,6 +195,7 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
   await app.register(cors, {
     origin: origins,
     credentials: true,
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   })
 
   // Helmet after CORS. CSP is a browser/document concern (Next/FE); JSON API disables it.
