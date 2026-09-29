@@ -3,6 +3,18 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FORWARD_DIR="${ROOT}/supabase/migrations/forward"
+ONLY_FILE=""
+
+if [[ "${1:-}" == "--only" ]]; then
+  [[ $# -eq 2 ]] || { echo "Usage: $0 [--only migration.sql]" >&2; exit 2; }
+  ONLY_FILE="$2"
+  [[ "$ONLY_FILE" =~ ^[A-Za-z0-9._-]+\.sql$ && "$ONLY_FILE" != *.rollback.sql ]] || {
+    echo "ERROR: invalid migration filename" >&2; exit 2;
+  }
+elif [[ $# -ne 0 ]]; then
+  echo "Usage: $0 [--only migration.sql]" >&2
+  exit 2
+fi
 
 # CI/CD must inject MIGRATIONS_DATABASE_URL as a deployment-only secret. For
 # local development, read only that exact key from apps/api/.env when it was
@@ -53,4 +65,12 @@ while IFS= read -r file; do
   echo "Applying $name"
   { echo 'begin;'; cat "$file"; printf "\ninsert into app_migrations.forward_history(filename,checksum) values ('%s','%s');\ncommit;\n" "$name" "$checksum"; } |
     psql "$MIGRATIONS_DATABASE_URL" -v ON_ERROR_STOP=1 >/dev/null
-done < <(find "$FORWARD_DIR" -maxdepth 1 -type f -name '*.sql' ! -name '*.rollback.sql' | LC_ALL=C sort)
+done < <(
+  if [[ -n "$ONLY_FILE" ]]; then
+    target="${FORWARD_DIR}/${ONLY_FILE}"
+    [[ -f "$target" ]] || { echo "ERROR: migration not found: $ONLY_FILE" >&2; exit 2; }
+    printf '%s\n' "$target"
+  else
+    find "$FORWARD_DIR" -maxdepth 1 -type f -name '*.sql' ! -name '*.rollback.sql' | LC_ALL=C sort
+  fi
+)

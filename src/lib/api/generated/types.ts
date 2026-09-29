@@ -205,6 +205,13 @@ export type PriceListPreview = { proveedorId:string;total:number;validas:number;
 export type PriceListApplyResult = { actualizados:number;vinculadosPorCodigoInterno:number;pendientesNuevas:number;pendientesActualizadas:number }
 export type SupplierArticlePending = { id:string; proveedor_id:string; codigo_proveedor:string|null; nombre_proveedor:string|null; precio:number|null; archivo_origen:string|null; motivo:string|null; sugerencias:unknown; created_at:string; razon_social:string }
 export type SupplierCatalogRow = { codigo_proveedor:string|null;nombre_proveedor:string|null;precio:number;codigo_interno:string }
+export type PurchaseRequestItemBody = { articuloId:string;cantidad:number;observaciones?:string|null }
+export type PurchaseRequestBody = { empresaId:string;clienteId:string;observacionesGenerales?:string|null;lugarEnvioDomicilioId?:string|null;lugarEnvioEmpresa?:boolean;lugarEnvioTexto?:string|null;lugarEnvioAlias?:string|null;estado?:'borrador'|'enviada';items:PurchaseRequestItemBody[] }
+export type PurchaseOrderBody = { empresaId:string;proveedorId:string;clienteId:string;observacionesGenerales?:string|null;lugarEnvioTexto?:string|null;lugarEnvioAlias?:string|null;condicionPago?:string|null;horarioAtencionTexto?:string|null;items:Array<PurchaseRequestItemBody&{precioUnitario:number}> }
+export type PurchaseAssignmentBody = { lugarEnvioTexto?:string|null;lugarEnvioAlias?:string|null;horarioAtencionTexto?:string|null;items:Array<{pedidoCompraItemId:string;destino:'proveedor'|'deposito'|'proveedor_deposito';proveedorId?:string|null;cantidad:number;precioUnitario?:number|null;observaciones?:string|null}> }
+export type PurchaseImportBody = { empresaId:string;orders:Array<{clienteId:string;clienteDomicilioId?:string|null;lugarEnvioTexto?:string|null;lugarEnvioAlias?:string|null;items:PurchaseRequestItemBody[]}> }
+export type PurchaseCatalogs = { empresas:Array<{id:string;nombre:string;cuit:string;domicilio:string|null;activo:boolean}>;clientes:Array<{id:string;nombre:string}>;articulos:Array<{id:string;codigo_interno:string;nombre:string;unidad:string|null;categoria:string|null;proveedor_habitual_id:string|null}>;domicilios:Array<{id:string;cliente_id:string;alias:string;direccion:string|null;es_principal:boolean;activo:boolean;horario_atencion:string|null}>;proveedores:Array<{id:string;razon_social:string;domicilio:string|null;provincia:string|null;condicion_pago_default:string|null}>;preciosProveedor:Array<{articulo_id:string;proveedor_id:string;precio:number}> }
+export type PurchaseRecord = Record<string,unknown>&{id:string;estado:string}
 
 /** GET /v1/employees query (optional fields omitted when unset) */
 export type ListEmployeesQuery = {

@@ -38,6 +38,9 @@ import { createClientsService } from './application/clients/clients-service.js'
 import { createCatalogRepository, type CatalogRepository } from './infrastructure/db/catalog-repository.js'
 import { createCatalogService } from './application/catalog/catalog-service.js'
 import { catalogRoutes } from './http/routes/v1/catalog.js'
+import { createPurchasesRepository, type PurchasesRepository } from './infrastructure/db/purchases-repository.js'
+import { createPurchasesService } from './application/purchases/purchases-service.js'
+import { purchasesRoutes } from './http/routes/v1/purchases.js'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -58,6 +61,8 @@ declare module 'fastify' {
     clientsService: ReturnType<typeof createClientsService>
     catalogRepo: CatalogRepository
     catalogService: ReturnType<typeof createCatalogService>
+    purchasesRepo: PurchasesRepository
+    purchasesService: ReturnType<typeof createPurchasesService>
     /**
      * True when IdentityAdmin is wired (Auth Admin key or test inject).
      * ProfilesRepository always uses the DB pool (Phase 2D).
@@ -76,6 +81,7 @@ export type BuildAppOptions = {
   clientsRepo?: ClientsRepository
   clientQuotesStorage?: ClientQuotesStorage
   catalogRepo?: CatalogRepository
+  purchasesRepo?: PurchasesRepository
 }
 
 /**
@@ -183,6 +189,8 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
   app.decorate('clientsService',createClientsService(app.clientsRepo,(data,message)=>app.log.info(data,message)))
   app.decorate('catalogRepo',options.catalogRepo??createCatalogRepository(db))
   app.decorate('catalogService',createCatalogService(app.catalogRepo,(data,message)=>app.log.info(data,message)))
+  app.decorate('purchasesRepo',options.purchasesRepo??createPurchasesRepository(db))
+  app.decorate('purchasesService',createPurchasesService(app.purchasesRepo,(data,message)=>app.log.info(data,message)))
   app.decorate('db', db)
   app.decorate('jwtVerifier', jwtVerifier)
   app.decorate('usersModuleReady', usersModuleReady)
@@ -318,6 +326,7 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
   await app.register(hrCatalogsRoutes)
   await app.register(clientsRoutes)
   await app.register(catalogRoutes)
+  await app.register(purchasesRoutes)
   await app.register((await import('./http/routes/v1/attendance.js')).attendanceRoutes)
   await app.register((await import('./http/routes/v1/hr-reports.js')).hrReportsRoutes)
   await app.register(usersRoutes)

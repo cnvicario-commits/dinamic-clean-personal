@@ -40,7 +40,7 @@ import type {
   UpdateClientAddressBody,
   QuoteUploadBody,
   QuoteDownload,
-  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow,
+  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord,
   UsersListResponse,
 } from './types'
 
@@ -138,6 +138,26 @@ export type DinamicApiClient = {
   listSupplierArticlePending: () => Promise<SupplierArticlePending[]>
   resolveSupplierArticlePending: (id:string,articuloId:string) => Promise<SupplierArticle>
   listSupplierCatalog: (id:string) => Promise<SupplierCatalogRow[]>
+  getPurchaseCatalogs: () => Promise<PurchaseCatalogs>
+  listPurchaseRequests: () => Promise<PurchaseRecord[]>
+  getPurchaseRequest: (id:string) => Promise<PurchaseRecord>
+  createPurchaseRequest: (body:PurchaseRequestBody) => Promise<PurchaseRecord>
+  updatePurchaseRequest: (id:string,body:PurchaseRequestBody) => Promise<PurchaseRecord>
+  transitionPurchaseRequest: (id:string,estado:'enviada') => Promise<PurchaseRecord>
+  duplicatePurchaseRequest: (id:string) => Promise<PurchaseRecord>
+  setPurchaseRequestItemDiscarded: (id:string,descartada:boolean,motivo?:string|null) => Promise<PurchaseRecord>
+  previewPurchaseImport: (body:PurchaseImportBody) => Promise<{total:number;valid:number;invalid:number;errors:Array<{row:number;message:string}>}>
+  applyPurchaseImport: (body:PurchaseImportBody,key:string) => Promise<{replayed:boolean;response:{purchaseRequestIds:string[]}}>
+  assignPurchaseRequest: (id:string,body:PurchaseAssignmentBody,key:string) => Promise<{replayed:boolean;response:{purchaseOrderIds:string[];warehouseRequestId:string|null}}>
+  listPurchaseOrders: () => Promise<PurchaseRecord[]>
+  getPurchaseOrder: (id:string) => Promise<PurchaseRecord>
+  createPurchaseOrder: (body:PurchaseOrderBody) => Promise<PurchaseRecord>
+  transitionPurchaseOrder: (id:string,estado:'enviada'|'recepcionada') => Promise<PurchaseRecord>
+  duplicatePurchaseOrder: (id:string) => Promise<PurchaseRecord>
+  listWarehouseRequests: () => Promise<PurchaseRecord[]>
+  getWarehouseRequest: (id:string) => Promise<PurchaseRecord>
+  transitionWarehouseRequest: (id:string,estado:'enviada'|'recepcionada') => Promise<PurchaseRecord>
+  duplicateWarehouseRequest: (id:string) => Promise<PurchaseRecord>
   getClientQuoteDownload: (clientId:string,quoteId:string) => Promise<QuoteDownload>
   deleteClientQuote: (clientId:string,quoteId:string) => Promise<void>
 }
@@ -300,5 +320,9 @@ export function createDinamicApiClient(options: DinamicApiClientOptions): Dinami
     listArticles(){return requestJson<Article[]>('/v1/articles')},getArticle(id){return requestJson<Article>(`/v1/articles/${id}`)},createArticle(body){return requestJson<Article>('/v1/articles',{method:'POST',body:JSON.stringify(body)})},updateArticle(id,body){return requestJson<Article>(`/v1/articles/${id}`,{method:'PATCH',body:JSON.stringify(body)})},updateArticleStatus(id,activo){return requestJson<Article>(`/v1/articles/${id}/status`,{method:'PATCH',body:JSON.stringify({activo})},)},listArticleSuppliers(id){return requestJson<SupplierArticle[]>(`/v1/articles/${id}/suppliers`)},createArticleSupplier(id,body){return requestJson<SupplierArticle>(`/v1/articles/${id}/suppliers`,{method:'POST',body:JSON.stringify(body)})},updateArticleSupplier(id,relationId,body){return requestJson<SupplierArticle>(`/v1/articles/${id}/suppliers/${relationId}`,{method:'PATCH',body:JSON.stringify(body)})},previewArticleImport(body){return requestJson<ArticleImportPreview>('/v1/articles/import/preview',{method:'POST',body:JSON.stringify(body)})},importArticles(body,idempotencyKey){return requestJson('/v1/articles/import',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':idempotencyKey}})},previewPriceList(body){return requestJson<PriceListPreview>('/v1/price-lists/preview',{method:'POST',body:JSON.stringify(body)})},applyPriceList(body,idempotencyKey){return requestJson('/v1/price-lists/apply',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':idempotencyKey}})},
     listSupplierArticlePending(){return requestJson<SupplierArticlePending[]>('/v1/supplier-article-pending')},resolveSupplierArticlePending(id,articuloId){return requestJson<SupplierArticle>(`/v1/supplier-article-pending/${id}/resolve`,{method:'POST',body:JSON.stringify({articuloId})})},
     listSupplierCatalog(id){return requestJson<SupplierCatalogRow[]>(`/v1/suppliers/${id}/articles`)},
+    getPurchaseCatalogs(){return requestJson<PurchaseCatalogs>('/v1/purchases/catalogs')},
+    listPurchaseRequests(){return requestJson<PurchaseRecord[]>('/v1/purchase-requests')},getPurchaseRequest(id){return requestJson<PurchaseRecord>(`/v1/purchase-requests/${id}`)},createPurchaseRequest(body){return requestJson<PurchaseRecord>('/v1/purchase-requests',{method:'POST',body:JSON.stringify(body)})},updatePurchaseRequest(id,body){return requestJson<PurchaseRecord>(`/v1/purchase-requests/${id}`,{method:'PUT',body:JSON.stringify(body)})},transitionPurchaseRequest(id,estado){return requestJson<PurchaseRecord>(`/v1/purchase-requests/${id}/state`,{method:'PATCH',body:JSON.stringify({estado})})},duplicatePurchaseRequest(id){return requestJson<PurchaseRecord>(`/v1/purchase-requests/${id}/duplicate`,{method:'POST'})},setPurchaseRequestItemDiscarded(id,descartada,motivo){return requestJson<PurchaseRecord>(`/v1/purchase-request-items/${id}/discard`,{method:'PATCH',body:JSON.stringify({descartada,motivo})})},previewPurchaseImport(body){return requestJson('/v1/purchase-requests/import/preview',{method:'POST',body:JSON.stringify(body)})},applyPurchaseImport(body,key){return requestJson('/v1/purchase-requests/import/apply',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},assignPurchaseRequest(id,body,key){return requestJson(`/v1/purchase-requests/${id}/assignments`,{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},
+    listPurchaseOrders(){return requestJson<PurchaseRecord[]>('/v1/purchase-orders')},getPurchaseOrder(id){return requestJson<PurchaseRecord>(`/v1/purchase-orders/${id}`)},createPurchaseOrder(body){return requestJson<PurchaseRecord>('/v1/purchase-orders',{method:'POST',body:JSON.stringify(body)})},transitionPurchaseOrder(id,estado){return requestJson<PurchaseRecord>(`/v1/purchase-orders/${id}/state`,{method:'PATCH',body:JSON.stringify({estado})})},duplicatePurchaseOrder(id){return requestJson<PurchaseRecord>(`/v1/purchase-orders/${id}/duplicate`,{method:'POST'})},
+    listWarehouseRequests(){return requestJson<PurchaseRecord[]>('/v1/warehouse-requests')},getWarehouseRequest(id){return requestJson<PurchaseRecord>(`/v1/warehouse-requests/${id}`)},transitionWarehouseRequest(id,estado){return requestJson<PurchaseRecord>(`/v1/warehouse-requests/${id}/state`,{method:'PATCH',body:JSON.stringify({estado})})},duplicateWarehouseRequest(id){return requestJson<PurchaseRecord>(`/v1/warehouse-requests/${id}/duplicate`,{method:'POST'})},
   }
 }

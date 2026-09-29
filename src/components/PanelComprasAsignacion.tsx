@@ -1,8 +1,8 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 import type { AsignacionPendiente, DestinoAsignacion, LineaPendiente, ProveedorResumen, ClienteDomicilio } from '@/types/compras'
 
 const inputStyle =
@@ -224,8 +224,6 @@ function destinoEtiqueta(a: AsignacionPendiente) {
 
 export default function PanelComprasAsignacion({
   pedidoId,
-  empresaId,
-  clienteId,
   empresaNombre,
   empresaDomicilio,
   domicilios,
@@ -251,38 +249,19 @@ export default function PanelComprasAsignacion({
   const [error, setError] = useState('')
   const [lineaDescarteAbiertaId, setLineaDescarteAbiertaId] = useState<string | null>(null)
   const [descartandoId, setDescartandoId] = useState<string | null>(null)
+  const operationKey=useRef<string|null>(null)
   const router = useRouter()
-  const supabase = createClient()
 
   async function descartarLinea(itemId: string, motivo: string) {
     setDescartandoId(itemId)
     setError('')
-    const { error: err } = await supabase
-      .from('pedidos_compra_items')
-      .update({ descartada: true, motivo_descarte: motivo || null })
-      .eq('id', itemId)
-    setDescartandoId(null)
-    if (err) {
-      setError('Error al descartar la línea: ' + err.message)
-      return
-    }
-    setLineaDescarteAbiertaId(null)
-    router.refresh()
+    try{await(await createAuthenticatedBrowserApiClient()).setPurchaseRequestItemDiscarded(itemId,true,motivo||null);setLineaDescarteAbiertaId(null);router.refresh()}catch(e){setError('Error al descartar la línea: '+(e instanceof Error?e.message:'desconocido'))}finally{setDescartandoId(null)}
   }
 
   async function revertirDescarte(itemId: string) {
     setDescartandoId(itemId)
     setError('')
-    const { error: err } = await supabase
-      .from('pedidos_compra_items')
-      .update({ descartada: false, motivo_descarte: null })
-      .eq('id', itemId)
-    setDescartandoId(null)
-    if (err) {
-      setError('Error al revertir el descarte: ' + err.message)
-      return
-    }
-    router.refresh()
+    try{await(await createAuthenticatedBrowserApiClient()).setPurchaseRequestItemDiscarded(itemId,false,null);router.refresh()}catch(e){setError('Error al revertir el descarte: '+(e instanceof Error?e.message:'desconocido'))}finally{setDescartandoId(null)}
   }
 
   function resolverLugarEnvioTexto(): string | null {
@@ -336,105 +315,12 @@ export default function PanelComprasAsignacion({
     setError('')
     setGuardando(true)
 
-    const { data: userData } = await supabase.auth.getUser()
     const lugarEnvioTexto = resolverLugarEnvioTexto()
     const lugarEnvioAlias = resolverLugarEnvioAlias()
     const horarioAtencionTexto = resolverHorarioAtencionTexto()
 
-    // Una asignación 'proveedor_deposito' alimenta DOS grupos a la vez (la OC
-    // de su proveedor y el único pedido a depósito del pedido de compra),
-    // sin quedar vinculada entre ambas líneas resultantes.
-    const gruposProveedor = new Map<string, AsignacionPendiente[]>()
-    const itemsDeposito: AsignacionPendiente[] = []
-    for (const a of asignaciones) {
-      if (a.destino === 'proveedor' || a.destino === 'proveedor_deposito') {
-        gruposProveedor.set(a.proveedorId!, [...(gruposProveedor.get(a.proveedorId!) ?? []), a])
-      }
-      if (a.destino === 'deposito' || a.destino === 'proveedor_deposito') {
-        itemsDeposito.push(a)
-      }
-    }
-
-    for (const [proveedorId, items] of gruposProveedor) {
-      const { data: nuevo, error: errCab } = await supabase
-        .from('ordenes_compra')
-        .insert({
-          empresa_id: empresaId,
-          proveedor_id: proveedorId,
-          cliente_id: clienteId,
-          pedido_id: pedidoId,
-          lugar_envio_texto: lugarEnvioTexto,
-          lugar_envio_alias: lugarEnvioAlias,
-          horario_atencion_texto: horarioAtencionTexto,
-          condicion_pago: proveedores.find((p) => p.id === proveedorId)?.condicion_pago_default ?? null,
-          estado: 'borrador',
-          creado_por: userData.user?.id,
-        })
-        .select('id')
-        .single()
-      if (errCab || !nuevo) {
-        setGuardando(false)
-        setError('Error al crear la orden de compra: ' + (errCab?.message ?? 'desconocido'))
-        return
-      }
-      const { error: errItems } = await supabase.from('ordenes_compra_items').insert(
-        items.map((i) => ({
-          oc_id: nuevo.id,
-          // Si además va a depósito ('proveedor_deposito'), esta línea de OC no
-          // se vincula al pedido de origen: quien cuenta contra lo pendiente
-          // del pedido es la línea del pedido a depósito, no esta compra.
-          pedido_compra_item_id: i.destino === 'proveedor' ? i.pedidoCompraItemId : null,
-          articulo_id: i.articulo.id,
-          cantidad: i.cantidad,
-          precio_unitario: i.precioUnitario,
-          observaciones: i.observaciones || null,
-        }))
-      )
-      if (errItems) {
-        setGuardando(false)
-        setError('Error al guardar las líneas de la orden de compra: ' + errItems.message)
-        return
-      }
-    }
-
-    if (itemsDeposito.length > 0) {
-      const { data: nuevo, error: errCab } = await supabase
-        .from('pedidos_deposito')
-        .insert({
-          empresa_id: empresaId,
-          cliente_id: clienteId,
-          pedido_id: pedidoId,
-          lugar_envio_texto: lugarEnvioTexto,
-          lugar_envio_alias: lugarEnvioAlias,
-          estado: 'borrador',
-          creado_por: userData.user?.id,
-        })
-        .select('id')
-        .single()
-      if (errCab || !nuevo) {
-        setGuardando(false)
-        setError('Error al crear el pedido a depósito: ' + (errCab?.message ?? 'desconocido'))
-        return
-      }
-      const { error: errItems } = await supabase.from('pedidos_deposito_items').insert(
-        itemsDeposito.map((i) => ({
-          pedido_deposito_id: nuevo.id,
-          pedido_compra_item_id: i.pedidoCompraItemId,
-          articulo_id: i.articulo.id,
-          cantidad: i.cantidad,
-          observaciones: i.observaciones || null,
-        }))
-      )
-      if (errItems) {
-        setGuardando(false)
-        setError('Error al guardar las líneas del pedido a depósito: ' + errItems.message)
-        return
-      }
-    }
-
-    setGuardando(false)
-    setAsignaciones([])
-    router.refresh()
+    operationKey.current??=crypto.randomUUID()
+    try{await(await createAuthenticatedBrowserApiClient()).assignPurchaseRequest(pedidoId,{lugarEnvioTexto,lugarEnvioAlias,horarioAtencionTexto,items:asignaciones.map(a=>({pedidoCompraItemId:a.pedidoCompraItemId,destino:a.destino,proveedorId:a.proveedorId,cantidad:a.cantidad,precioUnitario:a.precioUnitario,observaciones:a.observaciones||null}))},operationKey.current);operationKey.current=null;setAsignaciones([]);router.refresh()}catch(e){setError(e instanceof Error?e.message:'Error al confirmar asignaciones')}finally{setGuardando(false)}
   }
 
   return (
