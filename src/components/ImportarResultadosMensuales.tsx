@@ -230,9 +230,9 @@ export default function ImportarResultadosMensuales() {
       if (Number(preview.invalid ?? 0) > 0) throw new Error('El preview rechazó filas inválidas')
       const operationKey = idempotencyKey ?? crypto.randomUUID()
       setIdempotencyKey(operationKey)
-      await api.applyResultsImport({ rows }, operationKey)
-      const creados = registros
-      const actualizados: typeof registros = []
+      const applied = await api.applyResultsImport({ rows }, operationKey)
+      const creados = registros.filter((r) => applied.createdPeriods.includes(`${r.anio}-${r.mes}`))
+      const actualizados = registros.filter((r) => applied.updatedPeriods.includes(`${r.anio}-${r.mes}`))
 
       setResumen({
         creados: creados.map((r) => formatearMesAnio(r.anio, r.mes)),

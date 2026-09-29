@@ -1,0 +1,13 @@
+ apps/api/scripts/export-contracts.mjs              |  6 ++---
+ apps/api/src/app.ts                                |  3 ++-
+ .../src/infrastructure/db/results-repository.ts    | 20 ++++++++-------
+ .../api/tests/catalog-postgres.integration.test.ts |  4 +--
+ apps/api/tests/results-http.test.ts                |  2 +-
+ .../api/tests/results-postgres.integration.test.ts | 20 ++++++++++++---
+ evidencia/phase4-final-closeout-db-validation.txt  | 12 +++++++++
+ evidencia/phase4-final-closeout-direct-access.txt  | 13 ++++++++++
+ evidencia/phase4-final-closeout-tests.txt          | 30 ++++++++++++++++++++++
+ evidencia/phase4-final-closeout-validation.md      | 12 +++++++++
+ src/components/ImportarResultadosMensuales.tsx     |  6 ++---
+ src/lib/api/generated/client.ts                    |  6 ++---
+ 12 files changed, 109 insertions(+), 25 deletions(-)
