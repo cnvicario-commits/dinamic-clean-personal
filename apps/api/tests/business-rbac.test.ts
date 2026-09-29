@@ -37,7 +37,7 @@ const CONFIRMED_PRODUCTIVE_GRANTS: Readonly<Record<Role, readonly Permission[]>>
     'client_addresses:read', 'client_addresses:update',
     'client_quotes:read', 'client_quotes:create', 'client_quotes:delete',
     'suppliers:read','suppliers:update','articles:read','articles:update','articles:import',
-    'purchase_requests:read','purchase_requests:create','purchase_requests:update','purchase_orders:read','purchase_orders:create','purchase_orders:update','warehouse_requests:read','warehouse_requests:create','warehouse_requests:update',
+    'purchase_requests:read','purchase_requests:create','purchase_requests:update','purchase_orders:read','purchase_orders:create','purchase_orders:update','warehouse_requests:read','warehouse_requests:create','warehouse_requests:update','economic_results:read','economic_results:import',
   ],
   gerente: [
     'profile:read_self', 'profile:update_self', 'employees:read',
@@ -66,8 +66,6 @@ const CATALOG_DENY_UNTIL_CONFIRMED: readonly Permission[] = [
   'companies:read',
   'companies:create',
   'companies:update',
-  'economic_results:read',
-  'economic_results:import',
   'crm:read',
   'crm:create',
   'crm:update',
@@ -129,7 +127,9 @@ describe('business RBAC catalog (Phase 2C corrections)', () => {
   it('finance permissions stay in catalog but DENY all roles (UI/RLS alone insufficient)', () => {
     expect(isPermission('economic_results:read')).toBe(true)
     expect(isPermission('economic_results:import')).toBe(true)
-    for (const role of ROLES) {
+    expect(authorize({ role: 'admin' }, 'economic_results:read')).toBe(true)
+    expect(authorize({ role: 'admin' }, 'economic_results:import')).toBe(true)
+    for (const role of ROLES.filter((r) => r !== 'admin')) {
       expect(authorize({ role }, 'economic_results:read')).toBe(false)
       expect(authorize({ role }, 'economic_results:import')).toBe(false)
     }

@@ -41,6 +41,9 @@ import { catalogRoutes } from './http/routes/v1/catalog.js'
 import { createPurchasesRepository, type PurchasesRepository } from './infrastructure/db/purchases-repository.js'
 import { createPurchasesService } from './application/purchases/purchases-service.js'
 import { purchasesRoutes } from './http/routes/v1/purchases.js'
+import { createResultsRepository, type ResultsRepository } from './infrastructure/db/results-repository.js'
+import { createResultsService } from './application/results/results-service.js'
+import { resultsRoutes } from './http/routes/v1/results.js'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -63,6 +66,8 @@ declare module 'fastify' {
     catalogService: ReturnType<typeof createCatalogService>
     purchasesRepo: PurchasesRepository
     purchasesService: ReturnType<typeof createPurchasesService>
+    resultsRepo: ResultsRepository
+    resultsService: ReturnType<typeof createResultsService>
     /**
      * True when IdentityAdmin is wired (Auth Admin key or test inject).
      * ProfilesRepository always uses the DB pool (Phase 2D).
@@ -191,6 +196,8 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
   app.decorate('catalogService',createCatalogService(app.catalogRepo,(data,message)=>app.log.info(data,message)))
   app.decorate('purchasesRepo',options.purchasesRepo??createPurchasesRepository(db))
   app.decorate('purchasesService',createPurchasesService(app.purchasesRepo,(data,message)=>app.log.info(data,message)))
+  app.decorate('resultsRepo',createResultsRepository(db))
+  app.decorate('resultsService',createResultsService(app.resultsRepo,(data,message)=>app.log.info(data,message)))
   app.decorate('db', db)
   app.decorate('jwtVerifier', jwtVerifier)
   app.decorate('usersModuleReady', usersModuleReady)
@@ -327,6 +334,7 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
   await app.register(clientsRoutes)
   await app.register(catalogRoutes)
   await app.register(purchasesRoutes)
+  await app.register(resultsRoutes)
   await app.register((await import('./http/routes/v1/attendance.js')).attendanceRoutes)
   await app.register((await import('./http/routes/v1/hr-reports.js')).hrReportsRoutes)
   await app.register(usersRoutes)

@@ -35,6 +35,7 @@ import {
 } from './schemas/clients.js'
 import { articleCreate,articleImportBody,articleUpdate,priceListBody,relationCreate,relationUpdate,supplierCreate,supplierUpdate } from './schemas/catalog.js'
 import { assignments as purchaseAssignments, importBody as purchaseImportBody, purchaseOrder, purchaseRequest, transition as purchaseTransition } from './schemas/purchases.js'
+import { resultsImport } from './schemas/results.js'
 
 /** Derive JSON Schema fragments from Zod response schemas. */
 function zodJsonSchema(schema: z.ZodType): Record<string, unknown> {
@@ -476,6 +477,10 @@ export const openApiDocument = {
         },
       },
     },
+    '/v1/results': { get: { summary:'List monthly economic results', security: bearer, responses:{'200':{description:'Results'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'}} } },
+    '/v1/results/{id}': { get: { summary:'Get monthly result detail', security: bearer, parameters:idParameter, responses:{'200':{description:'Result detail'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'},'404':{description:'Not found'}} } },
+    '/v1/results/import/preview': { post: { summary:'Preview results import', security: bearer, requestBody:{required:true,content:{'application/json':{schema:zodJsonSchema(resultsImport)}}}, responses:{'200':{description:'Preview'},'400':{description:'Validation'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'}} } },
+    '/v1/results/import/apply': { post: { summary:'Apply results import', security: bearer, requestBody:{required:true,content:{'application/json':{schema:zodJsonSchema(resultsImport)}}}, responses:{'200':{description:'Applied'},'400':{description:'Validation'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'},'409':{description:'Idempotency conflict'}} } },
     '/v1/users/{id}/enable': {
       post: {
         summary: 'Enable user (lift Auth ban)',
@@ -538,6 +543,7 @@ export const openApiDocument = {
       QuoteDownload: { type:'object',required:['url','expiresIn','fileName'],properties:{url:{type:'string'},expiresIn:{type:'integer'},fileName:{type:'string'}} },
       BejermanReportData: { type:'object',required:['employees','assignments','clients','attendance'],properties:{employees:{type:'array',items:{type:'object',required:['id','nombre_apellido','legajo','empresa'],properties:{id:{type:'string'},nombre_apellido:{type:'string'},legajo:{type:['string','null']},empresa:{type:['string','null']}}}},assignments:{type:'array',items:{type:'object',required:['empleado_id','cliente_id'],properties:{empleado_id:{type:'string'},cliente_id:{type:'string'}}}},clients:{type:'array',items:{type:'object',required:['id','nombre','codigo_costos'],properties:{id:{type:'string'},nombre:{type:'string'},codigo_costos:{type:['string','null']}}}},attendance:{type:'array',items:{type:'object',required:['empleado_id','fecha','codigo'],properties:{empleado_id:{type:'string'},fecha:{type:'string',format:'date'},codigo:{type:'string'}}}}}},
       OvertimeReportData: { type:'object',required:['attendance','assignments','clients'],properties:{attendance:{type:'array',items:{type:'object',required:['empleado_id','horas_extras','cliente_destino_id','cliente_horas_extra_id','nombre_apellido'],properties:{empleado_id:{type:'string'},horas_extras:{type:'number'},cliente_destino_id:{type:['string','null']},cliente_horas_extra_id:{type:['string','null']},nombre_apellido:{type:'string'}}}},assignments:{type:'array',items:{type:'object',required:['empleado_id','cliente_id'],properties:{empleado_id:{type:'string'},cliente_id:{type:'string'}}}},clients:{type:'array',items:{type:'object',required:['id','nombre'],properties:{id:{type:'string'},nombre:{type:'string'}}}}}},
+      ResultsImportBody: zodJsonSchema(resultsImport),
     },
   },
 } as const

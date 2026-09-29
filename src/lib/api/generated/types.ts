@@ -212,6 +212,9 @@ export type PurchaseAssignmentBody = { lugarEnvioTexto?:string|null;lugarEnvioAl
 export type PurchaseImportBody = { empresaId:string;orders:Array<{clienteId:string;clienteDomicilioId?:string|null;lugarEnvioTexto?:string|null;lugarEnvioAlias?:string|null;items:PurchaseRequestItemBody[]}> }
 export type PurchaseCatalogs = { empresas:Array<{id:string;nombre:string;cuit:string;domicilio:string|null;activo:boolean}>;clientes:Array<{id:string;nombre:string}>;articulos:Array<{id:string;codigo_interno:string;nombre:string;unidad:string|null;categoria:string|null;proveedor_habitual_id:string|null}>;domicilios:Array<{id:string;cliente_id:string;alias:string;direccion:string|null;es_principal:boolean;activo:boolean;horario_atencion:string|null}>;proveedores:Array<{id:string;razon_social:string;domicilio:string|null;provincia:string|null;condicion_pago_default:string|null}>;preciosProveedor:Array<{articulo_id:string;proveedor_id:string;precio:number}> }
 export type PurchaseRecord = Record<string,unknown>&{id:string;estado:string}
+export type ResultRow = { anio:number; mes:number; values:Record<string,number|null>; details:Array<{rubro:string;concepto:string;monto:number}> }
+export type ResultsImportBody = { rows:ResultRow[] }
+export type ResultRecord = Record<string,unknown>&{id:string;anio:number;mes:number}
 
 /** GET /v1/employees query (optional fields omitted when unset) */
 export type ListEmployeesQuery = {

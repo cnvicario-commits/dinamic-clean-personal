@@ -32,6 +32,7 @@ describe('openapi contract (Phase 1)', () => {
         '/v1/purchases/catalogs','/v1/purchase-requests','/v1/purchase-requests/{id}','/v1/purchase-requests/{id}/state','/v1/purchase-requests/{id}/duplicate','/v1/purchase-request-items/{id}/discard','/v1/purchase-requests/{id}/assignments','/v1/purchase-requests/import/preview','/v1/purchase-requests/import/apply',
         '/v1/purchase-orders','/v1/purchase-orders/{id}','/v1/purchase-orders/{id}/state','/v1/purchase-orders/{id}/duplicate',
         '/v1/warehouse-requests','/v1/warehouse-requests/{id}','/v1/warehouse-requests/{id}/state','/v1/warehouse-requests/{id}/duplicate',
+        '/v1/results','/v1/results/{id}','/v1/results/import/preview','/v1/results/import/apply',
         '/v1/users',
         '/v1/users/{id}',
         '/v1/users/{id}/disable',

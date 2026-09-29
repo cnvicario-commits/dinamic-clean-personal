@@ -1,0 +1,12 @@
+Auditoría de acceso directo Resultados
+
+MIGRADO
+- `src/app/resultados/page.tsx` usa `createAuthenticatedServerApiClient`.
+- `ImportarResultadosMensuales` usa `createAuthenticatedBrowserApiClient` y endpoints preview/apply.
+- No quedan `.from('resultados_mensuales')`, inserts, updates, deletes o RPC de Resultados en frontend.
+
+DEFECTO
+- Ninguno encontrado en la auditoría estática.
+
+PASS
+- Prueba dinámica PostgREST con JWT authenticated: SELECT e INSERT/UPDATE/DELETE de Resultados rechazados.
