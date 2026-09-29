@@ -1,4 +1,0 @@
-Evidencia histórica 4C conservada.
-
-La validación final se encuentra en `phase4c-final-corrections-tests.txt`.
-Estado actualizado: PASS para las suites ejecutadas; no se declara cierre de Fase 4C.
