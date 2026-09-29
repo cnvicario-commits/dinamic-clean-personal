@@ -1,13 +1,12 @@
 'use client'
 import { useState } from 'react'
 import * as XLSX from 'xlsx'
-import { createClient } from '@/utils/supabase/client'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 
 const FILA_EJEMPLO = { codigo_proveedor: '', nombre_proveedor: '', precio: 0, codigo_interno: '' }
 
 export default function DescargarPlantillaListaPrecios({ proveedorId }: { proveedorId: string }) {
   const [descargando, setDescargando] = useState(false)
-  const supabase = createClient()
 
   const handleDescargar = async () => {
     setDescargando(true)
@@ -20,23 +19,13 @@ export default function DescargarPlantillaListaPrecios({ proveedorId }: { provee
       // eligió ninguno todavía), se usa la fila de ejemplo de siempre.
       let filas: (typeof FILA_EJEMPLO)[] = [FILA_EJEMPLO]
       if (proveedorId) {
-        const { data } = await supabase
-          .from('articulos_proveedor')
-          .select('codigo_proveedor, nombre_proveedor, precio, articulos(codigo_interno)')
-          .eq('proveedor_id', proveedorId)
-          .order('codigo_proveedor')
-        const vinculos = (data ?? []) as unknown as {
-          codigo_proveedor: string
-          nombre_proveedor: string | null
-          precio: number
-          articulos: { codigo_interno: string } | null
-        }[]
+        const vinculos=await (await createAuthenticatedBrowserApiClient()).listSupplierCatalog(proveedorId)
         if (vinculos.length > 0) {
           filas = vinculos.map((v) => ({
-            codigo_proveedor: v.codigo_proveedor,
+            codigo_proveedor: v.codigo_proveedor ?? '',
             nombre_proveedor: v.nombre_proveedor ?? '',
             precio: v.precio,
-            codigo_interno: v.articulos?.codigo_interno ?? '',
+            codigo_interno: v.codigo_interno,
           }))
         }
       }

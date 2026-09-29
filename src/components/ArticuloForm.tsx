@@ -1,8 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
-import { formatearCodigoArticulo, obtenerSiguienteCodigo } from '@/utils/codigoArticulo'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 
 type Articulo = {
   id: string
@@ -35,7 +34,6 @@ export default function ArticuloForm({
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -45,43 +43,20 @@ export default function ArticuloForm({
       nombre,
       categoria: categoria || null,
       unidad: unidad || null,
-      proveedor_habitual_id: proveedorHabitualId || null,
+      proveedorHabitualId: proveedorHabitualId || null,
     }
 
     if (articulo) {
-      const { error } = await supabase.from('articulos').update(payload).eq('id', articulo.id)
+      try { const api=await createAuthenticatedBrowserApiClient(); await api.updateArticle(articulo.id,payload) } catch(err) { setLoading(false);setError('Error al guardar: '+(err instanceof Error?err.message:'Error inesperado'));return }
       setLoading(false)
-      if (error) {
-        setError('Error al guardar: ' + error.message)
-        return
-      }
       onGuardado?.()
       router.refresh()
       return
     }
 
-    // Alta: generamos el código interno correlativo en el cliente (ART-0001,
-    // ART-0002, ...) a partir del máximo existente, con reintento por si dos
-    // altas casi simultáneas calculan el mismo número.
-    let siguiente = await obtenerSiguienteCodigo(supabase)
     let data: { id: string } | null = null
-    let error: { message: string; code?: string } | null = null
-    for (let intento = 0; intento < 5; intento++) {
-      const resultado = await supabase
-        .from('articulos')
-        .insert({ ...payload, codigo_interno: formatearCodigoArticulo(siguiente), activo: true })
-        .select()
-        .single()
-      data = resultado.data
-      error = resultado.error
-      if (!error || error.code !== '23505') break
-      siguiente++
-    }
+    try { data=await (await createAuthenticatedBrowserApiClient()).createArticle(payload) } catch(err) { setLoading(false);setError('Error al guardar: '+(err instanceof Error?err.message:'Error inesperado'));return }
     setLoading(false)
-    if (error) {
-      setError('Error al guardar: ' + error.message)
-      return
-    }
     if (onCreated && data) {
       onCreated(data.id)
     } else {

@@ -1,6 +1,6 @@
 import { config as loadDotenv } from 'dotenv'
 import { resolve } from 'node:path'
-import { spawn } from 'node:child_process'
+import { spawn,spawnSync } from 'node:child_process'
 
 const apiRoot = resolve(import.meta.dirname, '..')
 const repoRoot = resolve(apiRoot, '../..')
@@ -12,6 +12,17 @@ for (const path of [
   resolve(repoRoot, '.env.local'),
 ]) {
   loadDotenv({ path })
+}
+if(process.env.USE_LOCAL_SUPABASE==='1'){
+  const status=spawnSync('npx',['supabase','status','-o','env'],{cwd:repoRoot,encoding:'utf8'})
+  if(status.status!==0){console.error('LOCAL_SUPABASE_STATUS_FAILED');process.exit(status.status??2)}
+  const local=Object.fromEntries(status.stdout.split('\n').flatMap(line=>{const match=line.match(/^([A-Z_]+)="?(.*?)"?$/);return match?[[match[1],match[2]]]:[]}))
+  process.env.SUPABASE_URL=local.API_URL
+  process.env.SUPABASE_ANON_KEY=local.ANON_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY=local.SERVICE_ROLE_KEY
+  process.env.SUPABASE_JWT_SECRET=local.JWT_SECRET
+  process.env.DATABASE_URL='postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres?options=-c%20role%3Ddinamic_api'
+  process.env.EXPECTED_SUPABASE_TEST_PROJECT_REF='local'
 }
 if (!process.env.SUPABASE_ANON_KEY && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
   process.env.SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY

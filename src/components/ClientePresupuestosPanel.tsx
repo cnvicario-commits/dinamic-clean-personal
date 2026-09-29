@@ -1,31 +1,19 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 
 export type ClientePresupuesto = {
   id: string
   nombre_archivo: string
-  storage_path: string
   created_at: string
-  perfiles: { nombre_completo: string } | null
+  subido_por_nombre?: string | null
 }
 
-const BUCKET = 'presupuestos-clientes'
 const TAMANIO_MAXIMO = 15 * 1024 * 1024 // 15 MB
 
 function formatearFecha(fecha: string) {
   return new Date(fecha).toLocaleDateString('es-AR')
-}
-
-// Saca tildes, espacios y caracteres raros del nombre para el path de
-// storage — el nombre original (con tildes y todo) se guarda aparte en
-// nombre_archivo, para mostrarlo tal cual en la pantalla.
-function sanitizarNombre(nombre: string) {
-  return nombre
-    .normalize('NFD')
-    .replace(new RegExp('[̀-ͯ]', 'g'), '') // marcas diacríticas (tildes, etc.) tras normalizar
-    .replace(/[^a-zA-Z0-9.\-_]/g, '_')
 }
 
 export default function ClientePresupuestosPanel({
@@ -36,13 +24,13 @@ export default function ClientePresupuestosPanel({
   presupuestos: ClientePresupuesto[]
 }) {
   const [archivo, setArchivo] = useState<File | null>(null)
+  const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null)
   const [subiendo, setSubiendo] = useState(false)
   const [error, setError] = useState('')
   const [verificandoId, setVerificandoId] = useState<string | null>(null)
   const [eliminandoId, setEliminandoId] = useState<string | null>(null)
 
   const router = useRouter()
-  const supabase = createClient()
 
   async function subir() {
     setError('')
@@ -60,48 +48,37 @@ export default function ClientePresupuestosPanel({
     }
 
     setSubiendo(true)
-    const path = `${clienteId}/${crypto.randomUUID()}_${sanitizarNombre(archivo.name)}`
-    const { error: errUpload } = await supabase.storage.from(BUCKET).upload(path, archivo)
-    if (errUpload) {
-      setError('Error al subir el archivo: ' + errUpload.message)
-      setSubiendo(false)
-      return
-    }
-
-    const { data: userData } = await supabase.auth.getUser()
-    const { error: errInsert } = await supabase.from('cliente_presupuestos').insert({
-      cliente_id: clienteId,
-      storage_path: path,
-      nombre_archivo: archivo.name,
-      subido_por: userData.user?.id ?? null,
-    })
-    if (errInsert) {
-      setError('El archivo se subió, pero falló guardar el registro: ' + errInsert.message)
+    try {
+      const bytes=new Uint8Array(await archivo.arrayBuffer())
+      let binary=''; for(let i=0;i<bytes.length;i+=0x8000)binary+=String.fromCharCode(...bytes.subarray(i,i+0x8000))
+      const api=await createAuthenticatedBrowserApiClient()
+      const key=idempotencyKey??crypto.randomUUID()
+      setIdempotencyKey(key)
+      await api.uploadClientQuote(clienteId,{fileName:archivo.name,contentBase64:btoa(binary)},key)
+    } catch(cause) {
+      setError('Error al subir el archivo: '+(cause instanceof Error?cause.message:'desconocido'))
       setSubiendo(false)
       return
     }
 
     setArchivo(null)
+    setIdempotencyKey(null)
     setSubiendo(false)
     router.refresh()
   }
 
   async function ver(p: ClientePresupuesto) {
     setVerificandoId(p.id)
-    const { data, error: errUrl } = await supabase.storage.from(BUCKET).createSignedUrl(p.storage_path, 60)
+    try { const api=await createAuthenticatedBrowserApiClient(); const data=await api.getClientQuoteDownload(clienteId,p.id); window.open(data.url,'_blank','noopener,noreferrer') }
+    catch(cause){alert('Error al abrir el archivo: '+(cause instanceof Error?cause.message:'desconocido'))}
     setVerificandoId(null)
-    if (errUrl || !data) {
-      alert('Error al abrir el archivo: ' + errUrl?.message)
-      return
-    }
-    window.open(data.signedUrl, '_blank')
   }
 
   async function eliminar(p: ClientePresupuesto) {
     if (!confirm(`¿Eliminar "${p.nombre_archivo}"? No se puede deshacer.`)) return
     setEliminandoId(p.id)
-    await supabase.storage.from(BUCKET).remove([p.storage_path])
-    const { error: errDelete } = await supabase.from('cliente_presupuestos').delete().eq('id', p.id)
+    let errDelete:Error|null=null
+    try { const api=await createAuthenticatedBrowserApiClient(); await api.deleteClientQuote(clienteId,p.id) } catch(cause){errDelete=cause instanceof Error?cause:new Error('desconocido')}
     setEliminandoId(null)
     if (errDelete) {
       alert('Error al eliminar: ' + errDelete.message)
@@ -116,7 +93,7 @@ export default function ClientePresupuestosPanel({
         <input
           type="file"
           accept="application/pdf,.pdf"
-          onChange={(e) => setArchivo(e.target.files?.[0] || null)}
+          onChange={(e) => { setArchivo(e.target.files?.[0] || null); setIdempotencyKey(e.target.files?.[0] ? crypto.randomUUID() : null) }}
           className="text-sm text-slate-700"
         />
         <button
@@ -140,7 +117,7 @@ export default function ClientePresupuestosPanel({
                 <p className="text-sm text-slate-800">{p.nombre_archivo}</p>
                 <p className="text-xs text-slate-400">
                   Subido el {formatearFecha(p.created_at)}
-                  {p.perfiles?.nombre_completo ? ` por ${p.perfiles.nombre_completo}` : ''}
+                  {p.subido_por_nombre ? ` por ${p.subido_por_nombre}` : ''}
                 </p>
               </div>
               <div className="flex items-center gap-3 shrink-0">

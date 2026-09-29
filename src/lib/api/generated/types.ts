@@ -32,6 +32,7 @@ export type Permission =
   | 'attendance:export'
   | 'clients:read'
   | 'clients:create'
+  | 'clients:update'
   | 'client_addresses:read'
   | 'client_addresses:update'
   | 'client_quotes:read'
@@ -94,6 +95,7 @@ export const GENERATED_PERMISSIONS = [
   'attendance:export',
   'clients:read',
   'clients:create',
+  'clients:update',
   'client_addresses:read',
   'client_addresses:update',
   'client_quotes:read',
@@ -179,6 +181,40 @@ export type SetUserPasswordBody = {
 export type UpdateOwnProfileBody = {
   nombreCompleto: string
 }
+
+export type ClientRecord = { id:string; nombre:string; cuit:string|null; persona_contacto:string|null; codigo_costos:string|null; presupuesto_4hs:number; presupuesto_8hs:number; domicilio:string|null; lleva_insumos:boolean|null; activo:boolean; created_at:string }
+export type ClientAddress = { id:string; cliente_id:string; alias:string; direccion:string|null; es_principal:boolean; activo:boolean; horario_atencion:string|null; supervisor_id:string|null; created_at:string }
+export type ClientQuote = { id:string; cliente_id:string; nombre_archivo:string; subido_por:string|null; created_at:string; subido_por_nombre?:string|null }
+export type ClientDetail = { client:ClientRecord; addresses:ClientAddress[]; quotes:ClientQuote[] }
+export type CreateClientBody = { nombre:string; cuit?:string|null; personaContacto?:string|null; codigoCostos?:string|null; presupuesto4hs?:number; presupuesto8hs?:number; domicilio?:string|null; llevaInsumos?:boolean|null }
+export type UpdateClientBody = Partial<CreateClientBody> & { activo?:boolean }
+export type CreateClientAddressBody = { alias:string; direccion?:string|null; horarioAtencion?:string|null; esPrincipal?:boolean }
+export type UpdateClientAddressBody = Partial<CreateClientAddressBody>
+export type QuoteUploadBody = { fileName:string; contentBase64:string }
+export type QuoteDownload = { url:string; expiresIn:number; fileName:string }
+export type Supplier = { id:string; razon_social:string; cuit:string; domicilio:string|null; telefono:string|null; provincia:string|null; condicion_pago_default:string|null; activo:boolean }
+export type Article = { id:string; codigo_interno:string; nombre:string; categoria:string|null; unidad:string|null; proveedor_habitual_id:string|null; activo:boolean }
+export type SupplierArticle = { id:string; articulo_id:string; proveedor_id:string; codigo_proveedor:string|null; nombre_proveedor:string|null; precio:number; activo:boolean; fecha_actualizacion:string; razon_social:string }
+export type CreateSupplierBody = { razonSocial:string; cuit:string; domicilio?:string|null; telefono?:string|null; provincia?:string|null; condicionPagoDefault?:string|null }
+export type CreateArticleBody = { codigoInterno?:string; nombre:string; categoria?:string|null; unidad?:string|null; proveedorHabitualId?:string|null }
+export type CreateSupplierArticleBody = { proveedorId:string; codigoProveedor?:string|null; nombreProveedor?:string|null; precio:number; activo?:boolean }
+export type ArticleImportBody = { rows:Array<{fila:number;codigoInterno?:string;nombre:string;categoria?:string|null;unidad?:string|null}> }
+export type PriceListBody = { proveedorId:string; archivoOrigen:string; rows:Array<{fila:number;codigoProveedor:string;codigoInterno?:string;nombreProveedor:string;precio:number}> }
+export type ArticleImportPreview = { total:number;validas:number;invalidas:number;nuevos:number;actualizaciones:number;duplicados:string[];conflictos:number;errores:Array<{fila:number;motivo:string}> }
+export type PriceListPreview = { proveedorId:string;total:number;validas:number;invalidas:number;matchesExistentes:number;relacionesNuevas:number;pendientesNuevas:number;pendientesActualizadas:number;duplicados:string[];errores:Array<{fila:number;motivo:string}> }
+export type PriceListApplyResult = { actualizados:number;vinculadosPorCodigoInterno:number;pendientesNuevas:number;pendientesActualizadas:number }
+export type SupplierArticlePending = { id:string; proveedor_id:string; codigo_proveedor:string|null; nombre_proveedor:string|null; precio:number|null; archivo_origen:string|null; motivo:string|null; sugerencias:unknown; created_at:string; razon_social:string }
+export type SupplierCatalogRow = { codigo_proveedor:string|null;nombre_proveedor:string|null;precio:number;codigo_interno:string }
+export type PurchaseRequestItemBody = { articuloId:string;cantidad:number;observaciones?:string|null }
+export type PurchaseRequestBody = { empresaId:string;clienteId:string;observacionesGenerales?:string|null;lugarEnvioDomicilioId?:string|null;lugarEnvioEmpresa?:boolean;lugarEnvioTexto?:string|null;lugarEnvioAlias?:string|null;estado?:'borrador'|'enviada';items:PurchaseRequestItemBody[] }
+export type PurchaseOrderBody = { empresaId:string;proveedorId:string;clienteId:string;observacionesGenerales?:string|null;lugarEnvioTexto?:string|null;lugarEnvioAlias?:string|null;condicionPago?:string|null;horarioAtencionTexto?:string|null;items:Array<PurchaseRequestItemBody&{precioUnitario:number}> }
+export type PurchaseAssignmentBody = { lugarEnvioTexto?:string|null;lugarEnvioAlias?:string|null;horarioAtencionTexto?:string|null;items:Array<{pedidoCompraItemId:string;destino:'proveedor'|'deposito'|'proveedor_deposito';proveedorId?:string|null;cantidad:number;precioUnitario?:number|null;observaciones?:string|null}> }
+export type PurchaseImportBody = { empresaId:string;orders:Array<{clienteId:string;clienteDomicilioId?:string|null;lugarEnvioTexto?:string|null;lugarEnvioAlias?:string|null;items:PurchaseRequestItemBody[]}> }
+export type PurchaseCatalogs = { empresas:Array<{id:string;nombre:string;cuit:string;domicilio:string|null;activo:boolean}>;clientes:Array<{id:string;nombre:string}>;articulos:Array<{id:string;codigo_interno:string;nombre:string;unidad:string|null;categoria:string|null;proveedor_habitual_id:string|null}>;domicilios:Array<{id:string;cliente_id:string;alias:string;direccion:string|null;es_principal:boolean;activo:boolean;horario_atencion:string|null}>;proveedores:Array<{id:string;razon_social:string;domicilio:string|null;provincia:string|null;condicion_pago_default:string|null}>;preciosProveedor:Array<{articulo_id:string;proveedor_id:string;precio:number}> }
+export type PurchaseRecord = Record<string,unknown>&{id:string;estado:string}
+export type ResultRow = { anio:number; mes:number; values:Record<string,number|null>; details:Array<{rubro:string;concepto:string;monto:number}> }
+export type ResultsImportBody = { rows:ResultRow[] }
+export type ResultRecord = Record<string,unknown>&{id:string;anio:number;mes:number}
 
 /** GET /v1/employees query (optional fields omitted when unset) */
 export type ListEmployeesQuery = {

@@ -2,8 +2,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import * as XLSX from 'xlsx'
-import { createClient } from '@/utils/supabase/client'
-import { RUBROS, CAMPOS_CON_DETALLE, rubroSlugDeCampo, formatearMesAnio, clavePeriodo, type CampoResultado } from '@/types/resultados'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
+import { RUBROS, CAMPOS_CON_DETALLE, rubroSlugDeCampo, formatearMesAnio, type CampoResultado } from '@/types/resultados'
 
 const MESES: Record<string, number> = {
   enero: 1,
@@ -85,8 +85,8 @@ export default function ImportarResultadosMensuales() {
   const [procesando, setProcesando] = useState(false)
   const [error, setError] = useState('')
   const [resumen, setResumen] = useState<Resumen | null>(null)
+  const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null)
   const router = useRouter()
-  const supabase = createClient()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -222,39 +222,17 @@ export default function ImportarResultadosMensuales() {
         }
       })
 
-      // Se consulta antes de guardar para poder distinguir en el resumen
-      // qué meses son altas nuevas y cuáles ya existían (se actualizan).
-      const { data: existentesData } = await supabase.from('resultados_mensuales').select('anio, mes')
-      const existentesSet = new Set((existentesData ?? []).map((r) => clavePeriodo(r.anio, r.mes)))
-
-      const { error: errUpsert } = await supabase
-        .from('resultados_mensuales')
-        .upsert(registros, { onConflict: 'anio,mes' })
-
-      if (errUpsert) {
-        setError('Error al guardar: ' + errUpsert.message)
-        setProcesando(false)
-        return
-      }
-
-      const creados = registros.filter((r) => !existentesSet.has(clavePeriodo(r.anio, r.mes)))
-      const actualizados = registros.filter((r) => existentesSet.has(clavePeriodo(r.anio, r.mes)))
-
-      // Reemplazo completo del detalle de cada mes/rubro (borrar + insertar,
-      // no upsert parcial): así un concepto que desaparezca en una carga
-      // posterior no queda huérfano de una carga anterior.
-      const rubrosDetalle = CAMPOS_CON_DETALLE.map(rubroSlugDeCampo)
-      await Promise.all(
-        columnasMes.flatMap(({ anio, mes }) =>
-          rubrosDetalle.map((rubro) =>
-            supabase.from('resultados_mensuales_detalle').delete().eq('anio', anio).eq('mes', mes).eq('rubro', rubro)
-          )
-        )
-      )
-      if (detalleRegistros.length > 0) {
-        const { error: errDetalle } = await supabase.from('resultados_mensuales_detalle').insert(detalleRegistros)
-        if (errDetalle) avisos.push('Error al guardar el detalle por rubro: ' + errDetalle.message)
-      }
+      const api = await createAuthenticatedBrowserApiClient()
+      const rows = registros.map(({ anio, mes, ...values }) => ({
+        anio, mes, values, details: detalleRegistros.filter((d) => d.anio === anio && d.mes === mes).map(({ rubro, concepto, monto }) => ({ rubro, concepto, monto })),
+      }))
+      const preview = await api.previewResultsImport({ rows })
+      if (Number(preview.invalid ?? 0) > 0) throw new Error('El preview rechazó filas inválidas')
+      const operationKey = idempotencyKey ?? crypto.randomUUID()
+      setIdempotencyKey(operationKey)
+      const applied = await api.applyResultsImport({ rows }, operationKey)
+      const creados = registros.filter((r) => applied.createdPeriods.includes(`${r.anio}-${r.mes}`))
+      const actualizados = registros.filter((r) => applied.updatedPeriods.includes(`${r.anio}-${r.mes}`))
 
       setResumen({
         creados: creados.map((r) => formatearMesAnio(r.anio, r.mes)),
@@ -264,6 +242,7 @@ export default function ImportarResultadosMensuales() {
         avisos,
       })
       setArchivo(null)
+      setIdempotencyKey(null)
       router.refresh()
     } catch (err) {
       setError('Error al procesar el archivo: ' + (err instanceof Error ? err.message : String(err)))

@@ -1,4 +1,4 @@
-import { createClient } from '@/utils/supabase/server'
+import { createAuthenticatedServerApiClient } from '@/lib/api/server'
 import Link from 'next/link'
 import PedidoCompraForm from '@/components/PedidoCompraForm'
 import PedidoCompraDetalle from '@/components/PedidoCompraDetalle'
@@ -11,15 +11,8 @@ export default async function PedidoCompraDetallePage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const supabase = await createClient()
-
-  const { data: pedido } = await supabase
-    .from('pedidos_compra')
-    .select(
-      '*, empresas(*), clientes(id, nombre), cliente_domicilios(alias, direccion), pedidos_compra_items(*, articulos(id, codigo_interno, nombre, unidad, categoria, proveedor_habitual_id))'
-    )
-    .eq('id', id)
-    .single()
+  const api=await createAuthenticatedServerApiClient()
+  const pedido=await api.getPurchaseRequest(id).catch(()=>null)
 
   if (!pedido) {
     return (
@@ -35,12 +28,7 @@ export default async function PedidoCompraDetallePage({
   const pedidoView = pedido as unknown as PedidoCompraDetalleView
 
   if (pedidoView.estado === 'borrador') {
-    const [{ data: empresas }, { data: clientes }, { data: articulos }, { data: domicilios }] = await Promise.all([
-      supabase.from('empresas').select('id, nombre, domicilio').eq('activo', true).order('nombre'),
-      supabase.from('clientes').select('id, nombre').order('nombre'),
-      supabase.from('articulos').select('id, codigo_interno, nombre, unidad, categoria, proveedor_habitual_id').eq('activo', true).order('nombre'),
-      supabase.from('cliente_domicilios').select('id, cliente_id, alias, direccion, es_principal, activo, horario_atencion').eq('activo', true).order('alias'),
-    ])
+    const {empresas,clientes,articulos,domicilios}=await api.getPurchaseCatalogs()
 
     return (
       <div className="max-w-4xl mx-auto px-6 py-10 print:hidden">
@@ -52,10 +40,7 @@ export default async function PedidoCompraDetallePage({
           <EstadoBadge estado={pedidoView.estado} />
         </div>
         <PedidoCompraForm
-          empresas={empresas ?? []}
-          clientes={clientes ?? []}
-          articulos={articulos ?? []}
-          domicilios={domicilios ?? []}
+          empresas={empresas} clientes={clientes} articulos={articulos} domicilios={domicilios}
           pedido={pedidoView}
           items={pedidoView.pedidos_compra_items}
         />

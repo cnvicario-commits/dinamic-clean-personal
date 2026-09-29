@@ -1,19 +1,10 @@
 import type { ComponentProps } from 'react'
-import { createClient } from '@/utils/supabase/server'
+import { createAuthenticatedServerApiClient } from '@/lib/api/server'
 import Link from 'next/link'
 import OrdenesCompraTabla from '@/components/OrdenesCompraTabla'
 
 export default async function OrdenesCompraPage() {
-  const supabase = await createClient()
-  const [{ data: ordenes }, { data: clientes }, { data: empresas }, { data: proveedores }] = await Promise.all([
-    supabase
-      .from('ordenes_compra')
-      .select('*, empresas(nombre), proveedores(razon_social), clientes(nombre)')
-      .order('fecha', { ascending: false }),
-    supabase.from('clientes').select('id, nombre').order('nombre'),
-    supabase.from('empresas').select('*').order('nombre'),
-    supabase.from('proveedores').select('id, razon_social, domicilio, provincia, condicion_pago_default').order('razon_social'),
-  ])
+  const api=await createAuthenticatedServerApiClient();const [ordenes,catalogs]=await Promise.all([api.listPurchaseOrders(),api.getPurchaseCatalogs()])
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-10">
@@ -27,10 +18,8 @@ export default async function OrdenesCompraPage() {
         </Link>
       </div>
       <OrdenesCompraTabla
-        ordenes={(ordenes ?? []) as ComponentProps<typeof OrdenesCompraTabla>['ordenes']}
-        clientes={clientes ?? []}
-        empresas={empresas ?? []}
-        proveedores={proveedores ?? []}
+        ordenes={ordenes as ComponentProps<typeof OrdenesCompraTabla>['ordenes']}
+        clientes={catalogs.clientes} empresas={catalogs.empresas} proveedores={catalogs.proveedores}
       />
     </div>
   )

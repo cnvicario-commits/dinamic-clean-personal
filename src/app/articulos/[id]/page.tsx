@@ -1,5 +1,5 @@
 import type { ComponentProps } from 'react'
-import { createClient } from '@/utils/supabase/server'
+import { createAuthenticatedServerApiClient } from '@/lib/api/server'
 import Link from 'next/link'
 import ArticuloProveedoresTabla from '@/components/ArticuloProveedoresTabla'
 
@@ -9,13 +9,8 @@ export default async function ArticuloDetallePage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const supabase = await createClient()
-
-  const { data: articulo } = await supabase
-    .from('articulos')
-    .select('*')
-    .eq('id', id)
-    .single()
+  const api=await createAuthenticatedServerApiClient()
+  const articulo=await api.getArticle(id).catch(()=>null)
 
   if (!articulo) {
     return (
@@ -28,11 +23,7 @@ export default async function ArticuloDetallePage({
     )
   }
 
-  const { data: vinculos } = await supabase
-    .from('articulos_proveedor')
-    .select('id, codigo_proveedor, nombre_proveedor, precio, fecha_actualizacion, activo, proveedores(id, razon_social)')
-    .eq('articulo_id', id)
-    .order('precio')
+  const vinculos=await api.listArticleSuppliers(id)
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-10">
@@ -50,7 +41,7 @@ export default async function ArticuloDetallePage({
         Proveedores ({vinculos?.length ?? 0})
       </h2>
       <ArticuloProveedoresTabla
-        vinculos={(vinculos ?? []) as ComponentProps<typeof ArticuloProveedoresTabla>['vinculos']}
+        vinculos={vinculos as ComponentProps<typeof ArticuloProveedoresTabla>['vinculos']}
       />
     </div>
   )

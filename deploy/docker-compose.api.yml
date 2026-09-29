@@ -20,6 +20,9 @@ services:
       HOST: 0.0.0.0
       PORT: 3001
       NODE_ENV: production
+      # env_file may also be used by the local migration runner. Explicitly
+      # override this deployment-only secret so it never reaches API runtime.
+      MIGRATIONS_DATABASE_URL: ""
     healthcheck:
       test:
         [

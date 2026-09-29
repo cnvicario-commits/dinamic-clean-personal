@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 import type { ClienteDomicilio } from '@/types/compras'
 
 export default function ClienteDomicilioForm({
@@ -20,42 +20,15 @@ export default function ClienteDomicilioForm({
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setLoading(true)
 
-    // Solo puede haber un domicilio principal por cliente: si se marca este,
-    // primero se desmarcan los demás (hay un índice único parcial en la base
-    // que lo garantiza de todos modos).
-    if (esPrincipal) {
-      const { error: errClear } = await supabase
-        .from('cliente_domicilios')
-        .update({ es_principal: false })
-        .eq('cliente_id', clienteId)
-      if (errClear) {
-        setLoading(false)
-        setError('Error al guardar: ' + errClear.message)
-        return
-      }
-    }
-
-    const payload = { alias, direccion, es_principal: esPrincipal, horario_atencion: horarioAtencion || null }
-    const { error: errGuardar } = domicilio
-      ? await supabase.from('cliente_domicilios').update(payload).eq('id', domicilio.id)
-      : await supabase.from('cliente_domicilios').insert({ ...payload, cliente_id: clienteId, activo: true })
-
+    try { const api=await createAuthenticatedBrowserApiClient(); const payload={alias,direccion:direccion||null,esPrincipal,horarioAtencion:horarioAtencion||null}; if(domicilio)await api.updateClientAddress(clienteId,domicilio.id,payload);else await api.createClientAddress(clienteId,payload) }
+    catch(cause){setLoading(false);setError('Error al guardar: '+(cause instanceof Error?cause.message:'desconocido'));return}
     setLoading(false)
-    if (errGuardar) {
-      setError(
-        errGuardar.code === '23505'
-          ? 'Ya existe un domicilio activo con ese alias. Los alias tienen que ser únicos (se usan para matchear en la importación de pedidos).'
-          : 'Error al guardar: ' + errGuardar.message
-      )
-      return
-    }
     if (domicilio) {
       onGuardado?.()
     } else {

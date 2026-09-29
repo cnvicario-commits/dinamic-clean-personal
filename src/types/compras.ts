@@ -29,7 +29,7 @@ export type ClienteDomicilio = {
   id: string
   cliente_id: string
   alias: string
-  direccion: string
+  direccion: string | null
   es_principal: boolean
   activo: boolean
   horario_atencion: string | null

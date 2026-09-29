@@ -1,9 +1,9 @@
 'use client'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import * as XLSX from 'xlsx'
-import { createClient } from '@/utils/supabase/client'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 import DescargarPlantillaPedidosCompraMatriz from './DescargarPlantillaPedidosCompraMatriz'
 import type { EmpresaResumen, ClienteResumen, ArticuloResumen, ClienteDomicilio } from '@/types/compras'
 
@@ -19,15 +19,6 @@ type PedidoGenerado = { id: string; numero_pedido: string; cliente: string; alia
 type Resumen = {
   pedidosGenerados: PedidoGenerado[]
   errores: FilaError[]
-}
-
-const TAMANO_LOTE = 15
-
-async function enLotes<T>(items: T[], tamano: number, fn: (item: T) => Promise<void>) {
-  for (let i = 0; i < items.length; i += tamano) {
-    const lote = items.slice(i, i + tamano)
-    await Promise.allSettled(lote.map(fn))
-  }
 }
 
 function normalizarCantidad(valor: unknown): number {
@@ -53,7 +44,7 @@ export default function ImportarPedidosCompraMatriz({
   const [error, setError] = useState('')
   const [resumen, setResumen] = useState<Resumen | null>(null)
   const router = useRouter()
-  const supabase = createClient()
+  const operationKey=useRef<string|null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -141,57 +132,20 @@ export default function ImportarPedidosCompraMatriz({
       // Columnas sin ninguna cantidad cargada no generan pedido.
       const columnasConLineas = columnas.filter((c) => c.lineas.length > 0)
 
-      const { data: userData } = await supabase.auth.getUser()
-      const pedidosGenerados: PedidoGenerado[] = []
-
-      await enLotes(columnasConLineas, TAMANO_LOTE, async (col) => {
-        const { data: pedidoCreado, error: errInsert } = await supabase
-          .from('pedidos_compra')
-          .insert({
-            empresa_id: empresaId,
-            cliente_id: col.domicilio.cliente_id,
-            observaciones_generales: null,
-            lugar_envio_empresa: false,
-            lugar_envio_domicilio_id: col.domicilio.id,
-            lugar_envio_texto: col.domicilio.direccion,
-            lugar_envio_alias: col.domicilio.alias,
-            estado: 'borrador',
-            creado_por: userData.user?.id,
-          })
-          .select('id, numero_pedido')
-          .single()
-
-        if (errInsert || !pedidoCreado) {
-          errores.push({ fila: null, motivo: `Columna "${col.domicilio.alias}": error al crear el pedido: ${errInsert?.message ?? 'desconocido'}` })
-          return
-        }
-
-        const { error: errItems } = await supabase.from('pedidos_compra_items').insert(
-          col.lineas.map((l) => ({
-            pedido_id: pedidoCreado.id,
-            articulo_id: l.articulo_id,
-            cantidad: l.cantidad,
-            observaciones: null,
-          }))
-        )
-        if (errItems) {
-          errores.push({
-            fila: null,
-            motivo: `Columna "${col.domicilio.alias}": pedido ${pedidoCreado.numero_pedido} creado pero error al guardar las líneas: ${errItems.message}`,
-          })
-          return
-        }
-
-        pedidosGenerados.push({
-          id: pedidoCreado.id,
-          numero_pedido: pedidoCreado.numero_pedido,
-          cliente: clientes.find((c) => c.id === col.domicilio.cliente_id)?.nombre ?? '-',
-          alias: col.domicilio.alias,
-        })
-      })
+      const payload={empresaId,orders:columnasConLineas.map(col=>({clienteId:col.domicilio.cliente_id,clienteDomicilioId:col.domicilio.id,lugarEnvioTexto:col.domicilio.direccion,lugarEnvioAlias:col.domicilio.alias,items:col.lineas.map(l=>({articuloId:l.articulo_id,cantidad:l.cantidad,observaciones:null}))}))}
+      const api=await createAuthenticatedBrowserApiClient()
+      const preview=await api.previewPurchaseImport(payload)
+      errores.push(...preview.errors.map(e=>({fila:e.row,motivo:e.message})))
+      if(preview.invalid>0||errores.length>0){setResumen({pedidosGenerados:[],errores});return}
+      if(!confirm(`Se crearán ${preview.valid} pedidos en una única operación. ¿Confirmar?`))return
+      operationKey.current??=crypto.randomUUID()
+      const applied=await api.applyPurchaseImport(payload,operationKey.current)
+      const rows=await Promise.all(applied.response.purchaseRequestIds.map(id=>api.getPurchaseRequest(id)))
+      const pedidosGenerados:PedidoGenerado[]=rows.map((row,index)=>({id:row.id,numero_pedido:String(row.numero_pedido),cliente:clientes.find(c=>c.id===columnasConLineas[index]?.domicilio.cliente_id)?.nombre??'-',alias:columnasConLineas[index]?.domicilio.alias??'-'}))
 
       setResumen({ pedidosGenerados, errores })
       setArchivo(null)
+      operationKey.current=null
       router.refresh()
     } catch (err) {
       setError('Error al procesar el archivo: ' + (err instanceof Error ? err.message : String(err)))

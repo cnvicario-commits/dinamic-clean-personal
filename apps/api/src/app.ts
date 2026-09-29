@@ -30,6 +30,20 @@ import { createAttendanceRepository } from './infrastructure/db/attendance-repos
 import { createAttendanceService } from './application/attendance/attendance-service.js'
 import { createHrReportsRepository } from './infrastructure/db/hr-reports-repository.js'
 import { createHrReportsService } from './application/hr-reports/hr-reports-service.js'
+import { createClientsRepository, type ClientsRepository } from './infrastructure/db/clients-repository.js'
+import { clientsRoutes } from './http/routes/v1/clients.js'
+import { createClientQuotesStorage, type ClientQuotesStorage } from './infrastructure/storage/client-quotes-storage.js'
+import { createClientQuotesService } from './application/clients/client-quotes-service.js'
+import { createClientsService } from './application/clients/clients-service.js'
+import { createCatalogRepository, type CatalogRepository } from './infrastructure/db/catalog-repository.js'
+import { createCatalogService } from './application/catalog/catalog-service.js'
+import { catalogRoutes } from './http/routes/v1/catalog.js'
+import { createPurchasesRepository, type PurchasesRepository } from './infrastructure/db/purchases-repository.js'
+import { createPurchasesService } from './application/purchases/purchases-service.js'
+import { purchasesRoutes } from './http/routes/v1/purchases.js'
+import { createResultsRepository, type ResultsRepository } from './infrastructure/db/results-repository.js'
+import { createResultsService } from './application/results/results-service.js'
+import { resultsRoutes } from './http/routes/v1/results.js'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -44,6 +58,16 @@ declare module 'fastify' {
     attendanceService: ReturnType<typeof createAttendanceService>
     hrReportsRepo: ReturnType<typeof createHrReportsRepository>
     hrReportsService: ReturnType<typeof createHrReportsService>
+    clientsRepo: ClientsRepository
+    clientQuotesStorage: ClientQuotesStorage
+    clientQuotesService: ReturnType<typeof createClientQuotesService>
+    clientsService: ReturnType<typeof createClientsService>
+    catalogRepo: CatalogRepository
+    catalogService: ReturnType<typeof createCatalogService>
+    purchasesRepo: PurchasesRepository
+    purchasesService: ReturnType<typeof createPurchasesService>
+    resultsRepo: ResultsRepository
+    resultsService: ReturnType<typeof createResultsService>
     /**
      * True when IdentityAdmin is wired (Auth Admin key or test inject).
      * ProfilesRepository always uses the DB pool (Phase 2D).
@@ -59,6 +83,11 @@ export type BuildAppOptions = {
   /** Test inject — when both identity + profiles are provided, module is ready. */
   identityAdmin?: IdentityAdmin
   profilesRepo?: ProfilesRepository
+  clientsRepo?: ClientsRepository
+  clientQuotesStorage?: ClientQuotesStorage
+  catalogRepo?: CatalogRepository
+  purchasesRepo?: PurchasesRepository
+  resultsRepo?: ResultsRepository
 }
 
 /**
@@ -160,6 +189,16 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
   app.decorate('attendanceService', createAttendanceService(app.attendanceRepo))
   app.decorate('hrReportsRepo', createHrReportsRepository(db))
   app.decorate('hrReportsService', createHrReportsService(app.hrReportsRepo))
+  app.decorate('clientsRepo', options.clientsRepo ?? createClientsRepository(db))
+  app.decorate('clientQuotesStorage', options.clientQuotesStorage ?? createClientQuotesStorage(env))
+  app.decorate('clientQuotesService', createClientQuotesService(app.clientsRepo,app.clientQuotesStorage,(data,message)=>app.log.info(data,message)))
+  app.decorate('clientsService',createClientsService(app.clientsRepo,(data,message)=>app.log.info(data,message)))
+  app.decorate('catalogRepo',options.catalogRepo??createCatalogRepository(db))
+  app.decorate('catalogService',createCatalogService(app.catalogRepo,(data,message)=>app.log.info(data,message)))
+  app.decorate('purchasesRepo',options.purchasesRepo??createPurchasesRepository(db))
+  app.decorate('purchasesService',createPurchasesService(app.purchasesRepo,(data,message)=>app.log.info(data,message)))
+  app.decorate('resultsRepo',options.resultsRepo ?? createResultsRepository(db))
+  app.decorate('resultsService',createResultsService(app.resultsRepo,(data,message)=>app.log.info(data,message)))
   app.decorate('db', db)
   app.decorate('jwtVerifier', jwtVerifier)
   app.decorate('usersModuleReady', usersModuleReady)
@@ -172,6 +211,7 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
   await app.register(cors, {
     origin: origins,
     credentials: true,
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   })
 
   // Helmet after CORS. CSP is a browser/document concern (Next/FE); JSON API disables it.
@@ -292,6 +332,10 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
   await app.register(employeesRoutes)
   await app.register(assignmentsRoutes)
   await app.register(hrCatalogsRoutes)
+  await app.register(clientsRoutes)
+  await app.register(catalogRoutes)
+  await app.register(purchasesRoutes)
+  await app.register(resultsRoutes)
   await app.register((await import('./http/routes/v1/attendance.js')).attendanceRoutes)
   await app.register((await import('./http/routes/v1/hr-reports.js')).hrReportsRoutes)
   await app.register(usersRoutes)

@@ -8,16 +8,31 @@ describe('openapi contract (Phase 1)', () => {
       [
         '/healthz',
         '/readyz',
+        '/v1/articles','/v1/articles/import','/v1/articles/import/preview','/v1/articles/{id}','/v1/articles/{id}/status','/v1/articles/{id}/suppliers','/v1/articles/{id}/suppliers/{relationId}',
         '/v1/assignments',
         '/v1/assignments/{id}/close',
         '/v1/attendance',
         '/v1/attendance/codes',
+        '/v1/clients',
+        '/v1/clients/{id}',
+        '/v1/clients/{id}/addresses',
+        '/v1/clients/{id}/addresses/{addressId}',
+        '/v1/clients/{id}/addresses/{addressId}/principal',
+        '/v1/clients/{id}/addresses/{addressId}/status',
+        '/v1/clients/{id}/quotes',
+        '/v1/clients/{id}/quotes/{quoteId}',
+        '/v1/clients/{id}/quotes/{quoteId}/download',
         '/v1/employees',
         '/v1/employees/{id}/status',
         '/v1/hr/catalogs',
         '/v1/hr/reports/bejerman',
         '/v1/hr/reports/overtime',
         '/v1/me',
+        '/v1/price-lists/apply','/v1/price-lists/preview','/v1/supplier-article-pending','/v1/supplier-article-pending/{id}/resolve','/v1/suppliers','/v1/suppliers/{id}','/v1/suppliers/{id}/articles','/v1/suppliers/{id}/status',
+        '/v1/purchases/catalogs','/v1/purchase-requests','/v1/purchase-requests/{id}','/v1/purchase-requests/{id}/state','/v1/purchase-requests/{id}/duplicate','/v1/purchase-request-items/{id}/discard','/v1/purchase-requests/{id}/assignments','/v1/purchase-requests/import/preview','/v1/purchase-requests/import/apply',
+        '/v1/purchase-orders','/v1/purchase-orders/{id}','/v1/purchase-orders/{id}/state','/v1/purchase-orders/{id}/duplicate',
+        '/v1/warehouse-requests','/v1/warehouse-requests/{id}','/v1/warehouse-requests/{id}/state','/v1/warehouse-requests/{id}/duplicate',
+        '/v1/results','/v1/results/{id}','/v1/results/import/preview','/v1/results/import/apply',
         '/v1/users',
         '/v1/users/{id}',
         '/v1/users/{id}/disable',
@@ -68,5 +83,17 @@ describe('openapi contract (Phase 1)', () => {
     expect(openApiDocument.components.schemas.CreateEmployeeBody).toBeTruthy()
     expect(openApiDocument.components.schemas.AssignmentsResponse).toBeTruthy()
     expect(openApiDocument.components.schemas.HrCatalogsResponse).toBeTruthy()
+  })
+
+  it('documents the complete Phase 4A client surface', () => {
+    expect(openApiDocument.paths['/v1/clients'].post.security).toEqual([{ bearerAuth: [] }])
+    expect(openApiDocument.paths['/v1/clients/{id}'].patch.responses['404']).toBeTruthy()
+    expect(openApiDocument.paths['/v1/clients/{id}/addresses/{addressId}/principal'].post).toBeTruthy()
+    expect(openApiDocument.paths['/v1/clients/{id}/quotes'].post.responses['413']).toBeTruthy()
+    expect(openApiDocument.paths['/v1/clients/{id}/quotes'].post.parameters).toContainEqual(expect.objectContaining({ name:'Idempotency-Key',in:'header',required:true }))
+    expect(openApiDocument.paths['/v1/clients/{id}/quotes/{quoteId}/download'].get).toBeTruthy()
+    expect(openApiDocument.paths['/v1/clients/{id}/quotes/{quoteId}'].delete.responses['502']).toBeTruthy()
+    expect(openApiDocument.components.schemas.ClientDetail).toBeTruthy()
+    expect(openApiDocument.components.schemas.QuoteDownload).toBeTruthy()
   })
 })

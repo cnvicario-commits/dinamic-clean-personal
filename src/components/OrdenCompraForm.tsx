@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 import BuscadorArticulo from './BuscadorArticulo'
 import type { EmpresaConDomicilio, ClienteResumen, ProveedorResumen, ArticuloResumen, ClienteDomicilio } from '@/types/compras'
 
@@ -84,7 +84,6 @@ export default function OrdenCompraForm({
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   const precioCatalogo = useMemo(() => {
     if (!proveedorId || !nuevoArticulo) return null
@@ -143,48 +142,7 @@ export default function OrdenCompraForm({
     }
     setLoading(true)
 
-    const { data: userData } = await supabase.auth.getUser()
-    const { data: nuevo, error: errInsert } = await supabase
-      .from('ordenes_compra')
-      .insert({
-        empresa_id: empresaId,
-        proveedor_id: proveedorId,
-        cliente_id: clienteId,
-        pedido_id: null, // OC generada directamente, sin pedido de compra de origen
-        observaciones_generales: observaciones || null,
-        lugar_envio_texto: resolverLugarEnvioTexto(),
-        lugar_envio_alias: resolverLugarEnvioAlias(),
-        horario_atencion_texto: resolverHorarioAtencionTexto(),
-        condicion_pago: condicionPago || null,
-        estado: 'borrador',
-        creado_por: userData.user?.id,
-      })
-      .select('id')
-      .single()
-
-    if (errInsert || !nuevo) {
-      setLoading(false)
-      setError('Error al guardar: ' + (errInsert?.message ?? 'desconocido'))
-      return
-    }
-
-    const { error: errItems } = await supabase.from('ordenes_compra_items').insert(
-      lineas.map((l) => ({
-        oc_id: nuevo.id,
-        pedido_compra_item_id: null,
-        articulo_id: l.articuloId,
-        cantidad: Number(l.cantidad),
-        precio_unitario: Number(l.precioUnitario),
-        observaciones: l.observaciones || null,
-      }))
-    )
-    setLoading(false)
-    if (errItems) {
-      setError('Error al guardar las líneas: ' + errItems.message)
-      return
-    }
-
-    router.push(`/ordenes-compra/${nuevo.id}`)
+    try{const nuevo=await (await createAuthenticatedBrowserApiClient()).createPurchaseOrder({empresaId,proveedorId,clienteId,observacionesGenerales:observaciones||null,lugarEnvioTexto:resolverLugarEnvioTexto(),lugarEnvioAlias:resolverLugarEnvioAlias(),horarioAtencionTexto:resolverHorarioAtencionTexto(),condicionPago:condicionPago||null,items:lineas.map(l=>({articuloId:l.articuloId,cantidad:Number(l.cantidad),precioUnitario:Number(l.precioUnitario),observaciones:l.observaciones||null}))});router.push(`/ordenes-compra/${nuevo.id}`)}catch(error){setError('Error al guardar: '+(error instanceof Error?error.message:'desconocido'))}finally{setLoading(false)}
   }
 
   return (

@@ -12,8 +12,8 @@ API connects as a dedicated role with **SELECT** on Phase 1 slice tables
 2. Set a strong password for the role (do not put it in git):
 
 ```bash
-psql "$TEST_ADMIN_DB_URL" -v ON_ERROR_STOP=1 -f supabase/ops/create_api_role.sql
-psql "$TEST_ADMIN_DB_URL" -v ON_ERROR_STOP=1 \
+psql "$MIGRATIONS_DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/ops/create_api_role.sql
+psql "$MIGRATIONS_DATABASE_URL" -v ON_ERROR_STOP=1 \
   -c "ALTER ROLE dinamic_api PASSWORD '${DINAMIC_API_DB_PASSWORD}'"
 ```
 
@@ -44,3 +44,8 @@ grants without an explicit security review.
 
 **Do not** switch production connection strings until this role is reviewed and
 applied under change control. Keep using the current test URL until then.
+
+The role-bootstrap script performs `ALTER ROLE`. Hosted Supabase's managed
+`postgres` connection may reject that operation even when it can apply table
+and RLS migrations. Use a provider-supported role-management procedure rather
+than bypassing or weakening the least-privilege role configuration.

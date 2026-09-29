@@ -2,21 +2,23 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 
 export default function MarcarPrincipalBoton({ id, clienteId }: { id: string; clienteId: string }) {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   const handleClick = async () => {
     setLoading(true)
-    // Primero se desmarcan todos los del cliente, después se marca este:
-    // así nunca queda más de uno como principal a la vez.
-    await supabase.from('cliente_domicilios').update({ es_principal: false }).eq('cliente_id', clienteId)
-    await supabase.from('cliente_domicilios').update({ es_principal: true }).eq('id', id)
-    setLoading(false)
-    router.refresh()
+    try {
+      const api=await createAuthenticatedBrowserApiClient()
+      await api.setClientAddressPrincipal(clienteId,id)
+      router.refresh()
+    } catch (cause) {
+      alert('Error al establecer el domicilio principal: '+(cause instanceof Error?cause.message:'desconocido'))
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

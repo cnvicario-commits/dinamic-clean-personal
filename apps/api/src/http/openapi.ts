@@ -25,6 +25,17 @@ import {
   updateOwnProfileBodySchema,
   usersListResponseSchema,
 } from './schemas/users.js'
+import {
+  createAddressBodySchema,
+  createClientBodySchema,
+  quoteUploadBodySchema,
+  statusBodySchema,
+  updateAddressBodySchema,
+  updateClientBodySchema,
+} from './schemas/clients.js'
+import { articleCreate,articleImportBody,articleUpdate,priceListBody,relationCreate,relationUpdate,supplierCreate,supplierUpdate } from './schemas/catalog.js'
+import { assignments as purchaseAssignments, importBody as purchaseImportBody, purchaseOrder, purchaseRequest, transition as purchaseTransition } from './schemas/purchases.js'
+import { resultsImport } from './schemas/results.js'
 
 /** Derive JSON Schema fragments from Zod response schemas. */
 function zodJsonSchema(schema: z.ZodType): Record<string, unknown> {
@@ -51,6 +62,14 @@ function assignmentQueryParameter(name: keyof typeof LIST_ASSIGNMENTS_QUERY_OPEN
 }
 
 const idParameter = [{ name: 'id', in: 'path' as const, required: true, schema: { type: 'string', format: 'uuid' } }]
+const clientAddressParameters = [
+  { name: 'id', in: 'path' as const, required: true, schema: { type: 'string', format: 'uuid' } },
+  { name: 'addressId', in: 'path' as const, required: true, schema: { type: 'string', format: 'uuid' } },
+]
+const clientQuoteParameters = [
+  { name: 'id', in: 'path' as const, required: true, schema: { type: 'string', format: 'uuid' } },
+  { name: 'quoteId', in: 'path' as const, required: true, schema: { type: 'string', format: 'uuid' } },
+]
 
 const bearer = [{ bearerAuth: [] }]
 
@@ -117,6 +136,115 @@ export const openApiDocument = {
         },
       },
     },
+    '/v1/clients': {
+      get: {
+        summary: 'List clients', security: bearer,
+        responses: { '200': { description: 'Client list', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/ClientRecord' } } } } }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' } },
+      },
+      post: {
+        summary: 'Create client and optional initial address', security: bearer,
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/CreateClientBody' } } } },
+        responses: { '201': { description: 'Created', content: { 'application/json': { schema: { $ref: '#/components/schemas/ClientRecord' } } } }, '400': { description: 'Validation' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '409': { description: 'Conflict' } },
+      },
+    },
+    '/v1/clients/{id}': {
+      get: {
+        summary: 'Get client detail with addresses and quotes', security: bearer, parameters: idParameter,
+        responses: { '200': { description: 'Client detail', content: { 'application/json': { schema: { $ref: '#/components/schemas/ClientDetail' } } } }, '400': { description: 'Invalid id' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Not found' } },
+      },
+      patch: {
+        summary: 'Update allowlisted client fields', security: bearer, parameters: idParameter,
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/UpdateClientBody' } } } },
+        responses: { '200': { description: 'Updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/ClientRecord' } } } }, '400': { description: 'Validation' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Not found' }, '409': { description: 'Conflict' } },
+      },
+    },
+    '/v1/clients/{id}/addresses': {
+      get: {
+        summary: 'List client addresses', security: bearer, parameters: idParameter,
+        responses: { '200': { description: 'Address list', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/ClientAddress' } } } } }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Client not found' } },
+      },
+      post: {
+        summary: 'Create client address', security: bearer, parameters: idParameter,
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/CreateClientAddressBody' } } } },
+        responses: { '201': { description: 'Created', content: { 'application/json': { schema: { $ref: '#/components/schemas/ClientAddress' } } } }, '400': { description: 'Validation' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Client not found' }, '409': { description: 'Conflict' } },
+      },
+    },
+    '/v1/clients/{id}/addresses/{addressId}': {
+      patch: {
+        summary: 'Update allowlisted address fields', security: bearer, parameters: clientAddressParameters,
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/UpdateClientAddressBody' } } } },
+        responses: { '200': { description: 'Updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/ClientAddress' } } } }, '400': { description: 'Validation' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Not found' }, '409': { description: 'Conflict' } },
+      },
+    },
+    '/v1/clients/{id}/addresses/{addressId}/status': {
+      patch: {
+        summary: 'Activate or deactivate client address', security: bearer, parameters: clientAddressParameters,
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/ClientAddressStatusBody' } } } },
+        responses: { '200': { description: 'Updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/ClientAddress' } } } }, '400': { description: 'Validation' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Not found' } },
+      },
+    },
+    '/v1/clients/{id}/addresses/{addressId}/principal': {
+      post: {
+        summary: 'Set the active address as the only principal address', security: bearer, parameters: clientAddressParameters,
+        responses: { '200': { description: 'Updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/ClientAddress' } } } }, '400': { description: 'Invalid id' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Active address not found' } },
+      },
+    },
+    '/v1/clients/{id}/quotes': {
+      get: {
+        summary: 'List client quote metadata', security: bearer, parameters: idParameter,
+        responses: { '200': { description: 'Quote list', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/ClientQuote' } } } } }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Client not found' } },
+      },
+      post: {
+        summary: 'Upload PDF quote through backend-managed private storage', security: bearer,
+        parameters: [...idParameter, { name: 'Idempotency-Key', in: 'header', required: true, schema: { type: 'string', minLength: 1, maxLength: 255 } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/QuoteUploadBody' } } } },
+        responses: { '200': { description: 'Replay of the resource created by the same Idempotency-Key', content: { 'application/json': { schema: { $ref: '#/components/schemas/ClientQuote' } } } }, '201': { description: 'Created', content: { 'application/json': { schema: { $ref: '#/components/schemas/ClientQuote' } } } }, '400': { description: 'Validation, missing Idempotency-Key or non-PDF' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Client not found' }, '409': { description: 'Idempotency key payload mismatch or upload still processing' }, '413': { description: 'PDF exceeds 15 MB' }, '502': { description: 'Storage or metadata persistence failure' } },
+      },
+    },
+    '/v1/clients/{id}/quotes/{quoteId}/download': {
+      get: {
+        summary: 'Create a short-lived signed URL for a client quote', security: bearer, parameters: clientQuoteParameters,
+        responses: { '200': { description: 'Signed download', content: { 'application/json': { schema: { $ref: '#/components/schemas/QuoteDownload' } } } }, '400': { description: 'Invalid id' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Quote not found for client' }, '502': { description: 'Storage signing failure' } },
+      },
+    },
+    '/v1/clients/{id}/quotes/{quoteId}': {
+      delete: {
+        summary: 'Delete quote metadata and private object with compensation', security: bearer, parameters: clientQuoteParameters,
+        responses: { '204': { description: 'Deleted' }, '400': { description: 'Invalid id' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' }, '404': { description: 'Quote not found for client' }, '502': { description: 'Storage deletion failure; metadata restore attempted' } },
+      },
+    },
+    '/v1/purchases/catalogs':{get:{summary:'Purchase catalogs',security:bearer,responses:{'200':{description:'Catalogs'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'}}}},
+    '/v1/purchase-requests':{get:{summary:'List purchase requests',security:bearer,responses:{'200':{description:'List'}}},post:{summary:'Create purchase request atomically',security:bearer,requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/PurchaseRequestBody'}}}},responses:{'201':{description:'Created'},'400':{description:'Validation'}}}},
+    '/v1/purchase-requests/{id}':{get:{summary:'Purchase request detail',security:bearer,parameters:idParameter,responses:{'200':{description:'Detail'}}},put:{summary:'Replace draft request and items atomically',security:bearer,parameters:idParameter,requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/PurchaseRequestBody'}}}},responses:{'200':{description:'Updated'},'409':{description:'Not editable'}}}},
+    '/v1/purchase-requests/{id}/state':{patch:{summary:'Transition purchase request',security:bearer,parameters:idParameter,requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/PurchaseTransitionBody'}}}},responses:{'200':{description:'Transitioned'},'409':{description:'Invalid transition'}}}},
+    '/v1/purchase-requests/{id}/duplicate':{post:{summary:'Duplicate purchase request atomically',security:bearer,parameters:idParameter,responses:{'201':{description:'Created'}}}},
+    '/v1/purchase-request-items/{id}/discard':{patch:{summary:'Discard or restore a sent request item',security:bearer,parameters:idParameter,responses:{'200':{description:'Updated'},'409':{description:'Invalid state'}}}},
+    '/v1/purchase-requests/{id}/assignments':{post:{summary:'Generate purchase orders and warehouse request atomically',security:bearer,parameters:[...idParameter,{name:'Idempotency-Key',in:'header',required:true,schema:{type:'string'}}],requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/PurchaseAssignmentsBody'}}}},responses:{'200':{description:'Generated or replayed'},'409':{description:'Conflict or over-allocation'}}}},
+    '/v1/purchase-requests/import/preview':{post:{summary:'Read-only purchase import preview',security:bearer,requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/PurchaseImportBody'}}}},responses:{'200':{description:'Preview'}}}},
+    '/v1/purchase-requests/import/apply':{post:{summary:'Apply purchase import atomically',security:bearer,parameters:[{name:'Idempotency-Key',in:'header',required:true,schema:{type:'string'}}],requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/PurchaseImportBody'}}}},responses:{'200':{description:'Applied or replayed'}}}},
+    '/v1/purchase-orders':{get:{summary:'List purchase orders',security:bearer,responses:{'200':{description:'List'}}},post:{summary:'Create independent purchase order atomically',security:bearer,requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/PurchaseOrderBody'}}}},responses:{'201':{description:'Created'}}}},
+    '/v1/purchase-orders/{id}':{get:{summary:'Purchase order detail',security:bearer,parameters:idParameter,responses:{'200':{description:'Detail'}}}},
+    '/v1/purchase-orders/{id}/state':{patch:{summary:'Transition purchase order',security:bearer,parameters:idParameter,requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/PurchaseTransitionBody'}}}},responses:{'200':{description:'Transitioned'},'409':{description:'Invalid transition'}}}},
+    '/v1/purchase-orders/{id}/duplicate':{post:{summary:'Duplicate purchase order atomically',security:bearer,parameters:idParameter,responses:{'201':{description:'Created'}}}},
+    '/v1/warehouse-requests':{get:{summary:'List warehouse requests',security:bearer,responses:{'200':{description:'List'}}}},
+    '/v1/warehouse-requests/{id}':{get:{summary:'Warehouse request detail',security:bearer,parameters:idParameter,responses:{'200':{description:'Detail'}}}},
+    '/v1/warehouse-requests/{id}/state':{patch:{summary:'Transition warehouse request',security:bearer,parameters:idParameter,requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/PurchaseTransitionBody'}}}},responses:{'200':{description:'Transitioned'},'409':{description:'Invalid transition'}}}},
+    '/v1/warehouse-requests/{id}/duplicate':{post:{summary:'Duplicate warehouse request atomically',security:bearer,parameters:idParameter,responses:{'201':{description:'Created'}}}},
+    '/v1/suppliers': { get:{summary:'List suppliers',security:bearer,responses:{'200':{description:'Supplier list'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'}}},post:{summary:'Create supplier',security:bearer,requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/CreateSupplierBody'}}}},responses:{'201':{description:'Created'},'400':{description:'Validation'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'},'409':{description:'Duplicate CUIT'}}}},
+    '/v1/suppliers/{id}': { get:{summary:'Supplier detail',security:bearer,parameters:idParameter,responses:{'200':{description:'Supplier'},'404':{description:'Not found'}}},patch:{summary:'Update supplier',security:bearer,parameters:idParameter,requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/UpdateSupplierBody'}}}},responses:{'200':{description:'Updated'},'404':{description:'Not found'}}}},
+    '/v1/suppliers/{id}/status': { patch:{summary:'Set supplier status',security:bearer,parameters:idParameter,responses:{'200':{description:'Updated'}}}},
+    '/v1/suppliers/{id}/articles': { get:{summary:'List supplier catalog rows',security:bearer,parameters:idParameter,responses:{'200':{description:'Supplier catalog'}}}},
+    '/v1/articles': { get:{summary:'List articles',security:bearer,responses:{'200':{description:'Article list'}}},post:{summary:'Create article',security:bearer,requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/CreateArticleBody'}}}},responses:{'201':{description:'Created'}}}},
+    '/v1/articles/{id}': { get:{summary:'Article detail',security:bearer,parameters:idParameter,responses:{'200':{description:'Article'},'404':{description:'Not found'}}},patch:{summary:'Update article',security:bearer,parameters:idParameter,requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/UpdateArticleBody'}}}},responses:{'200':{description:'Updated'}}}},
+    '/v1/articles/{id}/status': { patch:{summary:'Set article status',security:bearer,parameters:idParameter,responses:{'200':{description:'Updated'}}}},
+    '/v1/articles/{id}/suppliers': { get:{summary:'List article supplier relations',security:bearer,parameters:idParameter,responses:{'200':{description:'Relations'}}},post:{summary:'Create article supplier relation',security:bearer,parameters:idParameter,requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/CreateSupplierArticleBody'}}}},responses:{'201':{description:'Created'}}}},
+    '/v1/articles/{id}/suppliers/{relationId}': { patch:{summary:'Update article supplier relation',security:bearer,responses:{'200':{description:'Updated'}}}},
+    '/v1/articles/import/preview': { post:{summary:'Preview article import without writes',security:bearer,requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/ArticleImportBody'}}}},responses:{'200':{description:'Preview'}}}},
+    '/v1/articles/import': { post:{summary:'Apply article import transactionally',security:bearer,parameters:[{name:'Idempotency-Key',in:'header',required:true,schema:{type:'string'}}],requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/ArticleImportBody'}}}},responses:{'200':{description:'Applied or replayed'},'409':{description:'Idempotency conflict'}}}},
+    '/v1/price-lists/preview': { post:{summary:'Preview price list without writes',security:bearer,requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/PriceListBody'}}}},responses:{'200':{description:'Preview'}}}},
+    '/v1/price-lists/apply': { post:{summary:'Apply price list transactionally',security:bearer,parameters:[{name:'Idempotency-Key',in:'header',required:true,schema:{type:'string'}}],requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/PriceListBody'}}}},responses:{'200':{description:'Applied or replayed'},'409':{description:'Idempotency conflict'}}}},
+    '/v1/supplier-article-pending': { get:{summary:'List unresolved supplier article rows',security:bearer,responses:{'200':{description:'Pending rows'}}}},
+    '/v1/supplier-article-pending/{id}/resolve': { post:{summary:'Resolve pending row transactionally',security:bearer,parameters:idParameter,responses:{'200':{description:'Resolved'},'404':{description:'Not found'}}}},
     '/v1/employees': {
       get: {
         summary: 'List employees (paginated and filtered)',
@@ -349,6 +477,10 @@ export const openApiDocument = {
         },
       },
     },
+    '/v1/results': { get: { summary:'List monthly economic results', security: bearer, responses:{'200':{description:'Results'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'}} } },
+    '/v1/results/{id}': { get: { summary:'Get monthly result detail', security: bearer, parameters:idParameter, responses:{'200':{description:'Result detail'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'},'404':{description:'Not found'}} } },
+    '/v1/results/import/preview': { post: { summary:'Preview results import', security: bearer, requestBody:{required:true,content:{'application/json':{schema:zodJsonSchema(resultsImport)}}}, responses:{'200':{description:'Preview'},'400':{description:'Validation'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'}} } },
+    '/v1/results/import/apply': { post: { summary:'Apply results import', security: bearer, requestBody:{required:true,content:{'application/json':{schema:zodJsonSchema(resultsImport)}}}, responses:{'200':{description:'Applied'},'400':{description:'Validation'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'},'409':{description:'Idempotency conflict'}} } },
     '/v1/users/{id}/enable': {
       post: {
         summary: 'Enable user (lift Auth ban)',
@@ -396,8 +528,22 @@ export const openApiDocument = {
       CreateUserBody: zodJsonSchema(createUserBodySchema),
       ChangeUserRoleBody: zodJsonSchema(changeUserRoleBodySchema),
       SetUserPasswordBody: zodJsonSchema(setUserPasswordBodySchema),
+      CreateClientBody: zodJsonSchema(createClientBodySchema),
+      UpdateClientBody: zodJsonSchema(updateClientBodySchema),
+      CreateClientAddressBody: zodJsonSchema(createAddressBodySchema),
+      UpdateClientAddressBody: zodJsonSchema(updateAddressBodySchema),
+      ClientAddressStatusBody: zodJsonSchema(statusBodySchema),
+      QuoteUploadBody: zodJsonSchema(quoteUploadBodySchema),
+      CreateSupplierBody:zodJsonSchema(supplierCreate),UpdateSupplierBody:zodJsonSchema(supplierUpdate),CreateArticleBody:zodJsonSchema(articleCreate),UpdateArticleBody:zodJsonSchema(articleUpdate),CreateSupplierArticleBody:zodJsonSchema(relationCreate),UpdateSupplierArticleBody:zodJsonSchema(relationUpdate),ArticleImportBody:zodJsonSchema(articleImportBody),PriceListBody:zodJsonSchema(priceListBody),
+      PurchaseRequestBody:zodJsonSchema(purchaseRequest),PurchaseOrderBody:zodJsonSchema(purchaseOrder),PurchaseAssignmentsBody:zodJsonSchema(purchaseAssignments),PurchaseImportBody:zodJsonSchema(purchaseImportBody),PurchaseTransitionBody:zodJsonSchema(purchaseTransition),
+      ClientRecord: { type:'object',required:['id','nombre','cuit','persona_contacto','codigo_costos','presupuesto_4hs','presupuesto_8hs','domicilio','lleva_insumos','activo','created_at'],properties:{id:{type:'string',format:'uuid'},nombre:{type:'string'},cuit:{type:['string','null']},persona_contacto:{type:['string','null']},codigo_costos:{type:['string','null']},presupuesto_4hs:{type:'integer'},presupuesto_8hs:{type:'integer'},domicilio:{type:['string','null']},lleva_insumos:{type:['boolean','null']},activo:{type:'boolean'},created_at:{type:'string'}} },
+      ClientAddress: { type:'object',required:['id','cliente_id','alias','direccion','es_principal','activo','horario_atencion','supervisor_id','created_at'],properties:{id:{type:'string',format:'uuid'},cliente_id:{type:'string',format:'uuid'},alias:{type:'string'},direccion:{type:['string','null']},es_principal:{type:'boolean'},activo:{type:'boolean'},horario_atencion:{type:['string','null']},supervisor_id:{type:['string','null'],format:'uuid'},created_at:{type:'string'}} },
+      ClientQuote: { type:'object',required:['id','cliente_id','nombre_archivo','subido_por','created_at'],properties:{id:{type:'string',format:'uuid'},cliente_id:{type:'string',format:'uuid'},nombre_archivo:{type:'string'},subido_por:{type:['string','null'],format:'uuid'},subido_por_nombre:{type:['string','null']},created_at:{type:'string'}} },
+      ClientDetail: { type:'object',required:['client','addresses','quotes'],properties:{client:{$ref:'#/components/schemas/ClientRecord'},addresses:{type:'array',items:{$ref:'#/components/schemas/ClientAddress'}},quotes:{type:'array',items:{$ref:'#/components/schemas/ClientQuote'}}} },
+      QuoteDownload: { type:'object',required:['url','expiresIn','fileName'],properties:{url:{type:'string'},expiresIn:{type:'integer'},fileName:{type:'string'}} },
       BejermanReportData: { type:'object',required:['employees','assignments','clients','attendance'],properties:{employees:{type:'array',items:{type:'object',required:['id','nombre_apellido','legajo','empresa'],properties:{id:{type:'string'},nombre_apellido:{type:'string'},legajo:{type:['string','null']},empresa:{type:['string','null']}}}},assignments:{type:'array',items:{type:'object',required:['empleado_id','cliente_id'],properties:{empleado_id:{type:'string'},cliente_id:{type:'string'}}}},clients:{type:'array',items:{type:'object',required:['id','nombre','codigo_costos'],properties:{id:{type:'string'},nombre:{type:'string'},codigo_costos:{type:['string','null']}}}},attendance:{type:'array',items:{type:'object',required:['empleado_id','fecha','codigo'],properties:{empleado_id:{type:'string'},fecha:{type:'string',format:'date'},codigo:{type:'string'}}}}}},
       OvertimeReportData: { type:'object',required:['attendance','assignments','clients'],properties:{attendance:{type:'array',items:{type:'object',required:['empleado_id','horas_extras','cliente_destino_id','cliente_horas_extra_id','nombre_apellido'],properties:{empleado_id:{type:'string'},horas_extras:{type:'number'},cliente_destino_id:{type:['string','null']},cliente_horas_extra_id:{type:['string','null']},nombre_apellido:{type:'string'}}}},assignments:{type:'array',items:{type:'object',required:['empleado_id','cliente_id'],properties:{empleado_id:{type:'string'},cliente_id:{type:'string'}}}},clients:{type:'array',items:{type:'object',required:['id','nombre'],properties:{id:{type:'string'},nombre:{type:'string'}}}}}},
+      ResultsImportBody: zodJsonSchema(resultsImport),
     },
   },
 } as const

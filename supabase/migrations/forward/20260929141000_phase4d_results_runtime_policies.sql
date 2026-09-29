@@ -1,0 +1,11 @@
+create policy resultados_mensuales_api_select on public.resultados_mensuales for select to dinamic_api using (true);
+create policy resultados_mensuales_api_insert on public.resultados_mensuales for insert to dinamic_api with check (true);
+create policy resultados_mensuales_api_update on public.resultados_mensuales for update to dinamic_api using (true) with check (true);
+create policy resultados_mensuales_api_delete on public.resultados_mensuales for delete to dinamic_api using (true);
+create policy resultados_detalle_api_select on public.resultados_mensuales_detalle for select to dinamic_api using (true);
+create policy resultados_detalle_api_insert on public.resultados_mensuales_detalle for insert to dinamic_api with check (true);
+create policy resultados_detalle_api_update on public.resultados_mensuales_detalle for update to dinamic_api using (true) with check (true);
+create policy resultados_detalle_api_delete on public.resultados_mensuales_detalle for delete to dinamic_api using (true);
+create policy resultados_idempotency_api_select on public.resultados_import_idempotency for select to dinamic_api using (true);
+create policy resultados_idempotency_api_insert on public.resultados_import_idempotency for insert to dinamic_api with check (true);
+create policy resultados_idempotency_api_update on public.resultados_import_idempotency for update to dinamic_api using (true) with check (true);

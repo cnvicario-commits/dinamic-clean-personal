@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 
 type Proveedor = {
   id: string
@@ -29,28 +29,20 @@ export default function ProveedorForm({
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setLoading(true)
     const payload = {
-      razon_social: razonSocial,
+      razonSocial,
       cuit,
       domicilio: domicilio || null,
       telefono: telefono || null,
       provincia: provincia || null,
-      condicion_pago_default: condicionPagoDefault || null,
+      condicionPagoDefault: condicionPagoDefault || null,
     }
-    const { error } = proveedor
-      ? await supabase.from('proveedores').update(payload).eq('id', proveedor.id)
-      : await supabase.from('proveedores').insert(payload)
-    setLoading(false)
-    if (error) {
-      setError('Error al guardar: ' + error.message)
-      return
-    }
+    try { const api=await createAuthenticatedBrowserApiClient(); if(proveedor) await api.updateSupplier(proveedor.id,payload); else await api.createSupplier(payload) } catch(err) { setLoading(false);setError('Error al guardar: '+(err instanceof Error?err.message:'Error inesperado'));return };setLoading(false)
     if (proveedor) {
       onGuardado?.()
     } else {
