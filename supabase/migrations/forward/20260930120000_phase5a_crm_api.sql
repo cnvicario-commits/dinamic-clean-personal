@@ -1,5 +1,10 @@
 -- Phase 5A CRM: browser reads/mutations close after API migration. Runtime compatibility must be checked before applying.
 begin;
+-- `updated_at` is the optimistic-concurrency token. The legacy table allowed
+-- it to be NULL on insert, which would make a mandatory precondition unusable.
+update public.crm_oportunidades set updated_at=created_at where updated_at is null;
+alter table public.crm_oportunidades alter column updated_at set default now();
+alter table public.crm_oportunidades alter column updated_at set not null;
 create table if not exists public.crm_operation_idempotency (
  actor_id uuid not null references auth.users(id) on delete cascade,
  operation text not null check (operation in ('opportunity_create')),

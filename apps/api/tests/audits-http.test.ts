@@ -1,0 +1,17 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { FastifyInstance } from 'fastify'
+import { buildApp } from '../src/app.js'
+import { createProfileStubDb, signAccessToken, testEnv } from './helpers.js'
+import type { createAuditsRepository } from '../src/infrastructure/db/audits-repository.js'
+const USER='22222222-2222-4222-8222-222222222222',ID='33333333-3333-4333-8333-333333333333',VERSION='2026-09-30T12:00:00.000Z';const apps:FastifyInstance[]=[]
+const repo=(): ReturnType<typeof createAuditsRepository> => ({ plans:vi.fn(async()=>({items:[],page:1,pageSize:50,total:0})), createPlanning:vi.fn(async()=>({id:ID})), updatePlanning:vi.fn(async()=>({id:ID})), cancelPlanning:vi.fn(async()=>({id:ID})), submit:vi.fn(async()=>({replayed:false,response:{id:ID}})), createAction:vi.fn(async()=>({id:ID})), updateAction:vi.fn(async()=>({id:ID})), checklistCreate:vi.fn(async()=>({id:ID})) } as unknown as ReturnType<typeof createAuditsRepository>)
+async function app(role:string){const a=await buildApp(testEnv(),{db:createProfileStubDb({profile:{id:USER,nombre_completo:'User',rol:role}}),auditsRepo:repo()});apps.push(a);await a.ready();return a}async function auth(){return{authorization:`Bearer ${await signAccessToken({sub:USER})}`}}afterEach(async()=>Promise.all(apps.splice(0).map(a=>a.close())))
+const planning={aliasId:ID,fechaPropuesta:'2026-10-01',supervisorId:ID}
+describe('Phase 5B audits HTTP/RBAC',()=>{
+  it.each(['admin','gerente','supervisor','auditoria'])('allows %s audit operations',async role=>{const a=await app(role),h=await auth();expect((await a.inject({method:'GET',url:'/v1/audits/plannings',headers:h})).statusCode).toBe(200);expect((await a.inject({method:'POST',url:'/v1/audits/plannings',headers:h,payload:planning})).statusCode).toBe(201)})
+  it('denies compras audit operations',async()=>{const a=await app('compras');expect((await a.inject({method:'GET',url:'/v1/audits/plannings',headers:await auth()})).statusCode).toBe(403)})
+  it.each(['admin','gerente','auditoria'])('allows %s checklist administration',async role=>{const a=await app(role);const r=await a.inject({method:'POST',url:'/v1/audit-checklists',headers:await auth(),payload:{codigoFormulario:'FR',version:'1',vigenciaDesde:'2026-01-01',items:[{orden:1,texto:'Ítem'}]}});expect(r.statusCode).toBe(201)})
+  it.each(['supervisor','compras'])('denies %s checklist administration',async role=>{const a=await app(role);const r=await a.inject({method:'POST',url:'/v1/audit-checklists',headers:await auth(),payload:{}});expect(r.statusCode).toBe(403)})
+  it('requires auth and version on planning mutation',async()=>{const a=await app('admin');expect((await a.inject({method:'GET',url:'/v1/audits/plannings'})).statusCode).toBe(401);const ok=await a.inject({method:'POST',url:`/v1/audits/plannings/${ID}/cancel`,headers:await auth(),payload:{updatedAt:VERSION}});expect(ok.statusCode).toBe(200);const bad=await a.inject({method:'POST',url:`/v1/audits/plannings/${ID}/cancel`,headers:await auth(),payload:{}});expect(bad.statusCode).toBe(400)})
+  it('rejects planning ranges and unknown fields before the repository',async()=>{const a=await app('admin'),h=await auth();expect((await a.inject({method:'POST',url:'/v1/audits/plannings',headers:h,payload:{...planning,horarioDesde:'12:00',horarioHasta:'10:00'}})).statusCode).toBe(400);expect((await a.inject({method:'POST',url:'/v1/audits/plannings',headers:h,payload:{...planning,unexpected:true}})).statusCode).toBe(400)})
+})

@@ -1,0 +1,21 @@
+import { z } from 'zod'
+
+const id=z.string().uuid(),date=z.string().regex(/^\d{4}-\d{2}-\d{2}$/),nullableText=z.string().trim().max(4000).nullable().optional().default(null)
+export const auditState=z.enum(['planificada','realizada','vencida','cancelada'])
+export const actionState=z.enum(['pendiente','en_curso','resuelto'])
+export const answerResult=z.enum(['conforme','no_conforme','no_aplica'])
+export const auditListQuery=z.object({page:z.coerce.number().int().min(1).default(1),pageSize:z.coerce.number().int().min(1).max(100).default(50),estado:auditState.optional(),supervisorId:id.optional(),plantillaId:id.optional(),desde:date.optional(),hasta:date.optional(),actionState:actionState.optional()}).strict()
+const planningFields={aliasId:id,fechaPropuesta:date,horarioDesde:z.string().regex(/^\d{2}:\d{2}/).nullable().optional().default(null),horarioHasta:z.string().regex(/^\d{2}:\d{2}/).nullable().optional().default(null),supervisorId:id,observaciones:nullableText}
+const validatePlanningHours=(v:{horarioDesde:string|null;horarioHasta:string|null},c:z.RefinementCtx)=>{if(v.horarioDesde&&v.horarioHasta&&v.horarioHasta<=v.horarioDesde)c.addIssue({code:'custom',message:'End time must be after start time'})}
+export const planningBody=z.object(planningFields).strict().superRefine(validatePlanningHours)
+export const planningUpdate=z.object({...planningFields,updatedAt:z.string().datetime()}).strict().superRefine(validatePlanningHours)
+export const planningCancel=z.object({updatedAt:z.string().datetime()}).strict()
+export const auditAnswer=z.object({itemId:id,resultado:answerResult,observaciones:nullableText}).strict().superRefine((v,c)=>{if(v.resultado==='no_conforme'&&!v.observaciones?.trim())c.addIssue({code:'custom',message:'Observation is required for no_conforme'})})
+export const auditSubmit=z.object({planificacionId:id.nullable().optional().default(null),aliasId:id,plantillaId:id,fechaRealizada:date,supervisorId:id,evaluacionGeneral:nullableText,proximaSupervisionFecha:date.nullable().optional().default(null),quejasComentariosCliente:nullableText,otros:nullableText,respuestas:z.array(auditAnswer).min(1)}).strict()
+export const checklistItem=z.object({id:id.optional(),orden:z.number().int().min(1),texto:z.string().trim().min(1).max(4000)}).strict()
+export const checklistCreate=z.object({codigoFormulario:z.string().trim().min(1).max(200),version:z.string().trim().min(1).max(200),vigenciaDesde:date,items:z.array(checklistItem).min(1)}).strict()
+export const checklistUpdate=z.object({updatedAt:z.string().datetime(),items:z.array(checklistItem).min(1)}).strict()
+export const checklistActivate=z.object({updatedAt:z.string().datetime()}).strict()
+export const actionCreate=z.object({respuestaId:id.nullable().optional().default(null),descripcion:z.string().trim().min(1).max(4000),responsableId:id.nullable().optional().default(null),fechaLimite:date.nullable().optional().default(null)}).strict()
+export const actionUpdate=z.object({updatedAt:z.string().datetime(),estado:actionState,responsableId:id.nullable().optional(),fechaLimite:date.nullable().optional(),descripcion:z.string().trim().min(1).max(4000).optional()}).strict()
+export type AuditListQuery=z.infer<typeof auditListQuery>;export type PlanningBody=z.infer<typeof planningBody>;export type PlanningUpdate=z.infer<typeof planningUpdate>;export type AuditSubmit=z.infer<typeof auditSubmit>;export type ChecklistCreate=z.infer<typeof checklistCreate>;export type ChecklistUpdate=z.infer<typeof checklistUpdate>;export type ActionCreate=z.infer<typeof actionCreate>;export type ActionUpdate=z.infer<typeof actionUpdate>

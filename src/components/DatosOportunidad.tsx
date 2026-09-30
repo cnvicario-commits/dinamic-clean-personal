@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 import SelectConCrear from './SelectConCrear'
 import BotonWhatsApp from './BotonWhatsApp'
 import { nombreResponsable, type CatalogoItem } from '@/types/crm'
@@ -62,6 +62,7 @@ export default function DatosOportunidad({
     } | null
     perfiles: { nombre_completo: string } | null
     responsable_nombre_libre: string | null
+    updated_at: string | null
   }
   tiposServicio: CatalogoItem[]
   tiposCliente: CatalogoItem[]
@@ -96,7 +97,6 @@ export default function DatosOportunidad({
   const [eliminando, setEliminando] = useState(false)
 
   const router = useRouter()
-  const supabase = createClient()
 
   function cancelar() {
     // Descarta cualquier cambio sin guardar y vuelve a los valores actuales.
@@ -120,46 +120,18 @@ export default function DatosOportunidad({
 
   async function guardar() {
     setError('')
-    setLoading(true)
-
-    const { error: errUpdate } = await supabase
-      .from('crm_oportunidades')
-      .update({
-        numero_referencia: numeroReferencia.trim() || null,
-        tipo_servicio_id: tipoServicioId || null,
-        cantidad_personal: cantidadPersonal ? Number(cantidadPersonal) : null,
-        monto_estimado: montoEstimado ? Number(montoEstimado) : null,
-        fecha_envio: fechaEnvio || null,
-        fecha_facturacion: oportunidad.estado === 'aceptado' ? fechaFacturacion || null : null,
-        comision_monto: comisionMonto ? Number(comisionMonto) : null,
-        comision_liquidada: comisionLiquidada,
-        comentarios: comentarios.trim() || null,
-      })
-      .eq('id', oportunidad.id)
-    if (errUpdate) {
-      setLoading(false)
-      setError('Error al guardar: ' + errUpdate.message)
+    if (!oportunidad.updated_at) {
+      setError('La oportunidad no tiene versión de concurrencia. Recargá la página o contactá a soporte.')
       return
     }
+    setLoading(true)
 
-    // Los datos de contacto viven en crm_prospectos, no en crm_oportunidades
-    // — se actualizan aparte, sobre el prospecto de esta oportunidad.
-    if (prospecto) {
-      const { error: errProspecto } = await supabase
-        .from('crm_prospectos')
-        .update({
-          tipo_cliente_id: tipoClienteId || null,
-          contacto_nombre: contactoNombre.trim() || null,
-          telefono: telefono.trim() || null,
-          email: email.trim() || null,
-          referido_por_id: referidoPorId || null,
-        })
-        .eq('id', prospecto.id)
-      if (errProspecto) {
-        setLoading(false)
-        setError('Se guardó la oportunidad, pero falló el prospecto: ' + errProspecto.message)
-        return
-      }
+    let errUpdate:unknown=null
+    try {const api=await createAuthenticatedBrowserApiClient();await api.updateCrmOpportunity(oportunidad.id,{updatedAt:oportunidad.updated_at,numeroReferencia:numeroReferencia.trim()||null,tipoServicioId:tipoServicioId||null,cantidadPersonal:cantidadPersonal?Number(cantidadPersonal):null,montoEstimado:montoEstimado?Number(montoEstimado):null,fechaEnvio:fechaEnvio||null,fechaFacturacion:oportunidad.estado==='aceptado'?fechaFacturacion||null:null,comisionMonto:comisionMonto?Number(comisionMonto):null,comisionLiquidada,comentarios:comentarios.trim()||null,prospecto:prospecto?{tipoClienteId:tipoClienteId||null,contactoNombre:contactoNombre.trim()||null,telefono:telefono.trim()||null,email:email.trim()||null,referidoPorId:referidoPorId||null}:undefined})}catch(cause){errUpdate=cause}
+    if (errUpdate) {
+      setLoading(false)
+      setError('Error al guardar: ' + (errUpdate instanceof Error?errUpdate.message:'desconocido'))
+      return
     }
 
     setLoading(false)
@@ -181,10 +153,11 @@ export default function DatosOportunidad({
     }
     setError('')
     setEliminando(true)
-    const { error: errDelete } = await supabase.from('crm_oportunidades').delete().eq('id', oportunidad.id)
+    let errDelete:unknown=null
+    try { const api=await createAuthenticatedBrowserApiClient(); await api.deleteCrmOpportunity(oportunidad.id) } catch (cause) { errDelete=cause }
     if (errDelete) {
       setEliminando(false)
-      setError('Error al eliminar: ' + errDelete.message)
+      setError('Error al eliminar: ' + (errDelete instanceof Error?errDelete.message:'desconocido'))
       return
     }
     router.push('/ventas')
@@ -244,7 +217,7 @@ export default function DatosOportunidad({
           <div>
             <p className="text-xs text-slate-500 mb-1">Tipo de cliente</p>
             <SelectConCrear
-              tabla="crm_tipos_cliente"
+              recurso="tipos-cliente"
               items={tiposClienteState}
               value={tipoClienteId}
               onChange={(id, items) => {
@@ -290,7 +263,7 @@ export default function DatosOportunidad({
           <div>
             <p className="text-xs text-slate-500 mb-1">Referido por</p>
             <SelectConCrear
-              tabla="crm_referidores"
+              recurso="referidores"
               items={referidoresState}
               value={referidoPorId}
               onChange={(id, items) => {
@@ -309,7 +282,7 @@ export default function DatosOportunidad({
           <div>
             <p className="text-xs text-slate-500 mb-1">Tipo de servicio</p>
             <SelectConCrear
-              tabla="crm_tipos_servicio"
+              recurso="tipos-servicio"
               items={tiposServicioState}
               value={tipoServicioId}
               onChange={(id, items) => {

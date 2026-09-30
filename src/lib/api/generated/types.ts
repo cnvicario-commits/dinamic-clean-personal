@@ -221,6 +221,8 @@ export type CrmOpportunity = Record<string,unknown>&{id:string;prospecto_id:stri
 export type CrmPage = {items:CrmOpportunity[];page:number;pageSize:number;total:number}
 export type CrmFollowUp = Record<string,unknown>&{id:string;oportunidad_id:string;created_at:string}
 export type CrmFollowUpPage = {items:CrmFollowUp[];page:number;pageSize:number;total:number}
+export type CrmDashboard = CrmPage&{seguimientos:CrmFollowUp[];vistas:Array<{oportunidad_id:string;last_viewed_at:string}>;novedades:Array<{oportunidadId:string;prospectoNombre:string;cantidad:number;usuarioNombreLibre:string|null;nota:string|null;creadoEn:string;perfiles:{nombre_completo:string}|null}>}
+export type CrmSummary = {totalCantidad:number;totalMonto:number;porEstado:Array<{estado:string;cantidad:number;monto:number}>;porTipoCliente:Array<{nombre:string;cantidad:number;monto:number}>;porReferidor:Array<{nombre:string;cantidad:number;monto:number}>;montoAceptado:number;tasaConversion:number|null;comisionTotal:number;comisionLiquidada:number;comisionPendiente:number}
 export type CrmListQuery = {page?:number;pageSize?:number;estado?:CrmOpportunity['estado'];responsableId?:string;prospectoId?:string;tipoClienteId?:string;tipoServicioId?:string;desde?:string;hasta?:string;search?:string;proximaFecha?:boolean;facturacion?:boolean;order?:'created'|'ingreso'|'agenda'|'facturacion'}
 export type CrmCreateProspectBody = {nombre:string;tipoClienteId?:string|null;contactoNombre?:string|null;telefono?:string|null;email?:string|null;referidoPorId?:string|null;notas?:string|null}
 export type CrmCreateOpportunityBody = {prospectoId:string;numeroReferencia?:string|null;fechaIngreso?:string;tipoServicioId?:string|null;cantidadPersonal?:number|null;montoEstimado?:number|null;fechaEnvio?:string|null;comisionMonto?:number|null;comentarios?:string|null;responsableId:string;seguimientoInicial?:boolean}
@@ -228,6 +230,16 @@ export type CrmUpdateOpportunityBody = {updatedAt:string;numeroReferencia?:strin
 export type CrmTransitionBody = {estado:CrmOpportunity['estado'];updatedAt:string}
 export type CrmCreateFollowUpBody = {fechaContacto?:string;tipoContacto?:string|null;nota:string;proximaFechaSeguimiento?:string|null}
 export type CrmCatalogs = {prospectos:Array<{id:string;nombre:string}>;tiposServicio:CrmCatalogItem[];tiposCliente:CrmCatalogItem[];referidores:CrmCatalogItem[];responsables:Array<{id:string;nombre_completo:string}>}
+export type AuditPlanning = {id:string;alias_id:string;fecha_propuesta:string;horario_desde:string|null;horario_hasta:string|null;observaciones:string|null;supervisor_id:string;estado:'planificada'|'realizada'|'vencida'|'cancelada';updated_at:string;cliente_domicilios:{alias:string;direccion:string|null;clientes:{nombre:string}|null}|null;perfiles:{nombre_completo:string}|null}
+export type AuditPlanningPage = {items:AuditPlanning[];page:number;pageSize:number;total:number}
+export type AuditPlanningBody = {aliasId:string;fechaPropuesta:string;horarioDesde?:string|null;horarioHasta?:string|null;supervisorId:string;observaciones?:string|null}
+export type AuditPlanningUpdateBody = AuditPlanningBody & {updatedAt:string}
+export type AuditCancelPlanningBody = {updatedAt:string}
+export type AuditAnswerBody = {itemId:string;resultado:'conforme'|'no_conforme'|'no_aplica';observaciones?:string|null}
+export type AuditSubmitBody = {planificacionId?:string|null;aliasId:string;plantillaId:string;fechaRealizada:string;supervisorId:string;evaluacionGeneral?:string|null;proximaSupervisionFecha?:string|null;quejasComentariosCliente?:string|null;otros?:string|null;respuestas:AuditAnswerBody[]}
+export type AuditActionCreateBody = {respuestaId?:string|null;descripcion:string;responsableId?:string|null;fechaLimite?:string|null}
+export type AuditActionUpdateBody = {updatedAt:string;estado:'pendiente'|'en_curso'|'resuelto';responsableId?:string|null;fechaLimite?:string|null;descripcion?:string}
+export type AuditChecklistCreateBody = {codigoFormulario:string;version:string;vigenciaDesde:string;items:Array<{orden:number;texto:string}>}
 
 /** GET /v1/employees query (optional fields omitted when unset) */
 export type ListEmployeesQuery = {

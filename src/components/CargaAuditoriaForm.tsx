@@ -1,7 +1,7 @@
 'use client'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import Link from 'next/link'
-import { createClient } from '@/utils/supabase/client'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 import BuscadorCliente from './BuscadorCliente'
 import type { ChecklistItem, ResultadoRespuesta } from '@/types/auditoria'
 
@@ -63,8 +63,10 @@ export default function CargaAuditoriaForm({
   const [error, setError] = useState('')
   const [guardando, setGuardando] = useState(false)
   const [guardada, setGuardada] = useState<{ id: string; sitio: string; fecha: string } | null>(null)
+  // Keep a retry of the same user action idempotent even if the network fails
+  // after the server has committed the transaction.
+  const submissionKey = useRef<string | null>(null)
 
-  const supabase = createClient()
 
   const sitiosDelCliente = cliente ? domicilios.filter((d) => d.cliente_id === cliente.id && d.activo) : []
 
@@ -105,46 +107,33 @@ export default function CargaAuditoriaForm({
 
     setGuardando(true)
 
-    const { data: nuevaAuditoria, error: errAuditoria } = await supabase
-      .from('auditorias')
-      .insert({
-        planificacion_id: planificacion?.id ?? null,
-        alias_id: aliasId,
-        plantilla_id: plantillaId,
-        fecha_realizada: fechaRealizada,
-        supervisor_id: supervisorId,
-        evaluacion_general: evaluacionGeneral.trim() || null,
-        proxima_supervision_fecha: proximaSupervisionFecha || null,
-        quejas_comentarios_cliente: quejasComentariosCliente.trim() || null,
+    let nuevaAuditoria: { id: string }
+    try {
+      const api = await createAuthenticatedBrowserApiClient()
+      const result = await api.submitAudit({
+        planificacionId: planificacion?.id ?? null,
+        aliasId,
+        plantillaId,
+        fechaRealizada,
+        supervisorId,
+        evaluacionGeneral: evaluacionGeneral.trim() || null,
+        proximaSupervisionFecha: proximaSupervisionFecha || null,
+        quejasComentariosCliente: quejasComentariosCliente.trim() || null,
         otros: otros.trim() || null,
-      })
-      .select('id')
-      .single()
-    if (errAuditoria || !nuevaAuditoria) {
-      setError('Error al guardar la auditoría: ' + errAuditoria?.message)
+        respuestas: items.map((it) => ({
+          itemId: it.id,
+          resultado: respuestas[it.id].resultado as ResultadoRespuesta,
+          observaciones: respuestas[it.id].observaciones.trim() || null,
+        })),
+      }, submissionKey.current ?? (submissionKey.current = crypto.randomUUID()))
+      nuevaAuditoria = result.response as unknown as { id: string }
+    } catch (err) {
+      setError('Error al guardar la auditoría: ' + (err instanceof Error ? err.message : 'No se pudo completar la operación'))
       setGuardando(false)
       return
     }
 
-    const filasRespuestas = items.map((it) => ({
-      auditoria_id: nuevaAuditoria.id,
-      item_id: it.id,
-      resultado: respuestas[it.id].resultado,
-      observaciones: respuestas[it.id].observaciones.trim() || null,
-    }))
-    const { error: errRespuestas } = await supabase.from('auditoria_respuestas').insert(filasRespuestas)
-    if (errRespuestas) {
-      // La cabecera de la auditoría ya quedó guardada aunque esto falle —
-      // mismo criterio que el resto de la app (ej. ClienteForm con el
-      // domicilio principal): se avisa, no se revierte lo ya guardado.
-      setError('Se guardó la auditoría, pero fallaron las respuestas del checklist: ' + errRespuestas.message)
-      setGuardando(false)
-      return
-    }
-
-    if (planificacion) {
-      await supabase.from('auditoria_planificaciones').update({ estado: 'realizada' }).eq('id', planificacion.id)
-    }
+    submissionKey.current = null
 
     setGuardando(false)
     setGuardada({
