@@ -1,9 +1,10 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 import { useRouter } from 'next/navigation'
-import type { EstadoPlanificacion, PlanificacionListado } from '@/types/auditoria'
+import type { AuditPlanning } from '@/lib/api/generated'
+import type { EstadoPlanificacion } from '@/types/auditoria'
 
 type Perfil = { id: string; nombre_completo: string }
 
@@ -11,8 +12,12 @@ type Perfil = { id: string; nombre_completo: string }
 // 'planificada' en la base hasta que se cancele o se cargue la auditoría
 // (eso la pasa a 'realizada', ver pantalla de carga). Acá se calcula nada
 // más que para mostrar/filtrar, sin tocar el dato guardado.
-function estadoEfectivo(p: PlanificacionListado): EstadoPlanificacion {
-  if (p.estado === 'planificada' && p.fecha_propuesta < new Date().toISOString().slice(0, 10)) {
+function hoyArgentinaISO() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date())
+}
+
+function estadoEfectivo(p: AuditPlanning): EstadoPlanificacion {
+  if (p.estado === 'planificada' && p.fecha_propuesta < hoyArgentinaISO()) {
     return 'vencida'
   }
   return p.estado
@@ -48,24 +53,28 @@ function formatearHorario(desde: string | null, hasta: string | null) {
 export default function PlanificacionesTabla({
   planificaciones,
   supervisores,
+  total,
+  filters,
 }: {
-  planificaciones: PlanificacionListado[]
+  planificaciones: AuditPlanning[]
   supervisores: Perfil[]
+  total: number
+  filters: { estado: '' | EstadoPlanificacion; supervisorId: string }
 }) {
-  const [filtroEstado, setFiltroEstado] = useState<'' | EstadoPlanificacion>('')
-  const [filtroSupervisor, setFiltroSupervisor] = useState('')
   const [cancelandoId, setCancelandoId] = useState<string | null>(null)
-
   const router = useRouter()
 
-  const filtradas = useMemo(() => {
-    return planificaciones
-      .filter((p) => !filtroEstado || estadoEfectivo(p) === filtroEstado)
-      .filter((p) => !filtroSupervisor || p.supervisor_id === filtroSupervisor)
-      .sort((a, b) => a.fecha_propuesta.localeCompare(b.fecha_propuesta))
-  }, [planificaciones, filtroEstado, filtroSupervisor])
+  function navegarFiltros(next: { estado?: string; supervisorId?: string }) {
+    const params = new URLSearchParams()
+    const estado = next.estado ?? filters.estado
+    const supervisorId = next.supervisorId ?? filters.supervisorId
+    if (estado) params.set('estado', estado)
+    if (supervisorId) params.set('supervisorId', supervisorId)
+    params.set('page', '1')
+    router.push(`/auditorias/planificacion?${params.toString()}`)
+  }
 
-  async function cancelar(planificacion: PlanificacionListado) {
+  async function cancelar(planificacion: AuditPlanning) {
     if (!confirm('¿Cancelar esta planificación de auditoría?')) return
     setCancelandoId(planificacion.id)
     try {
@@ -85,19 +94,31 @@ export default function PlanificacionesTabla({
   return (
     <div>
       <div className="flex flex-wrap gap-2 mb-4">
-        <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value as '' | EstadoPlanificacion)} className={selectStyle}>
+        <select
+          value={filters.estado}
+          onChange={(e) => navegarFiltros({ estado: e.target.value })}
+          className={selectStyle}
+        >
           <option value="">Todos los estados</option>
           {(Object.keys(ETIQUETAS) as EstadoPlanificacion[]).map((e) => (
             <option key={e} value={e}>{ETIQUETAS[e]}</option>
           ))}
         </select>
-        <select value={filtroSupervisor} onChange={(e) => setFiltroSupervisor(e.target.value)} className={selectStyle}>
+        <select
+          value={filters.supervisorId}
+          onChange={(e) => navegarFiltros({ supervisorId: e.target.value })}
+          className={selectStyle}
+        >
           <option value="">Todos los supervisores</option>
           {supervisores.map((s) => (
             <option key={s.id} value={s.id}>{s.nombre_completo}</option>
           ))}
         </select>
       </div>
+
+      <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
+        Planificaciones ({total})
+      </h2>
 
       <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto">
         <table className="w-full text-sm">
@@ -114,7 +135,7 @@ export default function PlanificacionesTabla({
             </tr>
           </thead>
           <tbody>
-            {filtradas.map((p) => {
+            {planificaciones.map((p) => {
               const efectivo = estadoEfectivo(p)
               return (
                 <tr key={p.id} className="border-b border-slate-100 last:border-0">
@@ -155,7 +176,7 @@ export default function PlanificacionesTabla({
           </tbody>
         </table>
       </div>
-      {filtradas.length === 0 && (
+      {planificaciones.length === 0 && (
         <p className="text-slate-500 text-sm mt-3">No hay planificaciones que coincidan.</p>
       )}
     </div>

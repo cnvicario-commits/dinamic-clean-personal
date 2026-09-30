@@ -40,7 +40,7 @@ import type {
   UpdateClientAddressBody,
   QuoteUploadBody,
   QuoteDownload,
-  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord, ResultsImportBody, ResultRecord, CrmCatalogItem, CrmProspect, CrmOpportunity, CrmPage, CrmFollowUp, CrmFollowUpPage, CrmDashboard, CrmSummary, CrmListQuery, CrmCreateProspectBody, CrmCreateOpportunityBody, CrmUpdateOpportunityBody, CrmTransitionBody, CrmCreateFollowUpBody, CrmCatalogs, AuditPlanning, AuditPlanningPage, AuditPlanningBody, AuditPlanningUpdateBody, AuditCancelPlanningBody, AuditSubmitBody, AuditActionCreateBody, AuditActionUpdateBody, AuditChecklistCreateBody,
+  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord, ResultsImportBody, ResultRecord, CrmCatalogItem, CrmProspect, CrmOpportunity, CrmPage, CrmFollowUp, CrmFollowUpPage, CrmDashboard, CrmSummary, CrmListQuery, CrmCreateProspectBody, CrmCreateOpportunityBody, CrmUpdateOpportunityBody, CrmTransitionBody, CrmCreateFollowUpBody, CrmCatalogs, AuditPlanning, AuditPlanningPage, AuditPlanningEdit, AuditPlanningBody, AuditPlanningUpdateBody, AuditCancelPlanningBody, AuditSubmitBody, Audit, AuditPage, AuditDetail, AuditAction, AuditActionPage, AuditActionCreateBody, AuditActionUpdateBody, AuditChecklist, AuditChecklistDetail, AuditChecklistCreateBody, AuditChecklistUpdateBody, AuditChecklistCopyBody, AuditChecklistActivateBody, AuditCatalogs, AuditDashboard, AuditPageQuery, AuditActionListQuery, AuditDashboardQuery,
   UsersListResponse,
 } from './types'
 
@@ -179,13 +179,26 @@ export type DinamicApiClient = {
   createCrmCatalog: (resource:'tipos-cliente'|'tipos-servicio'|'referidores',nombre:string) => Promise<CrmCatalogItem>
   deleteCrmOpportunity: (id:string) => Promise<void>
   listAuditPlannings: (query?:{page?:number;pageSize?:number;estado?:AuditPlanning['estado'];supervisorId?:string;desde?:string;hasta?:string}) => Promise<AuditPlanningPage>
+  getAuditPlanning: (id:string) => Promise<AuditPlanningEdit>
   createAuditPlanning: (body:AuditPlanningBody) => Promise<AuditPlanning>
   updateAuditPlanning: (id:string,body:AuditPlanningUpdateBody) => Promise<AuditPlanning>
   cancelAuditPlanning: (id:string,body:AuditCancelPlanningBody) => Promise<AuditPlanning>
-  submitAudit: (body:AuditSubmitBody,key:string) => Promise<{replayed:boolean;response:Record<string,unknown>}>
-  createAuditAction: (auditId:string,body:AuditActionCreateBody) => Promise<Record<string,unknown>>
-  updateAuditAction: (id:string,body:AuditActionUpdateBody) => Promise<Record<string,unknown>>
-  createAuditChecklist: (body:AuditChecklistCreateBody) => Promise<Record<string,unknown>>
+  listAudits: (query?:AuditPageQuery) => Promise<AuditPage>
+  getAudit: (id:string) => Promise<AuditDetail>
+  getAuditDashboard: (query?:AuditDashboardQuery) => Promise<AuditDashboard>
+  getAuditCatalogs: () => Promise<AuditCatalogs>
+  submitAudit: (body:AuditSubmitBody,key:string) => Promise<{replayed:boolean;response:Audit}>
+  listAuditActionsForAudit: (auditId:string) => Promise<AuditAction[]>
+  listAuditActions: (query?:AuditActionListQuery) => Promise<AuditActionPage>
+  createAuditAction: (auditId:string,body:AuditActionCreateBody) => Promise<AuditAction>
+  updateAuditAction: (id:string,body:AuditActionUpdateBody) => Promise<AuditAction>
+  listAuditChecklists: () => Promise<AuditChecklist[]>
+  getActiveAuditChecklist: () => Promise<AuditChecklistDetail>
+  getAuditChecklist: (id:string) => Promise<AuditChecklistDetail>
+  createAuditChecklist: (body:AuditChecklistCreateBody) => Promise<AuditChecklist>
+  updateAuditChecklist: (id:string,body:AuditChecklistUpdateBody) => Promise<AuditChecklistDetail>
+  copyAuditChecklist: (id:string,body:AuditChecklistCopyBody,key:string) => Promise<{replayed:boolean;response:AuditChecklistDetail}>
+  activateAuditChecklist: (id:string,body:AuditChecklistActivateBody) => Promise<AuditChecklist>
 }
 
 /**
@@ -350,7 +363,27 @@ export function createDinamicApiClient(options: DinamicApiClientOptions): Dinami
     listCrmFollowUps(id,query={}){const q:Record<string,string>={};for(const [k,v] of Object.entries(query)){if(v!==undefined)q[k]=String(v)}return requestJson<CrmFollowUpPage>(`/v1/crm/opportunities/${id}/follow-ups`,{query:q})},
     createCrmProspect(body){return requestJson<CrmProspect>('/v1/crm/prospects',{method:'POST',body:JSON.stringify(body)})}, createCrmOpportunity(body,key){return requestJson<{replayed:boolean;response:CrmOpportunity}>('/v1/crm/opportunities',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},
     updateCrmOpportunity(id,body){return requestJson<CrmOpportunity>(`/v1/crm/opportunities/${id}`,{method:'PATCH',body:JSON.stringify(body)})}, transitionCrmOpportunity(id,body){return requestJson<CrmOpportunity>(`/v1/crm/opportunities/${id}/state`,{method:'PATCH',body:JSON.stringify(body)})}, createCrmFollowUp(id,body){return requestJson<CrmFollowUp>(`/v1/crm/opportunities/${id}/follow-ups`,{method:'POST',body:JSON.stringify(body)})}, markCrmOpportunityViewed(id){return requestJson<Record<string,unknown>>(`/v1/crm/opportunities/${id}/view`,{method:'PUT'})}, createCrmCatalog(resource,nombre){return requestJson<CrmCatalogItem>(`/v1/crm/${resource}`,{method:'POST',body:JSON.stringify({nombre})})},
-    listAuditPlannings(query={}){const q:Record<string,string>={};for(const [k,v] of Object.entries(query)){if(v!==undefined)q[k]=String(v)}return requestJson<AuditPlanningPage>('/v1/audits/plannings',{query:q})}, createAuditPlanning(body){return requestJson<AuditPlanning>('/v1/audits/plannings',{method:'POST',body:JSON.stringify(body)})}, updateAuditPlanning(id,body){return requestJson<AuditPlanning>(`/v1/audits/plannings/${id}`,{method:'PATCH',body:JSON.stringify(body)})}, cancelAuditPlanning(id,body){return requestJson<AuditPlanning>(`/v1/audits/plannings/${id}/cancel`,{method:'POST',body:JSON.stringify(body)})}, submitAudit(body,key){return requestJson<{replayed:boolean;response:Record<string,unknown>}>('/v1/audits',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})}, createAuditAction(auditId,body){return requestJson<Record<string,unknown>>(`/v1/audits/${auditId}/actions`,{method:'POST',body:JSON.stringify(body)})}, updateAuditAction(id,body){return requestJson<Record<string,unknown>>(`/v1/audit-actions/${id}`,{method:'PATCH',body:JSON.stringify(body)})}, createAuditChecklist(body){return requestJson<Record<string,unknown>>('/v1/audit-checklists',{method:'POST',body:JSON.stringify(body)})},
+    listAuditPlannings(query={}){const q:Record<string,string>={};for(const [k,v] of Object.entries(query)){if(v!==undefined)q[k]=String(v)}return requestJson<AuditPlanningPage>('/v1/audits/plannings',{query:q})},
+    getAuditPlanning(id){return requestJson<AuditPlanningEdit>(`/v1/audits/plannings/${id}`)},
+    createAuditPlanning(body){return requestJson<AuditPlanning>('/v1/audits/plannings',{method:'POST',body:JSON.stringify(body)})},
+    updateAuditPlanning(id,body){return requestJson<AuditPlanning>(`/v1/audits/plannings/${id}`,{method:'PATCH',body:JSON.stringify(body)})},
+    cancelAuditPlanning(id,body){return requestJson<AuditPlanning>(`/v1/audits/plannings/${id}/cancel`,{method:'POST',body:JSON.stringify(body)})},
+    listAudits(query={}){const q:Record<string,string>={};for(const [k,v] of Object.entries(query)){if(v!==undefined)q[k]=String(v)}return requestJson<AuditPage>('/v1/audits',{query:q})},
+    getAudit(id){return requestJson<AuditDetail>(`/v1/audits/${id}`)},
+    getAuditDashboard(query={}){const q:Record<string,string>={};for(const [k,v] of Object.entries(query)){if(v!==undefined)q[k]=String(v)}return requestJson<AuditDashboard>('/v1/audits/dashboard',{query:q})},
+    getAuditCatalogs(){return requestJson<AuditCatalogs>('/v1/audits/catalogs')},
+    submitAudit(body,key){return requestJson<{replayed:boolean;response:Audit}>('/v1/audits',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},
+    listAuditActionsForAudit(auditId){return requestJson<AuditAction[]>(`/v1/audits/${auditId}/actions`)},
+    listAuditActions(query={}){const q:Record<string,string>={};for(const [k,v] of Object.entries(query)){if(v!==undefined)q[k]=String(v)}return requestJson<AuditActionPage>('/v1/audit-actions',{query:q})},
+    createAuditAction(auditId,body){return requestJson<AuditAction>(`/v1/audits/${auditId}/actions`,{method:'POST',body:JSON.stringify(body)})},
+    updateAuditAction(id,body){return requestJson<AuditAction>(`/v1/audit-actions/${id}`,{method:'PATCH',body:JSON.stringify(body)})},
+    listAuditChecklists(){return requestJson<AuditChecklist[]>('/v1/audit-checklists')},
+    getActiveAuditChecklist(){return requestJson<AuditChecklistDetail>('/v1/audit-checklists/active')},
+    getAuditChecklist(id){return requestJson<AuditChecklistDetail>(`/v1/audit-checklists/${id}`)},
+    createAuditChecklist(body){return requestJson<AuditChecklist>('/v1/audit-checklists',{method:'POST',body:JSON.stringify(body)})},
+    updateAuditChecklist(id,body){return requestJson<AuditChecklistDetail>(`/v1/audit-checklists/${id}`,{method:'PATCH',body:JSON.stringify(body)})},
+    copyAuditChecklist(id,body,key){return requestJson<{replayed:boolean;response:AuditChecklistDetail}>(`/v1/audit-checklists/${id}/copy`,{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},
+    activateAuditChecklist(id,body){return requestJson<AuditChecklist>(`/v1/audit-checklists/${id}/activate`,{method:'POST',body:JSON.stringify(body)})},
     listSuppliers(){ return requestJson<Supplier[]>('/v1/suppliers') }, getSupplier(id){ return requestJson<Supplier>(`/v1/suppliers/${id}`) }, createSupplier(body){return requestJson<Supplier>('/v1/suppliers',{method:'POST',body:JSON.stringify(body)})},updateSupplier(id,body){return requestJson<Supplier>(`/v1/suppliers/${id}`,{method:'PATCH',body:JSON.stringify(body)})},updateSupplierStatus(id,activo){return requestJson<Supplier>(`/v1/suppliers/${id}/status`,{method:'PATCH',body:JSON.stringify({activo})})},
     listArticles(){return requestJson<Article[]>('/v1/articles')},getArticle(id){return requestJson<Article>(`/v1/articles/${id}`)},createArticle(body){return requestJson<Article>('/v1/articles',{method:'POST',body:JSON.stringify(body)})},updateArticle(id,body){return requestJson<Article>(`/v1/articles/${id}`,{method:'PATCH',body:JSON.stringify(body)})},updateArticleStatus(id,activo){return requestJson<Article>(`/v1/articles/${id}/status`,{method:'PATCH',body:JSON.stringify({activo})},)},listArticleSuppliers(id){return requestJson<SupplierArticle[]>(`/v1/articles/${id}/suppliers`)},createArticleSupplier(id,body){return requestJson<SupplierArticle>(`/v1/articles/${id}/suppliers`,{method:'POST',body:JSON.stringify(body)})},updateArticleSupplier(id,relationId,body){return requestJson<SupplierArticle>(`/v1/articles/${id}/suppliers/${relationId}`,{method:'PATCH',body:JSON.stringify(body)})},previewArticleImport(body){return requestJson<ArticleImportPreview>('/v1/articles/import/preview',{method:'POST',body:JSON.stringify(body)})},importArticles(body,idempotencyKey){return requestJson('/v1/articles/import',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':idempotencyKey}})},previewPriceList(body){return requestJson<PriceListPreview>('/v1/price-lists/preview',{method:'POST',body:JSON.stringify(body)})},applyPriceList(body,idempotencyKey){return requestJson('/v1/price-lists/apply',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':idempotencyKey}})},
     listSupplierArticlePending(){return requestJson<SupplierArticlePending[]>('/v1/supplier-article-pending')},resolveSupplierArticlePending(id,articuloId){return requestJson<SupplierArticle>(`/v1/supplier-article-pending/${id}/resolve`,{method:'POST',body:JSON.stringify({articuloId})})},

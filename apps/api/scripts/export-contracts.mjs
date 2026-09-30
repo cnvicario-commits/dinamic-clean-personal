@@ -202,14 +202,47 @@ export type CrmCreateFollowUpBody = {fechaContacto?:string;tipoContacto?:string|
 export type CrmCatalogs = {prospectos:Array<{id:string;nombre:string}>;tiposServicio:CrmCatalogItem[];tiposCliente:CrmCatalogItem[];referidores:CrmCatalogItem[];responsables:Array<{id:string;nombre_completo:string}>}
 export type AuditPlanning = {id:string;alias_id:string;fecha_propuesta:string;horario_desde:string|null;horario_hasta:string|null;observaciones:string|null;supervisor_id:string;estado:'planificada'|'realizada'|'vencida'|'cancelada';updated_at:string;cliente_domicilios:{alias:string;direccion:string|null;clientes:{nombre:string}|null}|null;perfiles:{nombre_completo:string}|null}
 export type AuditPlanningPage = {items:AuditPlanning[];page:number;pageSize:number;total:number}
+export type AuditPlanningEdit = {id:string;alias_id:string;fecha_propuesta:string;horario_desde:string|null;horario_hasta:string|null;observaciones:string|null;supervisor_id:string;estado:AuditPlanning['estado'];updated_at:string;cliente_domicilios:{cliente_id:string;clientes:{id:string;nombre:string}|null}|null}
 export type AuditPlanningBody = {aliasId:string;fechaPropuesta:string;horarioDesde?:string|null;horarioHasta?:string|null;supervisorId:string;observaciones?:string|null}
 export type AuditPlanningUpdateBody = AuditPlanningBody & {updatedAt:string}
 export type AuditCancelPlanningBody = {updatedAt:string}
 export type AuditAnswerBody = {itemId:string;resultado:'conforme'|'no_conforme'|'no_aplica';observaciones?:string|null}
 export type AuditSubmitBody = {planificacionId?:string|null;aliasId:string;plantillaId:string;fechaRealizada:string;supervisorId:string;evaluacionGeneral?:string|null;proximaSupervisionFecha?:string|null;quejasComentariosCliente?:string|null;otros?:string|null;respuestas:AuditAnswerBody[]}
+export type Audit = {id:string;fecha_realizada:string;evaluacion_general:string|null;supervisor_id:string;no_conformidades:number;cliente_domicilios:{alias:string;direccion:string|null;clientes:{nombre:string}|null}|null;perfiles:{nombre_completo:string}|null}
+export type AuditPage = {items:Audit[];page:number;pageSize:number;total:number}
+export type AuditDetail = {id:string;alias_id:string;fecha_realizada:string;evaluacion_general:string|null;proxima_supervision_fecha:string|null;quejas_comentarios_cliente:string|null;otros:string|null;cliente_domicilios:{alias:string;direccion:string|null;clientes:{nombre:string}|null}|null;auditoria_checklist_plantillas:{codigo_formulario:string;version:string}|null;perfiles:{nombre_completo:string}|null;respuestas:Array<{id:string;resultado:AuditAnswerBody['resultado'];observaciones:string|null;item_id:string;auditoria_checklist_items:{orden:number;texto:string}|null}>;planes_accion:AuditAction[]}
+export type AuditAction = {id:string;auditoria_id:string;respuesta_id:string|null;descripcion:string;responsable_id:string|null;fecha_limite:string|null;estado:'pendiente'|'en_curso'|'resuelto';fecha_resolucion:string|null;created_at:string;updated_at:string;perfiles:{nombre_completo:string}|null;auditoria_respuestas:{auditoria_checklist_items:{texto:string}|null}|null;auditorias?:{fecha_realizada:string;cliente_domicilios:{alias:string;clientes:{nombre:string}|null}|null}|null}
+export type AuditActionPage = {items:AuditAction[];page:number;pageSize:number;total:number}
 export type AuditActionCreateBody = {respuestaId?:string|null;descripcion:string;responsableId?:string|null;fechaLimite?:string|null}
-export type AuditActionUpdateBody = {updatedAt:string;estado:'pendiente'|'en_curso'|'resuelto';responsableId?:string|null;fechaLimite?:string|null;descripcion?:string}
-export type AuditChecklistCreateBody = {codigoFormulario:string;version:string;vigenciaDesde:string;items:Array<{orden:number;texto:string}>}
+export type AuditActionUpdateBody = {updatedAt:string;estado:AuditAction['estado'];responsableId?:string|null;fechaLimite?:string|null;descripcion?:string}
+export type AuditChecklistItem = {id:string;plantilla_id:string;orden:number;texto:string;created_at:string}
+export type AuditChecklist = {id:string;codigo_formulario:string;version:string;vigencia_desde:string;activa:boolean;created_at:string;updated_at:string}
+export type AuditChecklistDetail = AuditChecklist & {items:AuditChecklistItem[]}
+export type AuditChecklistCreateBody = {codigoFormulario:string;version:string;vigenciaDesde:string;items:Array<{id?:string;orden:number;texto:string}>}
+export type AuditChecklistUpdateBody = {updatedAt:string;items:Array<{id?:string;orden:number;texto:string}>}
+export type AuditChecklistCopyBody = {version:string;vigenciaDesde:string}
+export type AuditChecklistActivateBody = {updatedAt:string}
+export type AuditCatalogs = {clientes:Array<{id:string;nombre:string}>;domicilios:Array<{id:string;cliente_id:string;alias:string;direccion:string|null;activo:boolean}>;supervisores:Array<{id:string;nombre_completo:string}>}
+export type AuditDashboard = {
+  sitios_auditados:number
+  conformes:number
+  no_conformes:number
+  no_aplica:number
+  evaluables:number
+  conformidad_general:number|null
+  quejas_registradas:number
+  planes_vencidos:number
+  por_estado_planificacion:Array<{estado:'planificada'|'vencida'|'realizada'|'cancelada';cantidad:number}>
+  por_estado_plan_accion:Array<{estado:AuditAction['estado'];cantidad:number}>
+  conformidad_por_item:Array<{texto:string;conformes:number;no_conformes:number;total:number}>
+  evolucion:Array<{mes:string;cantidad_auditorias:number;conformes:number;no_conformes:number;total:number}>
+  ranking_sitios_cantidad:Array<{nombre:string;cantidad:number}>
+  ranking_sitios_cumplimiento:Array<{nombre:string;conformes:number;total:number;pct:number}>
+  auditorias_peor_cumplimiento:Array<{id:string;fecha:string;cliente:string;sitio:string;supervisor:string;total:number;pct:number}>
+}
+export type AuditPageQuery = {page?:number;pageSize?:number;supervisorId?:string;desde?:string;hasta?:string;q?:string}
+export type AuditActionListQuery = {page?:number;pageSize?:number;estado?:AuditAction['estado'];responsableId?:string;vencidos?:boolean;q?:string}
+export type AuditDashboardQuery = {desde?:string;hasta?:string}
 
 /** GET /v1/employees query (optional fields omitted when unset) */
 export type ListEmployeesQuery = {
@@ -325,7 +358,7 @@ import type {
   UpdateClientAddressBody,
   QuoteUploadBody,
   QuoteDownload,
-  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord, ResultsImportBody, ResultRecord, CrmCatalogItem, CrmProspect, CrmOpportunity, CrmPage, CrmFollowUp, CrmFollowUpPage, CrmDashboard, CrmSummary, CrmListQuery, CrmCreateProspectBody, CrmCreateOpportunityBody, CrmUpdateOpportunityBody, CrmTransitionBody, CrmCreateFollowUpBody, CrmCatalogs, AuditPlanning, AuditPlanningPage, AuditPlanningBody, AuditPlanningUpdateBody, AuditCancelPlanningBody, AuditSubmitBody, AuditActionCreateBody, AuditActionUpdateBody, AuditChecklistCreateBody,
+  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord, ResultsImportBody, ResultRecord, CrmCatalogItem, CrmProspect, CrmOpportunity, CrmPage, CrmFollowUp, CrmFollowUpPage, CrmDashboard, CrmSummary, CrmListQuery, CrmCreateProspectBody, CrmCreateOpportunityBody, CrmUpdateOpportunityBody, CrmTransitionBody, CrmCreateFollowUpBody, CrmCatalogs, AuditPlanning, AuditPlanningPage, AuditPlanningEdit, AuditPlanningBody, AuditPlanningUpdateBody, AuditCancelPlanningBody, AuditSubmitBody, Audit, AuditPage, AuditDetail, AuditAction, AuditActionPage, AuditActionCreateBody, AuditActionUpdateBody, AuditChecklist, AuditChecklistDetail, AuditChecklistCreateBody, AuditChecklistUpdateBody, AuditChecklistCopyBody, AuditChecklistActivateBody, AuditCatalogs, AuditDashboard, AuditPageQuery, AuditActionListQuery, AuditDashboardQuery,
   UsersListResponse,
 } from './types'
 
@@ -464,13 +497,26 @@ export type DinamicApiClient = {
   createCrmCatalog: (resource:'tipos-cliente'|'tipos-servicio'|'referidores',nombre:string) => Promise<CrmCatalogItem>
   deleteCrmOpportunity: (id:string) => Promise<void>
   listAuditPlannings: (query?:{page?:number;pageSize?:number;estado?:AuditPlanning['estado'];supervisorId?:string;desde?:string;hasta?:string}) => Promise<AuditPlanningPage>
+  getAuditPlanning: (id:string) => Promise<AuditPlanningEdit>
   createAuditPlanning: (body:AuditPlanningBody) => Promise<AuditPlanning>
   updateAuditPlanning: (id:string,body:AuditPlanningUpdateBody) => Promise<AuditPlanning>
   cancelAuditPlanning: (id:string,body:AuditCancelPlanningBody) => Promise<AuditPlanning>
-  submitAudit: (body:AuditSubmitBody,key:string) => Promise<{replayed:boolean;response:Record<string,unknown>}>
-  createAuditAction: (auditId:string,body:AuditActionCreateBody) => Promise<Record<string,unknown>>
-  updateAuditAction: (id:string,body:AuditActionUpdateBody) => Promise<Record<string,unknown>>
-  createAuditChecklist: (body:AuditChecklistCreateBody) => Promise<Record<string,unknown>>
+  listAudits: (query?:AuditPageQuery) => Promise<AuditPage>
+  getAudit: (id:string) => Promise<AuditDetail>
+  getAuditDashboard: (query?:AuditDashboardQuery) => Promise<AuditDashboard>
+  getAuditCatalogs: () => Promise<AuditCatalogs>
+  submitAudit: (body:AuditSubmitBody,key:string) => Promise<{replayed:boolean;response:Audit}>
+  listAuditActionsForAudit: (auditId:string) => Promise<AuditAction[]>
+  listAuditActions: (query?:AuditActionListQuery) => Promise<AuditActionPage>
+  createAuditAction: (auditId:string,body:AuditActionCreateBody) => Promise<AuditAction>
+  updateAuditAction: (id:string,body:AuditActionUpdateBody) => Promise<AuditAction>
+  listAuditChecklists: () => Promise<AuditChecklist[]>
+  getActiveAuditChecklist: () => Promise<AuditChecklistDetail>
+  getAuditChecklist: (id:string) => Promise<AuditChecklistDetail>
+  createAuditChecklist: (body:AuditChecklistCreateBody) => Promise<AuditChecklist>
+  updateAuditChecklist: (id:string,body:AuditChecklistUpdateBody) => Promise<AuditChecklistDetail>
+  copyAuditChecklist: (id:string,body:AuditChecklistCopyBody,key:string) => Promise<{replayed:boolean;response:AuditChecklistDetail}>
+  activateAuditChecklist: (id:string,body:AuditChecklistActivateBody) => Promise<AuditChecklist>
 }
 
 /**
@@ -635,7 +681,27 @@ export function createDinamicApiClient(options: DinamicApiClientOptions): Dinami
     listCrmFollowUps(id,query={}){const q:Record<string,string>={};for(const [k,v] of Object.entries(query)){if(v!==undefined)q[k]=String(v)}return requestJson<CrmFollowUpPage>(\`/v1/crm/opportunities/\${id}/follow-ups\`,{query:q})},
     createCrmProspect(body){return requestJson<CrmProspect>('/v1/crm/prospects',{method:'POST',body:JSON.stringify(body)})}, createCrmOpportunity(body,key){return requestJson<{replayed:boolean;response:CrmOpportunity}>('/v1/crm/opportunities',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},
     updateCrmOpportunity(id,body){return requestJson<CrmOpportunity>(\`/v1/crm/opportunities/\${id}\`,{method:'PATCH',body:JSON.stringify(body)})}, transitionCrmOpportunity(id,body){return requestJson<CrmOpportunity>(\`/v1/crm/opportunities/\${id}/state\`,{method:'PATCH',body:JSON.stringify(body)})}, createCrmFollowUp(id,body){return requestJson<CrmFollowUp>(\`/v1/crm/opportunities/\${id}/follow-ups\`,{method:'POST',body:JSON.stringify(body)})}, markCrmOpportunityViewed(id){return requestJson<Record<string,unknown>>(\`/v1/crm/opportunities/\${id}/view\`,{method:'PUT'})}, createCrmCatalog(resource,nombre){return requestJson<CrmCatalogItem>(\`/v1/crm/\${resource}\`,{method:'POST',body:JSON.stringify({nombre})})},
-    listAuditPlannings(query={}){const q:Record<string,string>={};for(const [k,v] of Object.entries(query)){if(v!==undefined)q[k]=String(v)}return requestJson<AuditPlanningPage>('/v1/audits/plannings',{query:q})}, createAuditPlanning(body){return requestJson<AuditPlanning>('/v1/audits/plannings',{method:'POST',body:JSON.stringify(body)})}, updateAuditPlanning(id,body){return requestJson<AuditPlanning>(\`/v1/audits/plannings/\${id}\`,{method:'PATCH',body:JSON.stringify(body)})}, cancelAuditPlanning(id,body){return requestJson<AuditPlanning>(\`/v1/audits/plannings/\${id}/cancel\`,{method:'POST',body:JSON.stringify(body)})}, submitAudit(body,key){return requestJson<{replayed:boolean;response:Record<string,unknown>}>('/v1/audits',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})}, createAuditAction(auditId,body){return requestJson<Record<string,unknown>>(\`/v1/audits/\${auditId}/actions\`,{method:'POST',body:JSON.stringify(body)})}, updateAuditAction(id,body){return requestJson<Record<string,unknown>>(\`/v1/audit-actions/\${id}\`,{method:'PATCH',body:JSON.stringify(body)})}, createAuditChecklist(body){return requestJson<Record<string,unknown>>('/v1/audit-checklists',{method:'POST',body:JSON.stringify(body)})},
+    listAuditPlannings(query={}){const q:Record<string,string>={};for(const [k,v] of Object.entries(query)){if(v!==undefined)q[k]=String(v)}return requestJson<AuditPlanningPage>('/v1/audits/plannings',{query:q})},
+    getAuditPlanning(id){return requestJson<AuditPlanningEdit>(\`/v1/audits/plannings/\${id}\`)},
+    createAuditPlanning(body){return requestJson<AuditPlanning>('/v1/audits/plannings',{method:'POST',body:JSON.stringify(body)})},
+    updateAuditPlanning(id,body){return requestJson<AuditPlanning>(\`/v1/audits/plannings/\${id}\`,{method:'PATCH',body:JSON.stringify(body)})},
+    cancelAuditPlanning(id,body){return requestJson<AuditPlanning>(\`/v1/audits/plannings/\${id}/cancel\`,{method:'POST',body:JSON.stringify(body)})},
+    listAudits(query={}){const q:Record<string,string>={};for(const [k,v] of Object.entries(query)){if(v!==undefined)q[k]=String(v)}return requestJson<AuditPage>('/v1/audits',{query:q})},
+    getAudit(id){return requestJson<AuditDetail>(\`/v1/audits/\${id}\`)},
+    getAuditDashboard(query={}){const q:Record<string,string>={};for(const [k,v] of Object.entries(query)){if(v!==undefined)q[k]=String(v)}return requestJson<AuditDashboard>('/v1/audits/dashboard',{query:q})},
+    getAuditCatalogs(){return requestJson<AuditCatalogs>('/v1/audits/catalogs')},
+    submitAudit(body,key){return requestJson<{replayed:boolean;response:Audit}>('/v1/audits',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},
+    listAuditActionsForAudit(auditId){return requestJson<AuditAction[]>(\`/v1/audits/\${auditId}/actions\`)},
+    listAuditActions(query={}){const q:Record<string,string>={};for(const [k,v] of Object.entries(query)){if(v!==undefined)q[k]=String(v)}return requestJson<AuditActionPage>('/v1/audit-actions',{query:q})},
+    createAuditAction(auditId,body){return requestJson<AuditAction>(\`/v1/audits/\${auditId}/actions\`,{method:'POST',body:JSON.stringify(body)})},
+    updateAuditAction(id,body){return requestJson<AuditAction>(\`/v1/audit-actions/\${id}\`,{method:'PATCH',body:JSON.stringify(body)})},
+    listAuditChecklists(){return requestJson<AuditChecklist[]>('/v1/audit-checklists')},
+    getActiveAuditChecklist(){return requestJson<AuditChecklistDetail>('/v1/audit-checklists/active')},
+    getAuditChecklist(id){return requestJson<AuditChecklistDetail>(\`/v1/audit-checklists/\${id}\`)},
+    createAuditChecklist(body){return requestJson<AuditChecklist>('/v1/audit-checklists',{method:'POST',body:JSON.stringify(body)})},
+    updateAuditChecklist(id,body){return requestJson<AuditChecklistDetail>(\`/v1/audit-checklists/\${id}\`,{method:'PATCH',body:JSON.stringify(body)})},
+    copyAuditChecklist(id,body,key){return requestJson<{replayed:boolean;response:AuditChecklistDetail}>(\`/v1/audit-checklists/\${id}/copy\`,{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},
+    activateAuditChecklist(id,body){return requestJson<AuditChecklist>(\`/v1/audit-checklists/\${id}/activate\`,{method:'POST',body:JSON.stringify(body)})},
     listSuppliers(){ return requestJson<Supplier[]>('/v1/suppliers') }, getSupplier(id){ return requestJson<Supplier>(\`/v1/suppliers/\${id}\`) }, createSupplier(body){return requestJson<Supplier>('/v1/suppliers',{method:'POST',body:JSON.stringify(body)})},updateSupplier(id,body){return requestJson<Supplier>(\`/v1/suppliers/\${id}\`,{method:'PATCH',body:JSON.stringify(body)})},updateSupplierStatus(id,activo){return requestJson<Supplier>(\`/v1/suppliers/\${id}/status\`,{method:'PATCH',body:JSON.stringify({activo})})},
     listArticles(){return requestJson<Article[]>('/v1/articles')},getArticle(id){return requestJson<Article>(\`/v1/articles/\${id}\`)},createArticle(body){return requestJson<Article>('/v1/articles',{method:'POST',body:JSON.stringify(body)})},updateArticle(id,body){return requestJson<Article>(\`/v1/articles/\${id}\`,{method:'PATCH',body:JSON.stringify(body)})},updateArticleStatus(id,activo){return requestJson<Article>(\`/v1/articles/\${id}/status\`,{method:'PATCH',body:JSON.stringify({activo})},)},listArticleSuppliers(id){return requestJson<SupplierArticle[]>(\`/v1/articles/\${id}/suppliers\`)},createArticleSupplier(id,body){return requestJson<SupplierArticle>(\`/v1/articles/\${id}/suppliers\`,{method:'POST',body:JSON.stringify(body)})},updateArticleSupplier(id,relationId,body){return requestJson<SupplierArticle>(\`/v1/articles/\${id}/suppliers/\${relationId}\`,{method:'PATCH',body:JSON.stringify(body)})},previewArticleImport(body){return requestJson<ArticleImportPreview>('/v1/articles/import/preview',{method:'POST',body:JSON.stringify(body)})},importArticles(body,idempotencyKey){return requestJson('/v1/articles/import',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':idempotencyKey}})},previewPriceList(body){return requestJson<PriceListPreview>('/v1/price-lists/preview',{method:'POST',body:JSON.stringify(body)})},applyPriceList(body,idempotencyKey){return requestJson('/v1/price-lists/apply',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':idempotencyKey}})},
     listSupplierArticlePending(){return requestJson<SupplierArticlePending[]>('/v1/supplier-article-pending')},resolveSupplierArticlePending(id,articuloId){return requestJson<SupplierArticle>(\`/v1/supplier-article-pending/\${id}/resolve\`,{method:'POST',body:JSON.stringify({articuloId})})},
@@ -691,7 +757,7 @@ export type {
   QuoteUploadBody,
   QuoteDownload,
   Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord,
-  CrmCatalogItem, CrmProspect, CrmOpportunity, CrmPage, CrmFollowUp, CrmFollowUpPage, CrmDashboard, CrmSummary, CrmListQuery, CrmCreateProspectBody, CrmCreateOpportunityBody, CrmUpdateOpportunityBody, CrmTransitionBody, CrmCreateFollowUpBody, CrmCatalogs, AuditPlanning, AuditPlanningPage, AuditPlanningBody, AuditPlanningUpdateBody, AuditCancelPlanningBody, AuditAnswerBody, AuditSubmitBody, AuditActionCreateBody, AuditActionUpdateBody, AuditChecklistCreateBody,
+  CrmCatalogItem, CrmProspect, CrmOpportunity, CrmPage, CrmFollowUp, CrmFollowUpPage, CrmDashboard, CrmSummary, CrmListQuery, CrmCreateProspectBody, CrmCreateOpportunityBody, CrmUpdateOpportunityBody, CrmTransitionBody, CrmCreateFollowUpBody, CrmCatalogs, AuditPlanning, AuditPlanningPage, AuditPlanningEdit, AuditPlanningBody, AuditPlanningUpdateBody, AuditCancelPlanningBody, AuditAnswerBody, AuditSubmitBody, Audit, AuditPage, AuditDetail, AuditAction, AuditActionPage, AuditActionCreateBody, AuditActionUpdateBody, AuditChecklist, AuditChecklistItem, AuditChecklistDetail, AuditChecklistCreateBody, AuditChecklistUpdateBody, AuditChecklistCopyBody, AuditChecklistActivateBody, AuditCatalogs, AuditDashboard, AuditPageQuery, AuditActionListQuery, AuditDashboardQuery,
   ProblemDetails,
 } from './types'
 export {

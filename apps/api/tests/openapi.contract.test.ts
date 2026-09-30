@@ -23,6 +23,9 @@ describe('openapi contract (Phase 1)', () => {
         '/v1/clients/{id}/quotes/{quoteId}',
         '/v1/clients/{id}/quotes/{quoteId}/download',
         '/v1/crm/catalogs','/v1/crm/dashboard','/v1/crm/summary','/v1/crm/opportunities','/v1/crm/opportunities/{id}','/v1/crm/opportunities/{id}/follow-ups','/v1/crm/opportunities/{id}/state','/v1/crm/opportunities/{id}/view','/v1/crm/prospects','/v1/crm/prospects/{id}','/v1/crm/{resource}','/v1/crm/{resource}/{id}/status',
+        '/v1/audits','/v1/audits/catalogs','/v1/audits/dashboard','/v1/audits/plannings','/v1/audits/plannings/{id}','/v1/audits/plannings/{id}/cancel','/v1/audits/{id}','/v1/audits/{id}/actions',
+        '/v1/audit-actions','/v1/audit-actions/{id}',
+        '/v1/audit-checklists','/v1/audit-checklists/active','/v1/audit-checklists/{id}','/v1/audit-checklists/{id}/activate','/v1/audit-checklists/{id}/copy',
         '/v1/employees',
         '/v1/employees/{id}/status',
         '/v1/hr/catalogs',
@@ -103,5 +106,19 @@ describe('openapi contract (Phase 1)', () => {
     expect(openApiDocument.paths['/v1/crm/opportunities/{id}'].patch.responses['409']).toBeTruthy()
     expect(openApiDocument.paths['/v1/crm/opportunities/{id}/state'].patch.responses['409']).toBeTruthy()
     expect(openApiDocument.paths['/v1/crm/{resource}'].post.responses['409']).toBeTruthy()
+  })
+
+  it('documents the Phase 5B audits surface with auth/errors and idempotency', () => {
+    expect(openApiDocument.paths['/v1/audits'].post.parameters).toContainEqual(
+      expect.objectContaining({ name: 'Idempotency-Key', in: 'header', required: true }),
+    )
+    expect(openApiDocument.paths['/v1/audit-checklists/{id}/copy'].post.parameters).toContainEqual(
+      expect.objectContaining({ name: 'Idempotency-Key', in: 'header', required: true }),
+    )
+    expect(openApiDocument.paths['/v1/audits/dashboard'].get.security).toEqual([{ bearerAuth: [] }])
+    expect(openApiDocument.paths['/v1/audits/plannings/{id}'].patch.responses['409']).toBeTruthy()
+    expect(openApiDocument.paths['/v1/audit-actions/{id}'].patch.responses['409']).toBeTruthy()
+    expect(openApiDocument.paths['/v1/audit-checklists/{id}'].patch.responses['409']).toBeTruthy()
+    expect(openApiDocument.paths['/v1/audit-checklists/active'].get.responses['404']).toBeTruthy()
   })
 })

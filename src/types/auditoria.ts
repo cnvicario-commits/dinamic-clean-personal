@@ -14,6 +14,7 @@ export type ChecklistPlantilla = {
   vigencia_desde: string
   activa: boolean
   created_at: string
+  updated_at: string
 }
 
 export type ChecklistItem = {
@@ -108,6 +109,8 @@ export type AuditoriaListado = {
   id: string
   fecha_realizada: string
   evaluacion_general: string | null
+  supervisor_id: string
+  no_conformidades: number
   cliente_domicilios: { alias: string; direccion: string | null; clientes: { nombre: string } | null } | null
   perfiles: { nombre_completo: string } | null
 }
