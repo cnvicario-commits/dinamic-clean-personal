@@ -224,6 +224,9 @@ export type CrmFollowUpPage = {items:CrmFollowUp[];page:number;pageSize:number;t
 export type CrmListQuery = {page?:number;pageSize?:number;estado?:CrmOpportunity['estado'];responsableId?:string;prospectoId?:string;tipoClienteId?:string;tipoServicioId?:string;desde?:string;hasta?:string;search?:string;proximaFecha?:boolean;facturacion?:boolean;order?:'created'|'ingreso'|'agenda'|'facturacion'}
 export type CrmCreateProspectBody = {nombre:string;tipoClienteId?:string|null;contactoNombre?:string|null;telefono?:string|null;email?:string|null;referidoPorId?:string|null;notas?:string|null}
 export type CrmCreateOpportunityBody = {prospectoId:string;numeroReferencia?:string|null;fechaIngreso?:string;tipoServicioId?:string|null;cantidadPersonal?:number|null;montoEstimado?:number|null;fechaEnvio?:string|null;comisionMonto?:number|null;comentarios?:string|null;responsableId:string;seguimientoInicial?:boolean}
+export type CrmUpdateOpportunityBody = {updatedAt:string;numeroReferencia?:string|null;tipoServicioId?:string|null;cantidadPersonal?:number|null;montoEstimado?:number|null;fechaEnvio?:string|null;fechaFacturacion?:string|null;comisionMonto?:number|null;comisionLiquidada?:boolean;comentarios?:string|null;prospecto?:Partial<CrmCreateProspectBody>}
+export type CrmTransitionBody = {estado:CrmOpportunity['estado'];updatedAt:string}
+export type CrmCreateFollowUpBody = {fechaContacto?:string;tipoContacto?:string|null;nota:string;proximaFechaSeguimiento?:string|null}
 export type CrmCatalogs = {prospectos:Array<{id:string;nombre:string}>;tiposServicio:CrmCatalogItem[];tiposCliente:CrmCatalogItem[];referidores:CrmCatalogItem[];responsables:Array<{id:string;nombre_completo:string}>}
 
 /** GET /v1/employees query (optional fields omitted when unset) */

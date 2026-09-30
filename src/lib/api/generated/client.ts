@@ -40,7 +40,7 @@ import type {
   UpdateClientAddressBody,
   QuoteUploadBody,
   QuoteDownload,
-  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord, ResultsImportBody, ResultRecord, CrmCatalogItem, CrmProspect, CrmOpportunity, CrmPage, CrmFollowUp, CrmFollowUpPage, CrmListQuery, CrmCreateProspectBody, CrmCreateOpportunityBody, CrmCatalogs,
+  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord, ResultsImportBody, ResultRecord, CrmCatalogItem, CrmProspect, CrmOpportunity, CrmPage, CrmFollowUp, CrmFollowUpPage, CrmListQuery, CrmCreateProspectBody, CrmCreateOpportunityBody, CrmUpdateOpportunityBody, CrmTransitionBody, CrmCreateFollowUpBody, CrmCatalogs,
   UsersListResponse,
 } from './types'
 
@@ -170,9 +170,9 @@ export type DinamicApiClient = {
   listCrmFollowUps: (id:string,query?:{page?:number;pageSize?:number}) => Promise<CrmFollowUpPage>
   createCrmProspect: (body:CrmCreateProspectBody) => Promise<CrmProspect>
   createCrmOpportunity: (body:CrmCreateOpportunityBody,key:string) => Promise<{replayed:boolean;response:CrmOpportunity}>
-  updateCrmOpportunity: (id:string,body:Record<string,unknown>) => Promise<CrmOpportunity>
-  transitionCrmOpportunity: (id:string,body:{estado:CrmOpportunity['estado'];updatedAt?:string}) => Promise<CrmOpportunity>
-  createCrmFollowUp: (id:string,body:{fechaContacto?:string;tipoContacto?:string|null;nota:string;proximaFechaSeguimiento?:string|null}) => Promise<CrmFollowUp>
+  updateCrmOpportunity: (id:string,body:CrmUpdateOpportunityBody) => Promise<CrmOpportunity>
+  transitionCrmOpportunity: (id:string,body:CrmTransitionBody) => Promise<CrmOpportunity>
+  createCrmFollowUp: (id:string,body:CrmCreateFollowUpBody) => Promise<CrmFollowUp>
   markCrmOpportunityViewed: (id:string) => Promise<Record<string,unknown>>
   createCrmCatalog: (resource:'tipos-cliente'|'tipos-servicio'|'referidores',nombre:string) => Promise<CrmCatalogItem>
 }
