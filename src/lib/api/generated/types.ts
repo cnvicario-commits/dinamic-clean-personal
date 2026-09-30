@@ -215,6 +215,16 @@ export type PurchaseRecord = Record<string,unknown>&{id:string;estado:string}
 export type ResultRow = { anio:number; mes:number; values:Record<string,number|null>; details:Array<{rubro:string;concepto:string;monto:number}> }
 export type ResultsImportBody = { rows:ResultRow[] }
 export type ResultRecord = Record<string,unknown>&{id:string;anio:number;mes:number}
+export type CrmCatalogItem = {id:string;nombre:string;activo?:boolean}
+export type CrmProspect = {id:string;nombre:string;tipo_cliente_id:string|null;contacto_nombre:string|null;telefono:string|null;email:string|null;referido_por_id:string|null;notas:string|null;created_at:string;updated_at:string|null}
+export type CrmOpportunity = Record<string,unknown>&{id:string;prospecto_id:string;estado:'en_seguimiento'|'aceptado'|'rechazado'|'en_espera';updated_at:string|null;created_at:string}
+export type CrmPage = {items:CrmOpportunity[];page:number;pageSize:number;total:number}
+export type CrmFollowUp = Record<string,unknown>&{id:string;oportunidad_id:string;created_at:string}
+export type CrmFollowUpPage = {items:CrmFollowUp[];page:number;pageSize:number;total:number}
+export type CrmListQuery = {page?:number;pageSize?:number;estado?:CrmOpportunity['estado'];responsableId?:string;prospectoId?:string;tipoClienteId?:string;tipoServicioId?:string;desde?:string;hasta?:string;search?:string;proximaFecha?:boolean;facturacion?:boolean;order?:'created'|'ingreso'|'agenda'|'facturacion'}
+export type CrmCreateProspectBody = {nombre:string;tipoClienteId?:string|null;contactoNombre?:string|null;telefono?:string|null;email?:string|null;referidoPorId?:string|null;notas?:string|null}
+export type CrmCreateOpportunityBody = {prospectoId:string;numeroReferencia?:string|null;fechaIngreso?:string;tipoServicioId?:string|null;cantidadPersonal?:number|null;montoEstimado?:number|null;fechaEnvio?:string|null;comisionMonto?:number|null;comentarios?:string|null;responsableId:string;seguimientoInicial?:boolean}
+export type CrmCatalogs = {prospectos:Array<{id:string;nombre:string}>;tiposServicio:CrmCatalogItem[];tiposCliente:CrmCatalogItem[];referidores:CrmCatalogItem[];responsables:Array<{id:string;nombre_completo:string}>}
 
 /** GET /v1/employees query (optional fields omitted when unset) */
 export type ListEmployeesQuery = {
