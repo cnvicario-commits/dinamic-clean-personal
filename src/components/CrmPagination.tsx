@@ -24,7 +24,7 @@ export default function CrmPagination({
   }
 
   return (
-    <nav className="mt-4 flex items-center justify-between gap-3 text-sm" aria-label="Paginación CRM">
+    <nav className="mt-4 flex items-center justify-between gap-3 text-sm" aria-label="Paginación">
       <p className="text-slate-500">Mostrando {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} de {total}</p>
       <div className="flex gap-2">
         {page > 1 && <Link className="rounded border border-slate-300 px-3 py-1.5 hover:bg-slate-50" href={href(page - 1)}>Anterior</Link>}

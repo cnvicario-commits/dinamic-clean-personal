@@ -1,6 +1,6 @@
-import { createClient } from '@/utils/supabase/server'
+import { createAuthenticatedServerApiClient } from '@/lib/api/server'
+import { ApiClientError } from '@/lib/api/generated'
 import AdministracionChecklist from '@/components/AdministracionChecklist'
-import type { ChecklistPlantilla, ChecklistItem } from '@/types/auditoria'
 
 export default async function ChecklistPage({
   searchParams,
@@ -8,24 +8,20 @@ export default async function ChecklistPage({
   searchParams: Promise<{ plantilla?: string }>
 }) {
   const { plantilla: plantillaIdParam } = await searchParams
-  const supabase = await createClient()
+  const api = await createAuthenticatedServerApiClient()
 
-  const { data: plantillas } = await supabase
-    .from('auditoria_checklist_plantillas')
-    .select('*')
-    .order('created_at', { ascending: false })
+  const plantillas = await api.listAuditChecklists()
+  const activa = plantillas.find((p) => p.activa) ?? null
+  const seleccionadaMeta = plantillas.find((p) => p.id === plantillaIdParam) ?? activa ?? plantillas[0] ?? null
 
-  const lista = (plantillas ?? []) as ChecklistPlantilla[]
-  const activa = lista.find((p) => p.activa) ?? null
-  const seleccionada = lista.find((p) => p.id === plantillaIdParam) ?? activa ?? lista[0] ?? null
-
-  const { data: items } = seleccionada
-    ? await supabase
-        .from('auditoria_checklist_items')
-        .select('*')
-        .eq('plantilla_id', seleccionada.id)
-        .order('orden', { ascending: true })
-    : { data: [] }
+  let seleccionada = null
+  if (seleccionadaMeta) {
+    try {
+      seleccionada = await api.getAuditChecklist(seleccionadaMeta.id)
+    } catch (err) {
+      if (!(err instanceof ApiClientError && err.status === 404)) throw err
+    }
+  }
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-10">
@@ -35,9 +31,9 @@ export default async function ChecklistPage({
         activa a la vez — es la que se toma automáticamente al cargar una auditoría nueva.
       </p>
       <AdministracionChecklist
-        plantillas={lista}
+        plantillas={plantillas}
         plantillaSeleccionada={seleccionada}
-        items={(items ?? []) as ChecklistItem[]}
+        items={seleccionada?.items ?? []}
       />
     </div>
   )

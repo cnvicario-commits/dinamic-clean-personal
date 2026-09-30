@@ -1,7 +1,7 @@
 'use client'
-import { useState, useMemo } from 'react'
 import Link from 'next/link'
-import type { AuditoriaListado, RespuestaConteo } from '@/types/auditoria'
+import { useRouter } from 'next/navigation'
+import type { Audit } from '@/lib/api/generated'
 
 type Perfil = { id: string; nombre_completo: string }
 
@@ -11,72 +11,92 @@ function formatearFecha(fecha: string) {
 
 export default function ListadoAuditoriasTabla({
   auditorias,
-  respuestas,
   supervisores,
+  total,
+  filters,
 }: {
-  auditorias: AuditoriaListado[]
-  respuestas: RespuestaConteo[]
+  auditorias: Audit[]
   supervisores: Perfil[]
+  total: number
+  filters: { supervisorId: string; desde: string; hasta: string; q: string }
 }) {
-  const [busqueda, setBusqueda] = useState('')
-  const [filtroSupervisor, setFiltroSupervisor] = useState('')
-  const [fechaDesde, setFechaDesde] = useState('')
-  const [fechaHasta, setFechaHasta] = useState('')
+  const router = useRouter()
 
-  const noConformesPorAuditoria = useMemo(() => {
-    const mapa = new Map<string, number>()
-    for (const r of respuestas) {
-      if (r.resultado !== 'no_conforme') continue
-      mapa.set(r.auditoria_id, (mapa.get(r.auditoria_id) ?? 0) + 1)
-    }
-    return mapa
-  }, [respuestas])
-
-  const filtradas = useMemo(() => {
-    const q = busqueda.trim().toLowerCase()
-    return auditorias
-      .filter((a) => {
-        if (!q) return true
-        const cliente = a.cliente_domicilios?.clientes?.nombre ?? ''
-        const sitio = a.cliente_domicilios?.alias ?? ''
-        return cliente.toLowerCase().includes(q) || sitio.toLowerCase().includes(q)
-      })
-      .filter((a) => !filtroSupervisor || a.perfiles?.nombre_completo === filtroSupervisor)
-      .filter((a) => !fechaDesde || a.fecha_realizada >= fechaDesde)
-      .filter((a) => !fechaHasta || a.fecha_realizada <= fechaHasta)
-      .sort((a, b) => b.fecha_realizada.localeCompare(a.fecha_realizada))
-  }, [auditorias, busqueda, filtroSupervisor, fechaDesde, fechaHasta])
+  function navegarFiltros(next: {
+    supervisorId?: string
+    desde?: string
+    hasta?: string
+    q?: string
+  }) {
+    const params = new URLSearchParams()
+    const supervisorId = next.supervisorId ?? filters.supervisorId
+    const desde = next.desde ?? filters.desde
+    const hasta = next.hasta ?? filters.hasta
+    const q = (next.q ?? filters.q).trim()
+    if (supervisorId) params.set('supervisorId', supervisorId)
+    if (desde) params.set('desde', desde)
+    if (hasta) params.set('hasta', hasta)
+    if (q) params.set('q', q)
+    params.set('page', '1')
+    router.push(`/auditorias/listado?${params.toString()}`)
+  }
 
   const selectStyle = 'border border-slate-300 rounded-md px-3 py-2 text-sm'
 
   return (
     <div>
       <div className="flex flex-wrap items-end gap-2 mb-4">
-        <input
-          type="text"
-          placeholder="Buscar por cliente o sitio..."
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-          className={`${selectStyle} w-64`}
-        />
-        <select value={filtroSupervisor} onChange={(e) => setFiltroSupervisor(e.target.value)} className={selectStyle}>
+        <form
+          className="flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            const data = new FormData(e.currentTarget)
+            navegarFiltros({ q: String(data.get('q') ?? '') })
+          }}
+        >
+          <input
+            name="q"
+            type="text"
+            defaultValue={filters.q}
+            placeholder="Buscar por cliente o sitio..."
+            className={`${selectStyle} w-64`}
+          />
+          <button type="submit" className="rounded border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50">
+            Buscar
+          </button>
+        </form>
+        <select
+          value={filters.supervisorId}
+          onChange={(e) => navegarFiltros({ supervisorId: e.target.value })}
+          className={selectStyle}
+        >
           <option value="">Todos los supervisores</option>
           {supervisores.map((s) => (
-            <option key={s.id} value={s.nombre_completo}>{s.nombre_completo}</option>
+            <option key={s.id} value={s.id}>{s.nombre_completo}</option>
           ))}
         </select>
         <div className="flex flex-col">
           <label className="text-xs text-slate-500 mb-1">Desde</label>
-          <input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} className={selectStyle} />
+          <input
+            type="date"
+            value={filters.desde}
+            onChange={(e) => navegarFiltros({ desde: e.target.value })}
+            className={selectStyle}
+          />
         </div>
         <div className="flex flex-col">
           <label className="text-xs text-slate-500 mb-1">Hasta</label>
-          <input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} className={selectStyle} />
+          <input
+            type="date"
+            value={filters.hasta}
+            onChange={(e) => navegarFiltros({ hasta: e.target.value })}
+            className={selectStyle}
+          />
         </div>
       </div>
 
       <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
-        Auditorías realizadas ({filtradas.length})
+        Auditorías realizadas ({total})
       </h2>
 
       <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto">
@@ -93,8 +113,8 @@ export default function ListadoAuditoriasTabla({
             </tr>
           </thead>
           <tbody>
-            {filtradas.map((a) => {
-              const noConformes = noConformesPorAuditoria.get(a.id) ?? 0
+            {auditorias.map((a) => {
+              const noConformes = a.no_conformidades
               return (
                 <tr key={a.id} className="border-b border-slate-100 last:border-0">
                   <td className="px-4 py-3 text-slate-600">{formatearFecha(a.fecha_realizada)}</td>
@@ -120,7 +140,7 @@ export default function ListadoAuditoriasTabla({
           </tbody>
         </table>
       </div>
-      {filtradas.length === 0 && (
+      {auditorias.length === 0 && (
         <p className="text-slate-500 text-sm mt-3">No hay auditorías que coincidan.</p>
       )}
     </div>
