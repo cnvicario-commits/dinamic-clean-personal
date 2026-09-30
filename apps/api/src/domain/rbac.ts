@@ -102,6 +102,7 @@ const ROLE_PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = Object.f
     'purchase_orders:read','purchase_orders:create','purchase_orders:update',
     'warehouse_requests:read','warehouse_requests:create','warehouse_requests:update',
     'economic_results:read','economic_results:import',
+    'crm:read','crm:create','crm:update','crm:delete',
   ] as const satisfies readonly Permission[]),
   gerente: Object.freeze([
     ...SELF_PROFILE,
@@ -119,6 +120,7 @@ const ROLE_PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = Object.f
     'purchase_requests:read','purchase_requests:create','purchase_requests:update',
     'purchase_orders:read','purchase_orders:create','purchase_orders:update',
     'warehouse_requests:read','warehouse_requests:create','warehouse_requests:update',
+    'crm:read','crm:create','crm:update','crm:delete',
   ] as const satisfies readonly Permission[]),
   compras: Object.freeze([
     ...SELF_PROFILE,

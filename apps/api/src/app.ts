@@ -44,6 +44,9 @@ import { purchasesRoutes } from './http/routes/v1/purchases.js'
 import { createResultsRepository, type ResultsRepository } from './infrastructure/db/results-repository.js'
 import { createResultsService } from './application/results/results-service.js'
 import { resultsRoutes } from './http/routes/v1/results.js'
+import { createCrmRepository } from './infrastructure/db/crm-repository.js'
+import { createCrmService } from './application/crm/crm-service.js'
+import { crmRoutes } from './http/routes/v1/crm.js'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -68,6 +71,8 @@ declare module 'fastify' {
     purchasesService: ReturnType<typeof createPurchasesService>
     resultsRepo: ResultsRepository
     resultsService: ReturnType<typeof createResultsService>
+    crmRepo: ReturnType<typeof createCrmRepository>
+    crmService: ReturnType<typeof createCrmService>
     /**
      * True when IdentityAdmin is wired (Auth Admin key or test inject).
      * ProfilesRepository always uses the DB pool (Phase 2D).
@@ -199,6 +204,8 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
   app.decorate('purchasesService',createPurchasesService(app.purchasesRepo,(data,message)=>app.log.info(data,message)))
   app.decorate('resultsRepo',options.resultsRepo ?? createResultsRepository(db))
   app.decorate('resultsService',createResultsService(app.resultsRepo,(data,message)=>app.log.info(data,message)))
+  app.decorate('crmRepo',createCrmRepository(db))
+  app.decorate('crmService',createCrmService(app.crmRepo))
   app.decorate('db', db)
   app.decorate('jwtVerifier', jwtVerifier)
   app.decorate('usersModuleReady', usersModuleReady)
@@ -336,6 +343,7 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
   await app.register(catalogRoutes)
   await app.register(purchasesRoutes)
   await app.register(resultsRoutes)
+  await app.register(crmRoutes)
   await app.register((await import('./http/routes/v1/attendance.js')).attendanceRoutes)
   await app.register((await import('./http/routes/v1/hr-reports.js')).hrReportsRoutes)
   await app.register(usersRoutes)

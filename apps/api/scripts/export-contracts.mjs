@@ -185,6 +185,16 @@ export type PurchaseRecord = Record<string,unknown>&{id:string;estado:string}
 export type ResultRow = { anio:number; mes:number; values:Record<string,number|null>; details:Array<{rubro:string;concepto:string;monto:number}> }
 export type ResultsImportBody = { rows:ResultRow[] }
 export type ResultRecord = Record<string,unknown>&{id:string;anio:number;mes:number}
+export type CrmCatalogItem = {id:string;nombre:string;activo?:boolean}
+export type CrmProspect = {id:string;nombre:string;tipo_cliente_id:string|null;contacto_nombre:string|null;telefono:string|null;email:string|null;referido_por_id:string|null;notas:string|null;created_at:string;updated_at:string|null}
+export type CrmOpportunity = Record<string,unknown>&{id:string;prospecto_id:string;estado:'en_seguimiento'|'aceptado'|'rechazado'|'en_espera';updated_at:string|null;created_at:string}
+export type CrmPage = {items:CrmOpportunity[];page:number;pageSize:number;total:number}
+export type CrmFollowUp = Record<string,unknown>&{id:string;oportunidad_id:string;created_at:string}
+export type CrmFollowUpPage = {items:CrmFollowUp[];page:number;pageSize:number;total:number}
+export type CrmListQuery = {page?:number;pageSize?:number;estado?:CrmOpportunity['estado'];responsableId?:string;prospectoId?:string;tipoClienteId?:string;tipoServicioId?:string;desde?:string;hasta?:string;search?:string;proximaFecha?:boolean;facturacion?:boolean;order?:'created'|'ingreso'|'agenda'|'facturacion'}
+export type CrmCreateProspectBody = {nombre:string;tipoClienteId?:string|null;contactoNombre?:string|null;telefono?:string|null;email?:string|null;referidoPorId?:string|null;notas?:string|null}
+export type CrmCreateOpportunityBody = {prospectoId:string;numeroReferencia?:string|null;fechaIngreso?:string;tipoServicioId?:string|null;cantidadPersonal?:number|null;montoEstimado?:number|null;fechaEnvio?:string|null;comisionMonto?:number|null;comentarios?:string|null;responsableId:string;seguimientoInicial?:boolean}
+export type CrmCatalogs = {prospectos:Array<{id:string;nombre:string}>;tiposServicio:CrmCatalogItem[];tiposCliente:CrmCatalogItem[];referidores:CrmCatalogItem[];responsables:Array<{id:string;nombre_completo:string}>}
 
 /** GET /v1/employees query (optional fields omitted when unset) */
 export type ListEmployeesQuery = {
@@ -300,7 +310,7 @@ import type {
   UpdateClientAddressBody,
   QuoteUploadBody,
   QuoteDownload,
-  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord, ResultsImportBody, ResultRecord,
+  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord, ResultsImportBody, ResultRecord, CrmCatalogItem, CrmProspect, CrmOpportunity, CrmPage, CrmFollowUp, CrmFollowUpPage, CrmListQuery, CrmCreateProspectBody, CrmCreateOpportunityBody, CrmCatalogs,
   UsersListResponse,
 } from './types'
 
@@ -424,6 +434,17 @@ export type DinamicApiClient = {
   applyResultsImport: (body:ResultsImportBody,key:string) => Promise<{resultIds:string[];createdPeriods:string[];updatedPeriods:string[]}>
   getClientQuoteDownload: (clientId:string,quoteId:string) => Promise<QuoteDownload>
   deleteClientQuote: (clientId:string,quoteId:string) => Promise<void>
+  listCrmOpportunities: (query?:CrmListQuery) => Promise<CrmPage>
+  getCrmOpportunity: (id:string) => Promise<CrmOpportunity>
+  getCrmCatalogs: () => Promise<CrmCatalogs>
+  listCrmFollowUps: (id:string,query?:{page?:number;pageSize?:number}) => Promise<CrmFollowUpPage>
+  createCrmProspect: (body:CrmCreateProspectBody) => Promise<CrmProspect>
+  createCrmOpportunity: (body:CrmCreateOpportunityBody,key:string) => Promise<{replayed:boolean;response:CrmOpportunity}>
+  updateCrmOpportunity: (id:string,body:Record<string,unknown>) => Promise<CrmOpportunity>
+  transitionCrmOpportunity: (id:string,body:{estado:CrmOpportunity['estado'];updatedAt?:string}) => Promise<CrmOpportunity>
+  createCrmFollowUp: (id:string,body:{fechaContacto?:string;tipoContacto?:string|null;nota:string;proximaFechaSeguimiento?:string|null}) => Promise<CrmFollowUp>
+  markCrmOpportunityViewed: (id:string) => Promise<Record<string,unknown>>
+  createCrmCatalog: (resource:'tipos-cliente'|'tipos-servicio'|'referidores',nombre:string) => Promise<CrmCatalogItem>
 }
 
 /**
@@ -580,6 +601,11 @@ export function createDinamicApiClient(options: DinamicApiClientOptions): Dinami
     uploadClientQuote(clientId,body,idempotencyKey){ return requestJson<ClientQuote>(\`/v1/clients/\${clientId}/quotes\`,{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':idempotencyKey}}) },
     getClientQuoteDownload(clientId,quoteId){ return requestJson<QuoteDownload>(\`/v1/clients/\${clientId}/quotes/\${quoteId}/download\`) },
     deleteClientQuote(clientId,quoteId){ return requestJson<void>(\`/v1/clients/\${clientId}/quotes/\${quoteId}\`,{method:'DELETE',emptyResponse:true}) },
+    listCrmOpportunities(query={}){const q:Record<string,string>={};for(const [k,v] of Object.entries(query)){if(v!==undefined)q[k]=String(v)}return requestJson<CrmPage>('/v1/crm/opportunities',{query:q})},
+    getCrmOpportunity(id){return requestJson<CrmOpportunity>(\`/v1/crm/opportunities/\${id}\`)}, getCrmCatalogs(){return requestJson<CrmCatalogs>('/v1/crm/catalogs')},
+    listCrmFollowUps(id,query={}){const q:Record<string,string>={};for(const [k,v] of Object.entries(query)){if(v!==undefined)q[k]=String(v)}return requestJson<CrmFollowUpPage>(\`/v1/crm/opportunities/\${id}/follow-ups\`,{query:q})},
+    createCrmProspect(body){return requestJson<CrmProspect>('/v1/crm/prospects',{method:'POST',body:JSON.stringify(body)})}, createCrmOpportunity(body,key){return requestJson<{replayed:boolean;response:CrmOpportunity}>('/v1/crm/opportunities',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},
+    updateCrmOpportunity(id,body){return requestJson<CrmOpportunity>(\`/v1/crm/opportunities/\${id}\`,{method:'PATCH',body:JSON.stringify(body)})}, transitionCrmOpportunity(id,body){return requestJson<CrmOpportunity>(\`/v1/crm/opportunities/\${id}/state\`,{method:'PATCH',body:JSON.stringify(body)})}, createCrmFollowUp(id,body){return requestJson<CrmFollowUp>(\`/v1/crm/opportunities/\${id}/follow-ups\`,{method:'POST',body:JSON.stringify(body)})}, markCrmOpportunityViewed(id){return requestJson<Record<string,unknown>>(\`/v1/crm/opportunities/\${id}/view\`,{method:'PUT'})}, createCrmCatalog(resource,nombre){return requestJson<CrmCatalogItem>(\`/v1/crm/\${resource}\`,{method:'POST',body:JSON.stringify({nombre})})},
     listSuppliers(){ return requestJson<Supplier[]>('/v1/suppliers') }, getSupplier(id){ return requestJson<Supplier>(\`/v1/suppliers/\${id}\`) }, createSupplier(body){return requestJson<Supplier>('/v1/suppliers',{method:'POST',body:JSON.stringify(body)})},updateSupplier(id,body){return requestJson<Supplier>(\`/v1/suppliers/\${id}\`,{method:'PATCH',body:JSON.stringify(body)})},updateSupplierStatus(id,activo){return requestJson<Supplier>(\`/v1/suppliers/\${id}/status\`,{method:'PATCH',body:JSON.stringify({activo})})},
     listArticles(){return requestJson<Article[]>('/v1/articles')},getArticle(id){return requestJson<Article>(\`/v1/articles/\${id}\`)},createArticle(body){return requestJson<Article>('/v1/articles',{method:'POST',body:JSON.stringify(body)})},updateArticle(id,body){return requestJson<Article>(\`/v1/articles/\${id}\`,{method:'PATCH',body:JSON.stringify(body)})},updateArticleStatus(id,activo){return requestJson<Article>(\`/v1/articles/\${id}/status\`,{method:'PATCH',body:JSON.stringify({activo})},)},listArticleSuppliers(id){return requestJson<SupplierArticle[]>(\`/v1/articles/\${id}/suppliers\`)},createArticleSupplier(id,body){return requestJson<SupplierArticle>(\`/v1/articles/\${id}/suppliers\`,{method:'POST',body:JSON.stringify(body)})},updateArticleSupplier(id,relationId,body){return requestJson<SupplierArticle>(\`/v1/articles/\${id}/suppliers/\${relationId}\`,{method:'PATCH',body:JSON.stringify(body)})},previewArticleImport(body){return requestJson<ArticleImportPreview>('/v1/articles/import/preview',{method:'POST',body:JSON.stringify(body)})},importArticles(body,idempotencyKey){return requestJson('/v1/articles/import',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':idempotencyKey}})},previewPriceList(body){return requestJson<PriceListPreview>('/v1/price-lists/preview',{method:'POST',body:JSON.stringify(body)})},applyPriceList(body,idempotencyKey){return requestJson('/v1/price-lists/apply',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':idempotencyKey}})},
     listSupplierArticlePending(){return requestJson<SupplierArticlePending[]>('/v1/supplier-article-pending')},resolveSupplierArticlePending(id,articuloId){return requestJson<SupplierArticle>(\`/v1/supplier-article-pending/\${id}/resolve\`,{method:'POST',body:JSON.stringify({articuloId})})},

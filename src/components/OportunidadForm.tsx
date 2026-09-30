@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 import BuscadorProspecto from './BuscadorProspecto'
 import ProspectoForm from './ProspectoForm'
 import SelectConCrear from './SelectConCrear'
@@ -43,7 +43,6 @@ export default function OportunidadForm({
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -57,39 +56,12 @@ export default function OportunidadForm({
       return
     }
     setLoading(true)
-    const { data, error: errInsert } = await supabase
-      .from('crm_oportunidades')
-      .insert({
-        prospecto_id: prospecto.id,
-        numero_referencia: numeroReferencia || null,
-        fecha_ingreso: fechaIngreso,
-        tipo_servicio_id: tipoServicioId || null,
-        cantidad_personal: cantidadPersonal ? Number(cantidadPersonal) : null,
-        monto_estimado: montoEstimado ? Number(montoEstimado) : null,
-        fecha_envio: fechaEnvio || null,
-        comision_monto: comisionMonto ? Number(comisionMonto) : null,
-        responsable_id: responsableId,
-        comentarios: comentarios || null,
-      })
-      .select('id')
-      .single()
+    let data:{id:string}|null=null;let errInsert:unknown=null
+    try { const api=await createAuthenticatedBrowserApiClient();const result=await api.createCrmOpportunity({prospectoId:prospecto.id,numeroReferencia:numeroReferencia||null,fechaIngreso,tipoServicioId:tipoServicioId||null,cantidadPersonal:cantidadPersonal?Number(cantidadPersonal):null,montoEstimado:montoEstimado?Number(montoEstimado):null,fechaEnvio:fechaEnvio||null,comisionMonto:comisionMonto?Number(comisionMonto):null,comentarios:comentarios||null,responsableId},crypto.randomUUID());data={id:result.response.id} } catch(error){errInsert=error}
     setLoading(false)
     if (errInsert || !data) {
-      setError('Error al guardar: ' + (errInsert?.message ?? 'desconocido'))
+      setError('Error al guardar: ' + (errInsert instanceof Error ? errInsert.message : 'desconocido'))
       return
-    }
-
-    // Deja registro en el historial de seguimientos sin que haya que
-    // cargarlo a mano — mismo criterio que el cambio de estado automático de
-    // TableroVentas.tsx. Si esto falla no se avisa ni se revierte nada: la
-    // oportunidad ya se guardó bien, que es lo importante.
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      await supabase.from('crm_seguimientos').insert({
-        oportunidad_id: data.id,
-        nota: 'Oportunidad creada.',
-        usuario_id: user.id,
-      })
     }
 
     router.push(`/ventas/${data.id}`)
