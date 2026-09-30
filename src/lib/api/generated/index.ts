@@ -44,6 +44,7 @@ export type {
   QuoteUploadBody,
   QuoteDownload,
   Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord,
+  CrmCatalogItem, CrmProspect, CrmOpportunity, CrmPage, CrmFollowUp, CrmFollowUpPage, CrmDashboard, CrmSummary, CrmListQuery, CrmCreateProspectBody, CrmCreateOpportunityBody, CrmUpdateOpportunityBody, CrmTransitionBody, CrmCreateFollowUpBody, CrmCatalogs, AuditPlanning, AuditPlanningPage, AuditPlanningEdit, AuditPlanningBody, AuditPlanningUpdateBody, AuditCancelPlanningBody, AuditAnswerBody, AuditSubmitBody, Audit, AuditPage, AuditDetail, AuditAction, AuditActionPage, AuditActionCreateBody, AuditActionUpdateBody, AuditChecklist, AuditChecklistItem, AuditChecklistDetail, AuditChecklistCreateBody, AuditChecklistUpdateBody, AuditChecklistCopyBody, AuditChecklistActivateBody, AuditCatalogs, AuditDashboard, AuditPageQuery, AuditActionListQuery, AuditDashboardQuery,
   ProblemDetails,
 } from './types'
 export {

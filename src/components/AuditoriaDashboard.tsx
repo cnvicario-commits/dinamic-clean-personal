@@ -1,14 +1,8 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import type {
-  RespuestaDashboard,
-  AuditoriaResumen,
-  PlanificacionResumen,
-  PlanAccionResumen,
-  EstadoPlanificacion,
-  EstadoPlanAccion,
-} from '@/types/auditoria'
+import type { AuditDashboard, AuditAction } from '@/lib/api/generated'
+import type { EstadoPlanificacion } from '@/types/auditoria'
 
 function formatearPorcentaje(parte: number, total: number): string {
   if (total === 0) return '-'
@@ -19,18 +13,6 @@ function formatearFecha(fecha: string) {
   return new Date(`${fecha}T00:00:00`).toLocaleDateString('es-AR')
 }
 
-function hoyISO() {
-  const hoy = new Date()
-  return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`
-}
-
-// Mismo criterio que PlanificacionesTabla.tsx: 'vencida' no se guarda en la
-// base, se calcula acá nada más que para mostrar.
-function estadoEfectivo(p: PlanificacionResumen): EstadoPlanificacion {
-  if (p.estado === 'planificada' && p.fecha_propuesta < hoyISO()) return 'vencida'
-  return p.estado
-}
-
 const ETIQUETAS_PLANIF: Record<EstadoPlanificacion, string> = {
   planificada: 'Planificadas',
   vencida: 'Vencidas',
@@ -38,201 +20,43 @@ const ETIQUETAS_PLANIF: Record<EstadoPlanificacion, string> = {
   cancelada: 'Canceladas',
 }
 
-const ETIQUETAS_PLAN_ACCION: Record<EstadoPlanAccion, string> = {
+const ETIQUETAS_PLAN_ACCION: Record<AuditAction['estado'], string> = {
   pendiente: 'Pendientes',
   en_curso: 'En curso',
   resuelto: 'Resueltos',
 }
 
+const ESTADOS_PLANIF: EstadoPlanificacion[] = ['planificada', 'vencida', 'realizada', 'cancelada']
+const ESTADOS_ACCION: AuditAction['estado'][] = ['pendiente', 'en_curso', 'resuelto']
+
 export default function AuditoriaDashboard({
-  respuestas,
-  auditorias,
-  planificaciones,
-  planesAccion,
+  dashboard,
+  desde,
+  hasta,
 }: {
-  respuestas: RespuestaDashboard[]
-  auditorias: AuditoriaResumen[]
-  planificaciones: PlanificacionResumen[]
-  planesAccion: PlanAccionResumen[]
+  dashboard: AuditDashboard
+  desde: string
+  hasta: string
 }) {
-  const [fechaDesde, setFechaDesde] = useState('')
-  const [fechaHasta, setFechaHasta] = useState('')
+  const router = useRouter()
 
-  const auditoriaPorId = useMemo(() => new Map(auditorias.map((a) => [a.id, a])), [auditorias])
+  function navegarFechas(nextDesde: string, nextHasta: string) {
+    const params = new URLSearchParams()
+    if (nextDesde) params.set('desde', nextDesde)
+    if (nextHasta) params.set('hasta', nextHasta)
+    const qs = params.toString()
+    router.push(qs ? `/auditorias?${qs}` : '/auditorias')
+  }
 
-  const auditoriasFiltradas = useMemo(() => {
-    return auditorias.filter((a) => {
-      if (fechaDesde && a.fecha_realizada < fechaDesde) return false
-      if (fechaHasta && a.fecha_realizada > fechaHasta) return false
-      return true
-    })
-  }, [auditorias, fechaDesde, fechaHasta])
+  const porEstadoPlanificacion = ESTADOS_PLANIF.map((estado) => ({
+    estado,
+    cantidad: dashboard.por_estado_planificacion.find((f) => f.estado === estado)?.cantidad ?? 0,
+  }))
 
-  const respuestasFiltradas = useMemo(() => {
-    const idsFiltrados = new Set(auditoriasFiltradas.map((a) => a.id))
-    return respuestas.filter((r) => idsFiltrados.has(r.auditoria_id))
-  }, [respuestas, auditoriasFiltradas])
-
-  const resumen = useMemo(() => {
-    const conformes = respuestasFiltradas.filter((r) => r.resultado === 'conforme').length
-    const noConformes = respuestasFiltradas.filter((r) => r.resultado === 'no_conforme').length
-    const noAplica = respuestasFiltradas.filter((r) => r.resultado === 'no_aplica').length
-    const evaluables = conformes + noConformes
-
-    // Estadísticas por auditoría (conformes/no conformes), base de varios
-    // cálculos de abajo: % de cumplimiento por auditoría, ranking de
-    // sitios por cumplimiento, y el promedio general.
-    const porAuditoria = new Map<string, { conformes: number; noConformes: number }>()
-    for (const r of respuestasFiltradas) {
-      if (r.resultado === 'no_aplica') continue
-      const actual = porAuditoria.get(r.auditoria_id) ?? { conformes: 0, noConformes: 0 }
-      if (r.resultado === 'conforme') actual.conformes += 1
-      else actual.noConformes += 1
-      porAuditoria.set(r.auditoria_id, actual)
-    }
-    const auditoriasEvaluadas = [...porAuditoria.entries()].map(([id, v]) => ({
-      id,
-      ...v,
-      total: v.conformes + v.noConformes,
-      pct: v.conformes / (v.conformes + v.noConformes),
-    }))
-
-    // % de cumplimiento general: promedio simple del % de cada auditoría
-    // (no ponderado por cantidad de ítems) — mismo criterio que ya usás en
-    // el Excel de seguimiento, para que el número te resulte familiar.
-    const conformidadGeneral =
-      auditoriasEvaluadas.length > 0
-        ? auditoriasEvaluadas.reduce((acc, a) => acc + a.pct, 0) / auditoriasEvaluadas.length
-        : null
-
-    // % de conformidad por ítem (excluye "no aplica" del denominador),
-    // ordenado del peor al mejor para que salten a la vista los problemas.
-    const porItem = new Map<string, { conformes: number; noConformes: number }>()
-    for (const r of respuestasFiltradas) {
-      if (r.resultado === 'no_aplica') continue
-      const texto = r.auditoria_checklist_items?.texto ?? '-'
-      const actual = porItem.get(texto) ?? { conformes: 0, noConformes: 0 }
-      if (r.resultado === 'conforme') actual.conformes += 1
-      else actual.noConformes += 1
-      porItem.set(texto, actual)
-    }
-    const conformidadPorItem = Array.from(porItem.entries())
-      .map(([texto, v]) => ({ texto, ...v, total: v.conformes + v.noConformes }))
-      .sort((a, b) => a.conformes / a.total - b.conformes / b.total)
-
-    // Evolución mensual: % conformidad y cantidad de auditorías por mes.
-    const porMes = new Map<string, { conformes: number; noConformes: number }>()
-    for (const r of respuestasFiltradas) {
-      if (r.resultado === 'no_aplica') continue
-      const mes = (auditoriaPorId.get(r.auditoria_id)?.fecha_realizada ?? '').slice(0, 7)
-      if (!mes) continue
-      const actual = porMes.get(mes) ?? { conformes: 0, noConformes: 0 }
-      if (r.resultado === 'conforme') actual.conformes += 1
-      else actual.noConformes += 1
-      porMes.set(mes, actual)
-    }
-    const cantidadPorMes = new Map<string, number>()
-    for (const a of auditoriasFiltradas) {
-      const mes = a.fecha_realizada.slice(0, 7)
-      cantidadPorMes.set(mes, (cantidadPorMes.get(mes) ?? 0) + 1)
-    }
-    const evolucion = Array.from(new Set([...porMes.keys(), ...cantidadPorMes.keys()]))
-      .sort()
-      .map((mes) => {
-        const v = porMes.get(mes) ?? { conformes: 0, noConformes: 0 }
-        return { mes, cantidadAuditorias: cantidadPorMes.get(mes) ?? 0, ...v, total: v.conformes + v.noConformes }
-      })
-
-    function nombreSitio(auditoriaId: string) {
-      const a = auditoriaPorId.get(auditoriaId)
-      return `${a?.cliente_domicilios?.clientes?.nombre ?? '-'} — ${a?.cliente_domicilios?.alias ?? '-'}`
-    }
-
-    // Ranking de sitios con más ítems no conformes (cuenta bruta).
-    const porSitioCantidad = new Map<string, number>()
-    for (const r of respuestasFiltradas) {
-      if (r.resultado !== 'no_conforme') continue
-      const nombre = nombreSitio(r.auditoria_id)
-      porSitioCantidad.set(nombre, (porSitioCantidad.get(nombre) ?? 0) + 1)
-    }
-    const rankingSitiosCantidad = Array.from(porSitioCantidad.entries())
-      .map(([nombre, cantidad]) => ({ nombre, cantidad }))
-      .sort((a, b) => b.cantidad - a.cantidad)
-      .slice(0, 10)
-
-    // Ranking de sitios con peor % de cumplimiento (suma de conformes/total
-    // por sitio, no promedio de promedios — un sitio con más auditorías
-    // pesa más, evita que una sola visita chica distorsione el orden).
-    const porSitioCumplimiento = new Map<string, { conformes: number; total: number }>()
-    for (const a of auditoriasEvaluadas) {
-      const nombre = nombreSitio(a.id)
-      const actual = porSitioCumplimiento.get(nombre) ?? { conformes: 0, total: 0 }
-      actual.conformes += a.conformes
-      actual.total += a.total
-      porSitioCumplimiento.set(nombre, actual)
-    }
-    const rankingSitiosCumplimiento = Array.from(porSitioCumplimiento.entries())
-      .map(([nombre, v]) => ({ nombre, ...v, pct: v.conformes / v.total }))
-      .sort((a, b) => a.pct - b.pct)
-      .slice(0, 10)
-
-    // Auditorías puntuales con peor % de cumplimiento (a diferencia del
-    // ranking de arriba, que es por sitio acumulado, esto es visita por
-    // visita — sirve para encontrar rápido la peor auditoría concreta).
-    const auditoriasPeorCumplimiento = auditoriasEvaluadas
-      .map((a) => {
-        const info = auditoriaPorId.get(a.id)
-        return {
-          id: a.id,
-          pct: a.pct,
-          total: a.total,
-          fecha: info?.fecha_realizada ?? '',
-          cliente: info?.cliente_domicilios?.clientes?.nombre ?? '-',
-          sitio: info?.cliente_domicilios?.alias ?? '-',
-          supervisor: info?.perfiles?.nombre_completo ?? '-',
-        }
-      })
-      .sort((a, b) => a.pct - b.pct)
-      .slice(0, 10)
-
-    // Planificaciones (estado actual, no se filtra por fecha del panel de
-    // arriba: es una foto del estado de hoy, no un histórico).
-    const porEstadoPlanificacion = (Object.keys(ETIQUETAS_PLANIF) as EstadoPlanificacion[]).map((estado) => ({
-      estado,
-      cantidad: planificaciones.filter((p) => estadoEfectivo(p) === estado).length,
-    }))
-
-    // Planes de acción.
-    const porEstadoPlanAccion = (Object.keys(ETIQUETAS_PLAN_ACCION) as EstadoPlanAccion[]).map((estado) => ({
-      estado,
-      cantidad: planesAccion.filter((p) => p.estado === estado).length,
-    }))
-    const hoy = hoyISO()
-    const planesVencidos = planesAccion.filter(
-      (p) => p.estado !== 'resuelto' && p.fecha_limite && p.fecha_limite < hoy
-    ).length
-
-    const quejasRegistradas = auditoriasFiltradas.filter(
-      (a) => a.quejas_comentarios_cliente && a.quejas_comentarios_cliente.trim()
-    ).length
-
-    return {
-      conformes,
-      noConformes,
-      noAplica,
-      evaluables,
-      conformidadGeneral,
-      conformidadPorItem,
-      evolucion,
-      rankingSitiosCantidad,
-      rankingSitiosCumplimiento,
-      auditoriasPeorCumplimiento,
-      porEstadoPlanificacion,
-      porEstadoPlanAccion,
-      planesVencidos,
-      quejasRegistradas,
-    }
-  }, [respuestasFiltradas, auditoriasFiltradas, auditoriaPorId, planificaciones, planesAccion])
+  const porEstadoPlanAccion = ESTADOS_ACCION.map((estado) => ({
+    estado,
+    cantidad: dashboard.por_estado_plan_accion.find((f) => f.estado === estado)?.cantidad ?? 0,
+  }))
 
   const selectStyle = 'border border-slate-300 rounded-md px-3 py-2 text-sm'
 
@@ -241,46 +65,58 @@ export default function AuditoriaDashboard({
       <div className="flex flex-wrap items-end gap-3 mb-6">
         <div className="flex flex-col">
           <label className="text-xs text-slate-500 mb-1">Desde (fecha de auditoría)</label>
-          <input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} className={selectStyle} />
+          <input
+            type="date"
+            value={desde}
+            onChange={(e) => navegarFechas(e.target.value, hasta)}
+            className={selectStyle}
+          />
         </div>
         <div className="flex flex-col">
           <label className="text-xs text-slate-500 mb-1">Hasta</label>
-          <input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} className={selectStyle} />
+          <input
+            type="date"
+            value={hasta}
+            onChange={(e) => navegarFechas(desde, e.target.value)}
+            className={selectStyle}
+          />
         </div>
       </div>
 
-      {/* Totales generales */}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3 mb-8">
         <div className="bg-white border border-slate-200 rounded-lg p-4">
           <p className="text-xs text-slate-500 uppercase tracking-wide">Sitios auditados</p>
-          <p className="text-2xl font-bold text-slate-800 mt-1">{auditoriasFiltradas.length}</p>
+          <p className="text-2xl font-bold text-slate-800 mt-1">{dashboard.sitios_auditados}</p>
         </div>
         <div className="bg-white border border-slate-200 rounded-lg p-4">
           <p className="text-xs text-slate-500 uppercase tracking-wide">% Cumplimiento promedio</p>
           <p className="text-2xl font-bold text-slate-800 mt-1">
-            {resumen.conformidadGeneral === null ? '-' : `${(resumen.conformidadGeneral * 100).toFixed(0)}%`}
+            {dashboard.conformidad_general === null
+              ? '-'
+              : `${(dashboard.conformidad_general * 100).toFixed(0)}%`}
           </p>
-          <p className="text-xs text-slate-400 mt-0.5">{resumen.conformes} conformes / {resumen.noConformes} no conformes</p>
+          <p className="text-xs text-slate-400 mt-0.5">
+            {dashboard.conformes} conformes / {dashboard.no_conformes} no conformes
+          </p>
         </div>
         <div className="bg-white border border-slate-200 rounded-lg p-4">
           <p className="text-xs text-slate-500 uppercase tracking-wide">Total no conformidades</p>
-          <p className="text-2xl font-bold text-rose-600 mt-1">{resumen.noConformes}</p>
+          <p className="text-2xl font-bold text-rose-600 mt-1">{dashboard.no_conformes}</p>
         </div>
         <div className="bg-white border border-slate-200 rounded-lg p-4">
           <p className="text-xs text-slate-500 uppercase tracking-wide">Quejas/reclamos registrados</p>
-          <p className="text-2xl font-bold text-amber-600 mt-1">{resumen.quejasRegistradas}</p>
+          <p className="text-2xl font-bold text-amber-600 mt-1">{dashboard.quejas_registradas}</p>
         </div>
         <div className="bg-white border border-slate-200 rounded-lg p-4">
           <p className="text-xs text-slate-500 uppercase tracking-wide">Planes de acción vencidos</p>
-          <p className="text-2xl font-bold text-rose-600 mt-1">{resumen.planesVencidos}</p>
+          <p className="text-2xl font-bold text-rose-600 mt-1">{dashboard.planes_vencidos}</p>
           <p className="text-xs text-slate-400 mt-0.5">sin resolver, con fecha límite pasada</p>
         </div>
       </div>
 
-      {/* Auditorías planificadas */}
       <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Planificaciones (estado actual)</h2>
       <div className="grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-3 mb-8">
-        {resumen.porEstadoPlanificacion.map((f) => (
+        {porEstadoPlanificacion.map((f) => (
           <div key={f.estado} className="bg-white border border-slate-200 rounded-lg p-4">
             <p className="text-xs text-slate-500 uppercase tracking-wide">{ETIQUETAS_PLANIF[f.estado]}</p>
             <p className="text-xl font-bold text-slate-800 mt-1">{f.cantidad}</p>
@@ -288,7 +124,6 @@ export default function AuditoriaDashboard({
         ))}
       </div>
 
-      {/* Auditorías con peor cumplimiento */}
       <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Auditorías con menor % de cumplimiento</h2>
       <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto mb-8">
         <table className="w-full text-sm">
@@ -303,12 +138,12 @@ export default function AuditoriaDashboard({
             </tr>
           </thead>
           <tbody>
-            {resumen.auditoriasPeorCumplimiento.length === 0 ? (
+            {dashboard.auditorias_peor_cumplimiento.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-4 py-3 text-slate-400">Sin datos para este período.</td>
               </tr>
             ) : (
-              resumen.auditoriasPeorCumplimiento.map((a) => (
+              dashboard.auditorias_peor_cumplimiento.map((a) => (
                 <tr key={a.id} className="border-b border-slate-100 last:border-0">
                   <td className="px-4 py-3 text-slate-600">{formatearFecha(a.fecha)}</td>
                   <td className="px-4 py-3 text-slate-800">{a.cliente}</td>
@@ -329,7 +164,6 @@ export default function AuditoriaDashboard({
         </table>
       </div>
 
-      {/* Conformidad por ítem */}
       <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Conformidad por ítem</h2>
       <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto mb-8">
         <table className="w-full text-sm">
@@ -341,12 +175,12 @@ export default function AuditoriaDashboard({
             </tr>
           </thead>
           <tbody>
-            {resumen.conformidadPorItem.length === 0 ? (
+            {dashboard.conformidad_por_item.length === 0 ? (
               <tr>
                 <td colSpan={3} className="px-4 py-3 text-slate-400">Sin datos para este período.</td>
               </tr>
             ) : (
-              resumen.conformidadPorItem.map((fila) => (
+              dashboard.conformidad_por_item.map((fila) => (
                 <tr key={fila.texto} className="border-b border-slate-100 last:border-0">
                   <td className="px-4 py-3 text-slate-800">{fila.texto}</td>
                   <td className="px-4 py-3">
@@ -368,7 +202,6 @@ export default function AuditoriaDashboard({
         </table>
       </div>
 
-      {/* Evolución mensual */}
       <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Evolución mensual</h2>
       <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto mb-8">
         <table className="w-full text-sm">
@@ -380,15 +213,15 @@ export default function AuditoriaDashboard({
             </tr>
           </thead>
           <tbody>
-            {resumen.evolucion.length === 0 ? (
+            {dashboard.evolucion.length === 0 ? (
               <tr>
                 <td colSpan={3} className="px-4 py-3 text-slate-400">Sin datos para este período.</td>
               </tr>
             ) : (
-              resumen.evolucion.map((fila) => (
+              dashboard.evolucion.map((fila) => (
                 <tr key={fila.mes} className="border-b border-slate-100 last:border-0">
                   <td className="px-4 py-3 text-slate-800">{fila.mes}</td>
-                  <td className="px-4 py-3 text-slate-600">{fila.cantidadAuditorias}</td>
+                  <td className="px-4 py-3 text-slate-600">{fila.cantidad_auditorias}</td>
                   <td className="px-4 py-3 text-slate-600">{formatearPorcentaje(fila.conformes, fila.total)}</td>
                 </tr>
               ))
@@ -397,7 +230,6 @@ export default function AuditoriaDashboard({
         </table>
       </div>
 
-      {/* Ranking de sitios por cumplimiento */}
       <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Sitios con peor % de cumplimiento</h2>
       <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto mb-8">
         <table className="w-full text-sm">
@@ -409,12 +241,12 @@ export default function AuditoriaDashboard({
             </tr>
           </thead>
           <tbody>
-            {resumen.rankingSitiosCumplimiento.length === 0 ? (
+            {dashboard.ranking_sitios_cumplimiento.length === 0 ? (
               <tr>
                 <td colSpan={3} className="px-4 py-3 text-slate-400">Sin datos para este período.</td>
               </tr>
             ) : (
-              resumen.rankingSitiosCumplimiento.map((fila) => (
+              dashboard.ranking_sitios_cumplimiento.map((fila) => (
                 <tr key={fila.nombre} className="border-b border-slate-100 last:border-0">
                   <td className="px-4 py-3 text-slate-800">{fila.nombre}</td>
                   <td className="px-4 py-3 text-slate-600">{formatearPorcentaje(fila.conformes, fila.total)}</td>
@@ -426,7 +258,6 @@ export default function AuditoriaDashboard({
         </table>
       </div>
 
-      {/* Ranking de sitios con más no conformidades */}
       <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Sitios con más no conformidades</h2>
       <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto mb-8">
         <table className="w-full text-sm">
@@ -437,12 +268,12 @@ export default function AuditoriaDashboard({
             </tr>
           </thead>
           <tbody>
-            {resumen.rankingSitiosCantidad.length === 0 ? (
+            {dashboard.ranking_sitios_cantidad.length === 0 ? (
               <tr>
                 <td colSpan={2} className="px-4 py-3 text-slate-400">Sin no conformidades en este período.</td>
               </tr>
             ) : (
-              resumen.rankingSitiosCantidad.map((fila) => (
+              dashboard.ranking_sitios_cantidad.map((fila) => (
                 <tr key={fila.nombre} className="border-b border-slate-100 last:border-0">
                   <td className="px-4 py-3 text-slate-800">{fila.nombre}</td>
                   <td className="px-4 py-3 text-rose-600 font-medium">{fila.cantidad}</td>
@@ -453,10 +284,9 @@ export default function AuditoriaDashboard({
         </table>
       </div>
 
-      {/* Planes de acción */}
       <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Planes de acción</h2>
       <div className="grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-3">
-        {resumen.porEstadoPlanAccion.map((f) => (
+        {porEstadoPlanAccion.map((f) => (
           <div key={f.estado} className="bg-white border border-slate-200 rounded-lg p-4">
             <p className="text-xs text-slate-500 uppercase tracking-wide">{ETIQUETAS_PLAN_ACCION[f.estado]}</p>
             <p className="text-xl font-bold text-slate-800 mt-1">{f.cantidad}</p>

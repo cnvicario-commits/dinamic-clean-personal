@@ -36,6 +36,19 @@ import {
 import { articleCreate,articleImportBody,articleUpdate,priceListBody,relationCreate,relationUpdate,supplierCreate,supplierUpdate } from './schemas/catalog.js'
 import { assignments as purchaseAssignments, importBody as purchaseImportBody, purchaseOrder, purchaseRequest, transition as purchaseTransition } from './schemas/purchases.js'
 import { resultsImport } from './schemas/results.js'
+import { crmCatalogCreate, crmCatalogUpdate, crmCreateFollowUp, crmCreateOpportunity, crmCreateProspect, crmTransition, crmUpdateOpportunity, crmUpdateProspect } from './schemas/crm.js'
+import {
+  actionCreate,
+  actionUpdate,
+  auditSubmit,
+  checklistActivate,
+  checklistCopy,
+  checklistCreate,
+  checklistUpdate,
+  planningBody,
+  planningCancel,
+  planningUpdate,
+} from './schemas/audits.js'
 
 /** Derive JSON Schema fragments from Zod response schemas. */
 function zodJsonSchema(schema: z.ZodType): Record<string, unknown> {
@@ -481,6 +494,316 @@ export const openApiDocument = {
     '/v1/results/{id}': { get: { summary:'Get monthly result detail', security: bearer, parameters:idParameter, responses:{'200':{description:'Result detail'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'},'404':{description:'Not found'}} } },
     '/v1/results/import/preview': { post: { summary:'Preview results import', security: bearer, requestBody:{required:true,content:{'application/json':{schema:zodJsonSchema(resultsImport)}}}, responses:{'200':{description:'Preview'},'400':{description:'Validation'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'}} } },
     '/v1/results/import/apply': { post: { summary:'Apply results import', security: bearer, requestBody:{required:true,content:{'application/json':{schema:zodJsonSchema(resultsImport)}}}, responses:{'200':{description:'Applied'},'400':{description:'Validation'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'},'409':{description:'Idempotency conflict'}} } },
+    '/v1/crm/opportunities': { get: { summary: 'List CRM opportunities', security: bearer, responses: { '200': { description: 'Paginated opportunities' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' } } }, post: { summary: 'Create opportunity and initial follow-up atomically', security: bearer, parameters: [{ name: 'Idempotency-Key', in: 'header', required: true, schema: { type: 'string' } }], requestBody: { required: true, content: { 'application/json': { schema: zodJsonSchema(crmCreateOpportunity) } } }, responses: { '201': { description: 'Created or idempotent replay' }, '400': { description: 'Validation' }, '409': { description: 'Idempotency conflict' } } } },
+    '/v1/crm/dashboard': { get: { summary: 'List CRM dashboard data for authenticated actor', security: bearer, responses: { '200': { description: 'Paginated opportunities, relevant follow-ups and views' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' } } } },
+    '/v1/crm/summary': { get: { summary: 'Get CRM summary aggregates over the complete filtered universe', security: bearer, responses: { '200': { description: 'Server-side summary aggregates' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' } } } },
+    '/v1/crm/opportunities/{id}': { get: { summary: 'Get CRM opportunity', security: bearer, parameters: idParameter, responses: { '200': { description: 'Opportunity' }, '404': { description: 'Not found' } } }, patch: { summary: 'Update opportunity and prospect atomically with optimistic concurrency', security: bearer, parameters: idParameter, requestBody: { required: true, content: { 'application/json': { schema: zodJsonSchema(crmUpdateOpportunity) } } }, responses: { '200': { description: 'Updated' }, '400': { description: 'Validation' }, '409': { description: 'Stale version' } } }, delete: { summary: 'Delete opportunity and DB-cascaded CRM history', security: bearer, parameters: idParameter, responses: { '204': { description: 'Deleted' }, '404': { description: 'Not found' } } } },
+    '/v1/crm/opportunities/{id}/state': { patch: { summary: 'Transition CRM opportunity state atomically with follow-up', security: bearer, parameters: idParameter, requestBody: { required: true, content: { 'application/json': { schema: zodJsonSchema(crmTransition) } } }, responses: { '200': { description: 'Transitioned' }, '400': { description: 'Validation' }, '409': { description: 'Stale version' } } } },
+    '/v1/crm/opportunities/{id}/follow-ups': { get: { summary: 'List opportunity follow-ups', security: bearer, parameters: idParameter, responses: { '200': { description: 'Paginated follow-ups' } } }, post: { summary: 'Create opportunity follow-up', security: bearer, parameters: idParameter, requestBody: { required: true, content: { 'application/json': { schema: zodJsonSchema(crmCreateFollowUp) } } }, responses: { '200': { description: 'Created' }, '400': { description: 'Validation' }, '404': { description: 'Opportunity not found' } } } },
+    '/v1/crm/opportunities/{id}/view': { put: { summary: 'Idempotently mark opportunity as viewed by caller', security: bearer, parameters: idParameter, responses: { '200': { description: 'View recorded' } } } },
+    '/v1/crm/catalogs': { get: { summary: 'Get CRM form catalogs', security: bearer, responses: { '200': { description: 'Catalogs' } } } },
+    '/v1/crm/prospects': { post: { summary: 'Create CRM prospect', security: bearer, requestBody: { required: true, content: { 'application/json': { schema: zodJsonSchema(crmCreateProspect) } } }, responses: { '201': { description: 'Created' }, '400': { description: 'Validation' } } } },
+    '/v1/crm/prospects/{id}': { patch: { summary: 'Update CRM prospect', security: bearer, parameters: idParameter, requestBody: { required: true, content: { 'application/json': { schema: zodJsonSchema(crmUpdateProspect) } } }, responses: { '200': { description: 'Updated' }, '400': { description: 'Validation' }, '404': { description: 'Not found' } } } },
+    '/v1/crm/{resource}': { get: { summary: 'List explicit CRM catalog resource', security: bearer, parameters: [{ name: 'resource', in: 'path', required: true, schema: { type: 'string', enum: ['tipos-cliente', 'tipos-servicio', 'referidores'] } }], responses: { '200': { description: 'Catalog items' } } }, post: { summary: 'Create explicit CRM catalog resource', security: bearer, parameters: [{ name: 'resource', in: 'path', required: true, schema: { type: 'string', enum: ['tipos-cliente', 'tipos-servicio', 'referidores'] } }], requestBody: { required: true, content: { 'application/json': { schema: zodJsonSchema(crmCatalogCreate) } } }, responses: { '201': { description: 'Created' }, '400': { description: 'Validation' }, '409': { description: 'Unique conflict' } } } },
+    '/v1/crm/{resource}/{id}/status': { patch: { summary: 'Set explicit CRM catalog active status', security: bearer, parameters: [{ name: 'resource', in: 'path', required: true, schema: { type: 'string', enum: ['tipos-cliente', 'tipos-servicio', 'referidores'] } }, ...idParameter], requestBody: { required: true, content: { 'application/json': { schema: zodJsonSchema(crmCatalogUpdate) } } }, responses: { '200': { description: 'Updated' }, '400': { description: 'Validation' }, '404': { description: 'Not found' } } } },
+    '/v1/audits/dashboard': {
+      get: {
+        summary: 'Server-side audit dashboard aggregates',
+        security: bearer,
+        parameters: [
+          { name: 'desde', in: 'query', required: false, schema: { type: 'string', format: 'date' } },
+          { name: 'hasta', in: 'query', required: false, schema: { type: 'string', format: 'date' } },
+        ],
+        responses: {
+          '200': { description: 'Dashboard aggregates' },
+          '400': { description: 'Invalid query' },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' },
+        },
+      },
+    },
+    '/v1/audits/catalogs': {
+      get: {
+        summary: 'Audit form catalogs (clients, sites, supervisors)',
+        security: bearer,
+        responses: {
+          '200': { description: 'Catalogs' },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' },
+        },
+      },
+    },
+    '/v1/audits/plannings': {
+      get: {
+        summary: 'List audit plannings',
+        security: bearer,
+        responses: {
+          '200': { description: 'Paginated plannings' },
+          '400': { description: 'Invalid query' },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' },
+        },
+      },
+      post: {
+        summary: 'Create audit planning',
+        security: bearer,
+        requestBody: { required: true, content: { 'application/json': { schema: zodJsonSchema(planningBody) } } },
+        responses: {
+          '201': { description: 'Created' },
+          '400': { description: 'Validation' },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' },
+        },
+      },
+    },
+    '/v1/audits/plannings/{id}': {
+      get: {
+        summary: 'Get audit planning for edit form',
+        security: bearer,
+        parameters: idParameter,
+        responses: {
+          '200': { description: 'Planning' },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' },
+          '404': { description: 'Not found' },
+        },
+      },
+      patch: {
+        summary: 'Update audit planning with optimistic concurrency',
+        security: bearer,
+        parameters: idParameter,
+        requestBody: { required: true, content: { 'application/json': { schema: zodJsonSchema(planningUpdate) } } },
+        responses: {
+          '200': { description: 'Updated' },
+          '400': { description: 'Validation' },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' },
+          '404': { description: 'Not found' },
+          '409': { description: 'Stale version or invalid state' },
+        },
+      },
+    },
+    '/v1/audits/plannings/{id}/cancel': {
+      post: {
+        summary: 'Cancel audit planning with optimistic concurrency',
+        security: bearer,
+        parameters: idParameter,
+        requestBody: { required: true, content: { 'application/json': { schema: zodJsonSchema(planningCancel) } } },
+        responses: {
+          '200': { description: 'Cancelled' },
+          '400': { description: 'Validation' },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' },
+          '404': { description: 'Not found' },
+          '409': { description: 'Stale version or invalid state' },
+        },
+      },
+    },
+    '/v1/audits': {
+      get: {
+        summary: 'List completed audits',
+        security: bearer,
+        parameters: [
+          { name: 'page', in: 'query', schema: { type: 'integer', minimum: 1 } },
+          { name: 'pageSize', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 100 } },
+          { name: 'supervisorId', in: 'query', schema: { type: 'string', format: 'uuid' } },
+          { name: 'desde', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'hasta', in: 'query', schema: { type: 'string', format: 'date' } },
+        ],
+        responses: {
+          '200': { description: 'Paginated audits with no_conformidades counts' },
+          '400': { description: 'Invalid query' },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' },
+        },
+      },
+      post: {
+        summary: 'Submit completed audit with responses (idempotent)',
+        security: bearer,
+        parameters: [{ name: 'Idempotency-Key', in: 'header', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: zodJsonSchema(auditSubmit) } } },
+        responses: {
+          '201': { description: 'Created or idempotent replay' },
+          '400': { description: 'Validation' },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' },
+          '404': { description: 'Related entity not found' },
+          '409': { description: 'Idempotency or validation conflict' },
+        },
+      },
+    },
+    '/v1/audits/{id}': {
+      get: {
+        summary: 'Get audit detail with responses and action plans',
+        security: bearer,
+        parameters: idParameter,
+        responses: {
+          '200': { description: 'Audit detail' },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' },
+          '404': { description: 'Not found' },
+        },
+      },
+    },
+    '/v1/audits/{id}/actions': {
+      get: {
+        summary: 'List action plans for one audit',
+        security: bearer,
+        parameters: idParameter,
+        responses: {
+          '200': { description: 'Actions' },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' },
+          '404': { description: 'Audit not found' },
+        },
+      },
+      post: {
+        summary: 'Create action plan for an audit',
+        security: bearer,
+        parameters: idParameter,
+        requestBody: { required: true, content: { 'application/json': { schema: zodJsonSchema(actionCreate) } } },
+        responses: {
+          '201': { description: 'Created' },
+          '400': { description: 'Validation' },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' },
+          '404': { description: 'Not found' },
+          '409': { description: 'Response belongs to another audit' },
+        },
+      },
+    },
+    '/v1/audit-actions': {
+      get: {
+        summary: 'Global action-plan follow-up list',
+        security: bearer,
+        parameters: [
+          { name: 'page', in: 'query', schema: { type: 'integer', minimum: 1 } },
+          { name: 'pageSize', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 100 } },
+          { name: 'estado', in: 'query', schema: { type: 'string', enum: ['pendiente', 'en_curso', 'resuelto'] } },
+          { name: 'responsableId', in: 'query', schema: { type: 'string', format: 'uuid' } },
+          { name: 'vencidos', in: 'query', schema: { type: 'boolean' } },
+          { name: 'q', in: 'query', schema: { type: 'string' } },
+        ],
+        responses: {
+          '200': { description: 'Paginated actions' },
+          '400': { description: 'Invalid query' },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' },
+        },
+      },
+    },
+    '/v1/audit-actions/{id}': {
+      patch: {
+        summary: 'Update action plan with optimistic concurrency',
+        security: bearer,
+        parameters: idParameter,
+        requestBody: { required: true, content: { 'application/json': { schema: zodJsonSchema(actionUpdate) } } },
+        responses: {
+          '200': { description: 'Updated' },
+          '400': { description: 'Validation' },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' },
+          '404': { description: 'Not found' },
+          '409': { description: 'Stale version' },
+        },
+      },
+    },
+    '/v1/audit-checklists': {
+      get: {
+        summary: 'List checklist templates',
+        security: bearer,
+        responses: {
+          '200': { description: 'Templates' },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' },
+        },
+      },
+      post: {
+        summary: 'Create inactive checklist template with items',
+        security: bearer,
+        requestBody: { required: true, content: { 'application/json': { schema: zodJsonSchema(checklistCreate) } } },
+        responses: {
+          '201': { description: 'Created' },
+          '400': { description: 'Validation' },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' },
+        },
+      },
+    },
+    '/v1/audit-checklists/active': {
+      get: {
+        summary: 'Get active checklist template with ordered items',
+        security: bearer,
+        responses: {
+          '200': { description: 'Active template' },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' },
+          '404': { description: 'No active template' },
+        },
+      },
+    },
+    '/v1/audit-checklists/{id}': {
+      get: {
+        summary: 'Get checklist template detail with ordered items',
+        security: bearer,
+        parameters: idParameter,
+        responses: {
+          '200': { description: 'Template detail' },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' },
+          '404': { description: 'Not found' },
+        },
+      },
+      patch: {
+        summary: 'Replace checklist items atomically (rejects historical templates)',
+        security: bearer,
+        parameters: idParameter,
+        requestBody: { required: true, content: { 'application/json': { schema: zodJsonSchema(checklistUpdate) } } },
+        responses: {
+          '200': { description: 'Updated' },
+          '400': { description: 'Validation' },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' },
+          '404': { description: 'Not found' },
+          '409': { description: 'Stale version or historical template' },
+        },
+      },
+    },
+    '/v1/audit-checklists/{id}/copy': {
+      post: {
+        summary: 'Copy checklist template to a new inactive version (idempotent)',
+        security: bearer,
+        parameters: [
+          ...idParameter,
+          { name: 'Idempotency-Key', in: 'header', required: true, schema: { type: 'string' } },
+        ],
+        requestBody: { required: true, content: { 'application/json': { schema: zodJsonSchema(checklistCopy) } } },
+        responses: {
+          '201': { description: 'Created or idempotent replay' },
+          '400': { description: 'Validation' },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' },
+          '404': { description: 'Source not found' },
+          '409': { description: 'Idempotency conflict' },
+        },
+      },
+    },
+    '/v1/audit-checklists/{id}/activate': {
+      post: {
+        summary: 'Activate checklist template (single-active DB trigger)',
+        security: bearer,
+        parameters: idParameter,
+        requestBody: { required: true, content: { 'application/json': { schema: zodJsonSchema(checklistActivate) } } },
+        responses: {
+          '200': { description: 'Activated' },
+          '400': { description: 'Validation' },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' },
+          '404': { description: 'Not found' },
+          '409': { description: 'Stale version' },
+        },
+      },
+    },
     '/v1/users/{id}/enable': {
       post: {
         summary: 'Enable user (lift Auth ban)',

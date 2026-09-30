@@ -1,6 +1,6 @@
 'use client'
 import { useEffect } from 'react'
-import { createClient } from '@/utils/supabase/client'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 
 // Componente invisible: al entrar a la ficha, marca la oportunidad como
 // "vista ahora" por el usuario actual. Es lo que usa src/utils/novedades.ts
@@ -10,13 +10,8 @@ export default function MarcarOportunidadVista({ oportunidadId }: { oportunidadI
   useEffect(() => {
     let cancelado = false
     async function marcar() {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user || cancelado) return
-      await supabase.from('crm_vistas').upsert(
-        { oportunidad_id: oportunidadId, usuario_id: user.id, last_viewed_at: new Date().toISOString() },
-        { onConflict: 'oportunidad_id,usuario_id' }
-      )
+      if (cancelado) return
+      try { const api=await createAuthenticatedBrowserApiClient(); if(!cancelado) await api.markCrmOpportunityViewed(oportunidadId) } catch { /* non-blocking */ }
     }
     marcar()
     return () => {

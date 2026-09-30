@@ -1,16 +1,12 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
-import type { EstadoPlanAccion, PlanAccionSeguimiento } from '@/types/auditoria'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
+import type { AuditAction } from '@/lib/api/generated'
 
 type Perfil = { id: string; nombre_completo: string }
-
-function hoyISO() {
-  const hoy = new Date()
-  return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`
-}
+type EstadoPlanAccion = AuditAction['estado']
 
 function formatearFecha(fecha: string | null) {
   if (!fecha) return '-'
@@ -32,50 +28,55 @@ const COLORES_ESTADO: Record<EstadoPlanAccion, string> = {
 export default function SeguimientoPlanesAccion({
   planes,
   responsables,
+  total,
+  filters,
 }: {
-  planes: PlanAccionSeguimiento[]
+  planes: AuditAction[]
   responsables: Perfil[]
+  total: number
+  filters: {
+    estado: '' | EstadoPlanAccion
+    responsableId: string
+    vencidos: boolean
+    q: string
+  }
 }) {
-  const [busqueda, setBusqueda] = useState('')
-  const [filtroEstado, setFiltroEstado] = useState<'' | EstadoPlanAccion>('')
-  const [filtroResponsable, setFiltroResponsable] = useState('')
-  const [soloVencidos, setSoloVencidos] = useState(false)
   const [cambiandoId, setCambiandoId] = useState<string | null>(null)
+  const [busquedaLocal, setBusquedaLocal] = useState(filters.q)
 
   const router = useRouter()
-  const supabase = createClient()
-  const hoy = hoyISO()
+  const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date())
 
-  const filtrados = useMemo(() => {
-    const q = busqueda.trim().toLowerCase()
-    return planes
-      .filter((p) => {
-        if (!q) return true
-        const cliente = p.auditorias?.cliente_domicilios?.clientes?.nombre ?? ''
-        const sitio = p.auditorias?.cliente_domicilios?.alias ?? ''
-        return (
-          cliente.toLowerCase().includes(q) ||
-          sitio.toLowerCase().includes(q) ||
-          p.descripcion.toLowerCase().includes(q)
-        )
-      })
-      .filter((p) => !filtroEstado || p.estado === filtroEstado)
-      .filter((p) => !filtroResponsable || p.perfiles?.nombre_completo === filtroResponsable)
-      .filter((p) => !soloVencidos || (p.estado !== 'resuelto' && p.fecha_limite && p.fecha_limite < hoy))
-      .sort((a, b) => (a.fecha_limite ?? '9999').localeCompare(b.fecha_limite ?? '9999'))
-  }, [planes, busqueda, filtroEstado, filtroResponsable, soloVencidos, hoy])
+  function navegarFiltros(next: {
+    estado?: string
+    responsableId?: string
+    vencidos?: boolean
+    q?: string
+  }) {
+    const params = new URLSearchParams()
+    const estado = next.estado ?? filters.estado
+    const responsableId = next.responsableId ?? filters.responsableId
+    const vencidos = next.vencidos ?? filters.vencidos
+    const q = next.q ?? filters.q
+    if (estado) params.set('estado', estado)
+    if (responsableId) params.set('responsableId', responsableId)
+    if (vencidos) params.set('vencidos', 'true')
+    if (q.trim()) params.set('q', q.trim())
+    params.set('page', '1')
+    router.push(`/auditorias/seguimiento?${params.toString()}`)
+  }
 
-  async function cambiarEstado(planId: string, nuevoEstado: EstadoPlanAccion) {
-    setCambiandoId(planId)
-    const { error } = await supabase
-      .from('auditoria_plan_accion')
-      .update({ estado: nuevoEstado, fecha_resolucion: nuevoEstado === 'resuelto' ? hoy : null })
-      .eq('id', planId)
-    setCambiandoId(null)
-    if (error) {
-      alert('Error al cambiar el estado: ' + error.message)
+  async function cambiarEstado(plan: AuditAction, nuevoEstado: EstadoPlanAccion) {
+    setCambiandoId(plan.id)
+    try {
+      const api = await createAuthenticatedBrowserApiClient()
+      await api.updateAuditAction(plan.id, { estado: nuevoEstado, updatedAt: plan.updated_at })
+    } catch (err) {
+      setCambiandoId(null)
+      alert('Error al cambiar el estado: ' + (err instanceof Error ? err.message : 'No se pudo actualizar el plan'))
       return
     }
+    setCambiandoId(null)
     router.refresh()
   }
 
@@ -87,34 +88,52 @@ export default function SeguimientoPlanesAccion({
         <input
           type="text"
           placeholder="Buscar por cliente, sitio o descripción..."
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
+          value={busquedaLocal}
+          onChange={(e) => setBusquedaLocal(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') navegarFiltros({ q: busquedaLocal })
+          }}
+          onBlur={() => {
+            if (busquedaLocal.trim() !== filters.q) navegarFiltros({ q: busquedaLocal })
+          }}
           className={`${selectStyle} w-64`}
         />
-        <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value as '' | EstadoPlanAccion)} className={selectStyle}>
+        <select
+          value={filters.estado}
+          onChange={(e) => navegarFiltros({ estado: e.target.value })}
+          className={selectStyle}
+        >
           <option value="">Todos los estados</option>
           {(Object.keys(ETIQUETAS_ESTADO) as EstadoPlanAccion[]).map((e) => (
             <option key={e} value={e}>{ETIQUETAS_ESTADO[e]}</option>
           ))}
         </select>
-        <select value={filtroResponsable} onChange={(e) => setFiltroResponsable(e.target.value)} className={selectStyle}>
+        <select
+          value={filters.responsableId}
+          onChange={(e) => navegarFiltros({ responsableId: e.target.value })}
+          className={selectStyle}
+        >
           <option value="">Todos los responsables</option>
           {responsables.map((r) => (
-            <option key={r.id} value={r.nombre_completo}>{r.nombre_completo}</option>
+            <option key={r.id} value={r.id}>{r.nombre_completo}</option>
           ))}
         </select>
         <label className="flex items-center gap-1.5 text-sm text-slate-600">
-          <input type="checkbox" checked={soloVencidos} onChange={(e) => setSoloVencidos(e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={filters.vencidos}
+            onChange={(e) => navegarFiltros({ vencidos: e.target.checked })}
+          />
           Solo vencidos
         </label>
       </div>
 
       <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
-        Planes de acción ({filtrados.length})
+        Planes de acción ({total})
       </h2>
 
       <div className="flex flex-col gap-2">
-        {filtrados.map((p) => {
+        {planes.map((p) => {
           const vencido = p.estado !== 'resuelto' && p.fecha_limite !== null && p.fecha_limite < hoy
           return (
             <div key={p.id} className={`bg-white border rounded-lg p-3 ${vencido ? 'border-rose-300' : 'border-slate-200'}`}>
@@ -132,7 +151,7 @@ export default function SeguimientoPlanesAccion({
                 </div>
                 <select
                   value={p.estado}
-                  onChange={(e) => cambiarEstado(p.id, e.target.value as EstadoPlanAccion)}
+                  onChange={(e) => cambiarEstado(p, e.target.value as EstadoPlanAccion)}
                   disabled={cambiandoId === p.id}
                   className={`text-xs font-medium px-2 py-1 rounded-full border-0 shrink-0 ${COLORES_ESTADO[p.estado]}`}
                 >
@@ -152,7 +171,7 @@ export default function SeguimientoPlanesAccion({
           )
         })}
       </div>
-      {filtrados.length === 0 && (
+      {planes.length === 0 && (
         <p className="text-slate-500 text-sm mt-3">No hay planes de acción que coincidan.</p>
       )}
     </div>

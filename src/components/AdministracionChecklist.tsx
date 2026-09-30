@@ -2,8 +2,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/utils/supabase/client'
-import type { ChecklistPlantilla, ChecklistItem } from '@/types/auditoria'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
+import { ApiClientError, type AuditChecklist, type AuditChecklistItem } from '@/lib/api/generated'
 
 function formatearFecha(fecha: string) {
   return new Date(`${fecha}T00:00:00`).toLocaleDateString('es-AR')
@@ -15,17 +15,29 @@ type ItemEdicion = { id: string | null; texto: string; eliminado: boolean }
 
 const inputStyle = 'w-full px-2 py-1 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-teal-500'
 
+function mensajeErrorChecklist(err: unknown): string {
+  if (err instanceof ApiClientError) {
+    if (err.status === 409 && /historical/i.test(err.message)) {
+      return 'Esta plantilla ya se usó en auditorías y no se puede editar. Creá una nueva versión a partir de la activa (copiar versión).'
+    }
+    if (err.status === 409 && /modified by another user/i.test(err.message)) {
+      return 'La plantilla fue modificada por otro usuario. Recargá la página e intentá de nuevo.'
+    }
+    return err.message
+  }
+  return err instanceof Error ? err.message : 'No se pudo completar la operación'
+}
+
 export default function AdministracionChecklist({
   plantillas,
   plantillaSeleccionada,
   items,
 }: {
-  plantillas: ChecklistPlantilla[]
-  plantillaSeleccionada: ChecklistPlantilla | null
-  items: ChecklistItem[]
+  plantillas: AuditChecklist[]
+  plantillaSeleccionada: (AuditChecklist & { items?: AuditChecklistItem[] }) | null
+  items: AuditChecklistItem[]
 }) {
   const router = useRouter()
-  const supabase = createClient()
 
   const [itemsEdicion, setItemsEdicion] = useState<ItemEdicion[]>(
     items.map((it) => ({ id: it.id, texto: it.texto, eliminado: false }))
@@ -42,9 +54,12 @@ export default function AdministracionChecklist({
   // Cambiar de plantilla (o volver a cargar la seleccionada) descarta la
   // edición en curso: se resetea con la prop cuando cambia.
   const idActual = plantillaSeleccionada?.id ?? null
+  const updatedAtActual = plantillaSeleccionada?.updated_at ?? null
   const [idSincronizado, setIdSincronizado] = useState(idActual)
-  if (idActual !== idSincronizado) {
+  const [updatedAtSincronizado, setUpdatedAtSincronizado] = useState(updatedAtActual)
+  if (idActual !== idSincronizado || updatedAtActual !== updatedAtSincronizado) {
     setIdSincronizado(idActual)
+    setUpdatedAtSincronizado(updatedAtActual)
     setItemsEdicion(items.map((it) => ({ id: it.id, texto: it.texto, eliminado: false })))
     setError('')
     setCreandoVersion(false)
@@ -89,37 +104,32 @@ export default function AdministracionChecklist({
   }
 
   async function guardarCambios() {
-    if (!plantillaSeleccionada) return
+    if (!plantillaSeleccionada?.updated_at) return
     setError('')
     if (itemsVisibles.some((it) => !it.texto.trim())) {
       setError('Hay ítems sin texto — completalos o eliminalos antes de guardar.')
       return
     }
+    if (itemsVisibles.length === 0) {
+      setError('La plantilla debe tener al menos un ítem.')
+      return
+    }
     setGuardando(true)
 
-    const aBorrar = itemsEdicion.filter((it) => it.eliminado && it.id).map((it) => it.id as string)
-    if (aBorrar.length) {
-      const { error: errBorrar } = await supabase.from('auditoria_checklist_items').delete().in('id', aBorrar)
-      if (errBorrar) {
-        setError('Error al borrar ítems: ' + errBorrar.message)
-        setGuardando(false)
-        return
-      }
-    }
-
-    const filas = itemsVisibles.map((it, i) => ({
-      ...(it.id ? { id: it.id } : {}),
-      plantilla_id: plantillaSeleccionada.id,
-      orden: i + 1,
-      texto: it.texto.trim(),
-    }))
-    if (filas.length) {
-      const { error: errUpsert } = await supabase.from('auditoria_checklist_items').upsert(filas)
-      if (errUpsert) {
-        setError('Error al guardar ítems: ' + errUpsert.message)
-        setGuardando(false)
-        return
-      }
+    try {
+      const api = await createAuthenticatedBrowserApiClient()
+      await api.updateAuditChecklist(plantillaSeleccionada.id, {
+        updatedAt: plantillaSeleccionada.updated_at,
+        items: itemsVisibles.map((it, i) => ({
+          ...(it.id ? { id: it.id } : {}),
+          orden: i + 1,
+          texto: it.texto.trim(),
+        })),
+      })
+    } catch (err) {
+      setError(mensajeErrorChecklist(err))
+      setGuardando(false)
+      return
     }
 
     setGuardando(false)
@@ -127,7 +137,7 @@ export default function AdministracionChecklist({
   }
 
   async function activarVersion() {
-    if (!plantillaSeleccionada) return
+    if (!plantillaSeleccionada?.updated_at) return
     if (
       !confirm(
         `Vas a activar "${plantillaSeleccionada.version}". Pasa a ser la versión que se usa para las auditorías nuevas. ¿Confirmás?`
@@ -137,12 +147,13 @@ export default function AdministracionChecklist({
     }
     setError('')
     setActivando(true)
-    const { error: errActivar } = await supabase
-      .from('auditoria_checklist_plantillas')
-      .update({ activa: true })
-      .eq('id', plantillaSeleccionada.id)
-    if (errActivar) {
-      setError('Error al activar: ' + errActivar.message)
+    try {
+      const api = await createAuthenticatedBrowserApiClient()
+      await api.activateAuditChecklist(plantillaSeleccionada.id, {
+        updatedAt: plantillaSeleccionada.updated_at,
+      })
+    } catch (err) {
+      setError(mensajeErrorChecklist(err))
       setActivando(false)
       return
     }
@@ -159,39 +170,20 @@ export default function AdministracionChecklist({
     setError('')
     setCreando(true)
 
-    const { data: nueva, error: errNueva } = await supabase
-      .from('auditoria_checklist_plantillas')
-      .insert({
-        codigo_formulario: plantillaSeleccionada.codigo_formulario,
-        version: nuevaVersion.trim(),
-        vigencia_desde: nuevaVigencia,
-        activa: false,
-      })
-      .select('id')
-      .single()
-    if (errNueva || !nueva) {
-      setError('Error al crear la versión: ' + errNueva?.message)
+    try {
+      const api = await createAuthenticatedBrowserApiClient()
+      const { response: nueva } = await api.copyAuditChecklist(
+        plantillaSeleccionada.id,
+        { version: nuevaVersion.trim(), vigenciaDesde: nuevaVigencia },
+        crypto.randomUUID(),
+      )
       setCreando(false)
-      return
+      router.push(`/auditorias/checklist?plantilla=${nueva.id}`)
+      router.refresh()
+    } catch (err) {
+      setError(mensajeErrorChecklist(err))
+      setCreando(false)
     }
-
-    const itemsNuevos = itemsVisibles.map((it, i) => ({
-      plantilla_id: nueva.id,
-      orden: i + 1,
-      texto: it.texto,
-    }))
-    if (itemsNuevos.length) {
-      const { error: errItems } = await supabase.from('auditoria_checklist_items').insert(itemsNuevos)
-      if (errItems) {
-        setError('Se creó la versión, pero falló copiar los ítems: ' + errItems.message)
-        setCreando(false)
-        return
-      }
-    }
-
-    setCreando(false)
-    router.push(`/auditorias/checklist?plantilla=${nueva.id}`)
-    router.refresh()
   }
 
   return (

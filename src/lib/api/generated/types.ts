@@ -215,6 +215,64 @@ export type PurchaseRecord = Record<string,unknown>&{id:string;estado:string}
 export type ResultRow = { anio:number; mes:number; values:Record<string,number|null>; details:Array<{rubro:string;concepto:string;monto:number}> }
 export type ResultsImportBody = { rows:ResultRow[] }
 export type ResultRecord = Record<string,unknown>&{id:string;anio:number;mes:number}
+export type CrmCatalogItem = {id:string;nombre:string;activo?:boolean}
+export type CrmProspect = {id:string;nombre:string;tipo_cliente_id:string|null;contacto_nombre:string|null;telefono:string|null;email:string|null;referido_por_id:string|null;notas:string|null;created_at:string;updated_at:string|null}
+export type CrmOpportunity = Record<string,unknown>&{id:string;prospecto_id:string;estado:'en_seguimiento'|'aceptado'|'rechazado'|'en_espera';updated_at:string|null;created_at:string}
+export type CrmPage = {items:CrmOpportunity[];page:number;pageSize:number;total:number}
+export type CrmFollowUp = Record<string,unknown>&{id:string;oportunidad_id:string;created_at:string}
+export type CrmFollowUpPage = {items:CrmFollowUp[];page:number;pageSize:number;total:number}
+export type CrmDashboard = CrmPage&{seguimientos:CrmFollowUp[];vistas:Array<{oportunidad_id:string;last_viewed_at:string}>;novedades:Array<{oportunidadId:string;prospectoNombre:string;cantidad:number;usuarioNombreLibre:string|null;nota:string|null;creadoEn:string;perfiles:{nombre_completo:string}|null}>}
+export type CrmSummary = {totalCantidad:number;totalMonto:number;porEstado:Array<{estado:string;cantidad:number;monto:number}>;porTipoCliente:Array<{nombre:string;cantidad:number;monto:number}>;porReferidor:Array<{nombre:string;cantidad:number;monto:number}>;montoAceptado:number;tasaConversion:number|null;comisionTotal:number;comisionLiquidada:number;comisionPendiente:number}
+export type CrmListQuery = {page?:number;pageSize?:number;estado?:CrmOpportunity['estado'];responsableId?:string;prospectoId?:string;tipoClienteId?:string;tipoServicioId?:string;desde?:string;hasta?:string;search?:string;proximaFecha?:boolean;facturacion?:boolean;order?:'created'|'ingreso'|'agenda'|'facturacion'}
+export type CrmCreateProspectBody = {nombre:string;tipoClienteId?:string|null;contactoNombre?:string|null;telefono?:string|null;email?:string|null;referidoPorId?:string|null;notas?:string|null}
+export type CrmCreateOpportunityBody = {prospectoId:string;numeroReferencia?:string|null;fechaIngreso?:string;tipoServicioId?:string|null;cantidadPersonal?:number|null;montoEstimado?:number|null;fechaEnvio?:string|null;comisionMonto?:number|null;comentarios?:string|null;responsableId:string;seguimientoInicial?:boolean}
+export type CrmUpdateOpportunityBody = {updatedAt:string;numeroReferencia?:string|null;tipoServicioId?:string|null;cantidadPersonal?:number|null;montoEstimado?:number|null;fechaEnvio?:string|null;fechaFacturacion?:string|null;comisionMonto?:number|null;comisionLiquidada?:boolean;comentarios?:string|null;prospecto?:Partial<CrmCreateProspectBody>}
+export type CrmTransitionBody = {estado:CrmOpportunity['estado'];updatedAt:string}
+export type CrmCreateFollowUpBody = {fechaContacto?:string;tipoContacto?:string|null;nota:string;proximaFechaSeguimiento?:string|null}
+export type CrmCatalogs = {prospectos:Array<{id:string;nombre:string}>;tiposServicio:CrmCatalogItem[];tiposCliente:CrmCatalogItem[];referidores:CrmCatalogItem[];responsables:Array<{id:string;nombre_completo:string}>}
+export type AuditPlanning = {id:string;alias_id:string;fecha_propuesta:string;horario_desde:string|null;horario_hasta:string|null;observaciones:string|null;supervisor_id:string;estado:'planificada'|'realizada'|'vencida'|'cancelada';updated_at:string;cliente_domicilios:{alias:string;direccion:string|null;clientes:{nombre:string}|null}|null;perfiles:{nombre_completo:string}|null}
+export type AuditPlanningPage = {items:AuditPlanning[];page:number;pageSize:number;total:number}
+export type AuditPlanningEdit = {id:string;alias_id:string;fecha_propuesta:string;horario_desde:string|null;horario_hasta:string|null;observaciones:string|null;supervisor_id:string;estado:AuditPlanning['estado'];updated_at:string;cliente_domicilios:{cliente_id:string;clientes:{id:string;nombre:string}|null}|null}
+export type AuditPlanningBody = {aliasId:string;fechaPropuesta:string;horarioDesde?:string|null;horarioHasta?:string|null;supervisorId:string;observaciones?:string|null}
+export type AuditPlanningUpdateBody = AuditPlanningBody & {updatedAt:string}
+export type AuditCancelPlanningBody = {updatedAt:string}
+export type AuditAnswerBody = {itemId:string;resultado:'conforme'|'no_conforme'|'no_aplica';observaciones?:string|null}
+export type AuditSubmitBody = {planificacionId?:string|null;aliasId:string;plantillaId:string;fechaRealizada:string;supervisorId:string;evaluacionGeneral?:string|null;proximaSupervisionFecha?:string|null;quejasComentariosCliente?:string|null;otros?:string|null;respuestas:AuditAnswerBody[]}
+export type Audit = {id:string;fecha_realizada:string;evaluacion_general:string|null;supervisor_id:string;no_conformidades:number;cliente_domicilios:{alias:string;direccion:string|null;clientes:{nombre:string}|null}|null;perfiles:{nombre_completo:string}|null}
+export type AuditPage = {items:Audit[];page:number;pageSize:number;total:number}
+export type AuditDetail = {id:string;alias_id:string;fecha_realizada:string;evaluacion_general:string|null;proxima_supervision_fecha:string|null;quejas_comentarios_cliente:string|null;otros:string|null;cliente_domicilios:{alias:string;direccion:string|null;clientes:{nombre:string}|null}|null;auditoria_checklist_plantillas:{codigo_formulario:string;version:string}|null;perfiles:{nombre_completo:string}|null;respuestas:Array<{id:string;resultado:AuditAnswerBody['resultado'];observaciones:string|null;item_id:string;auditoria_checklist_items:{orden:number;texto:string}|null}>;planes_accion:AuditAction[]}
+export type AuditAction = {id:string;auditoria_id:string;respuesta_id:string|null;descripcion:string;responsable_id:string|null;fecha_limite:string|null;estado:'pendiente'|'en_curso'|'resuelto';fecha_resolucion:string|null;created_at:string;updated_at:string;perfiles:{nombre_completo:string}|null;auditoria_respuestas:{auditoria_checklist_items:{texto:string}|null}|null;auditorias?:{fecha_realizada:string;cliente_domicilios:{alias:string;clientes:{nombre:string}|null}|null}|null}
+export type AuditActionPage = {items:AuditAction[];page:number;pageSize:number;total:number}
+export type AuditActionCreateBody = {respuestaId?:string|null;descripcion:string;responsableId?:string|null;fechaLimite?:string|null}
+export type AuditActionUpdateBody = {updatedAt:string;estado:AuditAction['estado'];responsableId?:string|null;fechaLimite?:string|null;descripcion?:string}
+export type AuditChecklistItem = {id:string;plantilla_id:string;orden:number;texto:string;created_at:string}
+export type AuditChecklist = {id:string;codigo_formulario:string;version:string;vigencia_desde:string;activa:boolean;created_at:string;updated_at:string}
+export type AuditChecklistDetail = AuditChecklist & {items:AuditChecklistItem[]}
+export type AuditChecklistCreateBody = {codigoFormulario:string;version:string;vigenciaDesde:string;items:Array<{id?:string;orden:number;texto:string}>}
+export type AuditChecklistUpdateBody = {updatedAt:string;items:Array<{id?:string;orden:number;texto:string}>}
+export type AuditChecklistCopyBody = {version:string;vigenciaDesde:string}
+export type AuditChecklistActivateBody = {updatedAt:string}
+export type AuditCatalogs = {clientes:Array<{id:string;nombre:string}>;domicilios:Array<{id:string;cliente_id:string;alias:string;direccion:string|null;activo:boolean}>;supervisores:Array<{id:string;nombre_completo:string}>}
+export type AuditDashboard = {
+  sitios_auditados:number
+  conformes:number
+  no_conformes:number
+  no_aplica:number
+  evaluables:number
+  conformidad_general:number|null
+  quejas_registradas:number
+  planes_vencidos:number
+  por_estado_planificacion:Array<{estado:'planificada'|'vencida'|'realizada'|'cancelada';cantidad:number}>
+  por_estado_plan_accion:Array<{estado:AuditAction['estado'];cantidad:number}>
+  conformidad_por_item:Array<{texto:string;conformes:number;no_conformes:number;total:number}>
+  evolucion:Array<{mes:string;cantidad_auditorias:number;conformes:number;no_conformes:number;total:number}>
+  ranking_sitios_cantidad:Array<{nombre:string;cantidad:number}>
+  ranking_sitios_cumplimiento:Array<{nombre:string;conformes:number;total:number;pct:number}>
+  auditorias_peor_cumplimiento:Array<{id:string;fecha:string;cliente:string;sitio:string;supervisor:string;total:number;pct:number}>
+}
+export type AuditPageQuery = {page?:number;pageSize?:number;supervisorId?:string;desde?:string;hasta?:string;q?:string}
+export type AuditActionListQuery = {page?:number;pageSize?:number;estado?:AuditAction['estado'];responsableId?:string;vencidos?:boolean;q?:string}
+export type AuditDashboardQuery = {desde?:string;hasta?:string}
 
 /** GET /v1/employees query (optional fields omitted when unset) */
 export type ListEmployeesQuery = {

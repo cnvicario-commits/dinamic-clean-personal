@@ -1,7 +1,8 @@
 import Link from 'next/link'
-import { createClient } from '@/utils/supabase/server'
+import { createAuthenticatedServerApiClient } from '@/lib/api/server'
+import { ApiClientError } from '@/lib/api/generated'
 import PlanAccionPanel from '@/components/PlanAccionPanel'
-import type { AuditoriaFicha, RespuestaFicha, PlanAccionItem, ResultadoRespuesta } from '@/types/auditoria'
+import type { ResultadoRespuesta } from '@/types/auditoria'
 
 function formatearFecha(fecha: string | null) {
   if (!fecha) return '-'
@@ -26,45 +27,30 @@ export default async function FichaAuditoriaPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const supabase = await createClient()
+  const api = await createAuthenticatedServerApiClient()
 
-  const { data: auditoriaRaw } = await supabase
-    .from('auditorias')
-    .select(
-      '*, cliente_domicilios(alias, direccion, clientes(nombre)), auditoria_checklist_plantillas(codigo_formulario, version), perfiles(nombre_completo)'
-    )
-    .eq('id', id)
-    .maybeSingle()
-  const auditoria = auditoriaRaw as unknown as AuditoriaFicha | null
-
-  if (!auditoria) {
-    return (
-      <div className="max-w-4xl mx-auto px-6 py-10">
-        <p className="text-slate-500 mb-4">Auditoría no encontrada.</p>
-        <Link href="/auditorias/planificacion" className="text-teal-600 hover:underline text-sm">
-          ← Volver a Planificación
-        </Link>
-      </div>
-    )
+  let auditoria
+  try {
+    auditoria = await api.getAudit(id)
+  } catch (err) {
+    if (err instanceof ApiClientError && err.status === 404) {
+      return (
+        <div className="max-w-4xl mx-auto px-6 py-10">
+          <p className="text-slate-500 mb-4">Auditoría no encontrada.</p>
+          <Link href="/auditorias/planificacion" className="text-teal-600 hover:underline text-sm">
+            ← Volver a Planificación
+          </Link>
+        </div>
+      )
+    }
+    throw err
   }
 
-  const [{ data: respuestasRaw }, { data: planesRaw }, { data: responsables }] = await Promise.all([
-    supabase
-      .from('auditoria_respuestas')
-      .select('*, auditoria_checklist_items(orden, texto)')
-      .eq('auditoria_id', id),
-    supabase
-      .from('auditoria_plan_accion')
-      .select('*, perfiles(nombre_completo), auditoria_respuestas(auditoria_checklist_items(texto))')
-      .eq('auditoria_id', id)
-      .order('created_at', { ascending: false }),
-    supabase.from('perfiles').select('id, nombre_completo').order('nombre_completo'),
-  ])
-
-  const respuestas = ((respuestasRaw ?? []) as unknown as RespuestaFicha[]).sort(
+  const catalogs = await api.getAuditCatalogs()
+  const respuestas = [...auditoria.respuestas].sort(
     (a, b) => (a.auditoria_checklist_items?.orden ?? 0) - (b.auditoria_checklist_items?.orden ?? 0)
   )
-  const planes = (planesRaw ?? []) as unknown as PlanAccionItem[]
+  const planes = auditoria.planes_accion
 
   const opcionesNoConformes = respuestas
     .filter((r) => r.resultado === 'no_conforme')
@@ -135,7 +121,7 @@ export default async function FichaAuditoriaPage({
       <PlanAccionPanel
         auditoriaId={auditoria.id}
         opcionesNoConformes={opcionesNoConformes}
-        responsables={responsables ?? []}
+        responsables={catalogs.supervisores}
         planes={planes}
       />
     </div>
