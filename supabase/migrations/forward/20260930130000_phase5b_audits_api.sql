@@ -1,5 +1,6 @@
 -- Phase 5B Audits: apply only after DB compatibility validation against approved runtime.
 begin;
+grant usage on schema public to dinamic_api;
 update public.auditoria_planificaciones set updated_at=created_at where updated_at is null;
 alter table public.auditoria_planificaciones alter column updated_at set default now();
 alter table public.auditoria_planificaciones alter column updated_at set not null;
@@ -17,5 +18,7 @@ create table if not exists public.audits_operation_idempotency (
 alter table public.audits_operation_idempotency enable row level security;
 revoke all on public.audits_operation_idempotency from anon,authenticated;
 grant select,insert,update,delete on public.audits_operation_idempotency to dinamic_api;
+drop policy if exists audits_operation_idempotency_dinamic_api_all on public.audits_operation_idempotency;
+create policy audits_operation_idempotency_dinamic_api_all on public.audits_operation_idempotency for all to dinamic_api using (true) with check (true);
 do $$ declare t text; begin foreach t in array array['auditoria_planificaciones','auditorias','auditoria_respuestas','auditoria_checklist_plantillas','auditoria_checklist_items','auditoria_plan_accion'] loop execute format('drop policy if exists %I on public.%I',t||'_authenticated_all',t);execute format('revoke insert,update,delete on public.%I from anon,authenticated',t);execute format('grant select,insert,update,delete on public.%I to dinamic_api',t);execute format('drop policy if exists %I on public.%I',t||'_dinamic_api_all',t);execute format('create policy %I on public.%I for all to dinamic_api using (true) with check (true)',t||'_dinamic_api_all',t);end loop;end $$;
 commit;
