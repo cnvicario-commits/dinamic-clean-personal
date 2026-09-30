@@ -125,7 +125,7 @@ export default function OportunidadForm({
         <div className="flex flex-col">
           <label className="text-xs text-slate-500 mb-1">Tipo de servicio</label>
           <SelectConCrear
-            tabla="crm_tipos_servicio"
+            recurso="tipos-servicio"
             items={tiposServicioState}
             value={tipoServicioId}
             onChange={(id, items) => {

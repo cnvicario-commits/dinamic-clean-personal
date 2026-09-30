@@ -63,7 +63,7 @@ export default function ProspectoForm({
         className={`flex-1 min-w-[200px] ${inputStyle}`}
       />
       <SelectConCrear
-        tabla="crm_tipos_cliente"
+        recurso="tipos-cliente"
         items={tiposClienteState}
         value={tipoClienteId}
         onChange={(id, items) => {
@@ -95,7 +95,7 @@ export default function ProspectoForm({
         className={`w-52 ${inputStyle}`}
       />
       <SelectConCrear
-        tabla="crm_referidores"
+        recurso="referidores"
         items={referidoresState}
         value={referidoPorId}
         onChange={(id, items) => {

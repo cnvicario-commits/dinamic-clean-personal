@@ -22,6 +22,7 @@ describe('openapi contract (Phase 1)', () => {
         '/v1/clients/{id}/quotes',
         '/v1/clients/{id}/quotes/{quoteId}',
         '/v1/clients/{id}/quotes/{quoteId}/download',
+        '/v1/crm/catalogs','/v1/crm/dashboard','/v1/crm/summary','/v1/crm/opportunities','/v1/crm/opportunities/{id}','/v1/crm/opportunities/{id}/follow-ups','/v1/crm/opportunities/{id}/state','/v1/crm/opportunities/{id}/view','/v1/crm/prospects','/v1/crm/prospects/{id}','/v1/crm/{resource}','/v1/crm/{resource}/{id}/status',
         '/v1/employees',
         '/v1/employees/{id}/status',
         '/v1/hr/catalogs',
@@ -95,5 +96,12 @@ describe('openapi contract (Phase 1)', () => {
     expect(openApiDocument.paths['/v1/clients/{id}/quotes/{quoteId}'].delete.responses['502']).toBeTruthy()
     expect(openApiDocument.components.schemas.ClientDetail).toBeTruthy()
     expect(openApiDocument.components.schemas.QuoteDownload).toBeTruthy()
+  })
+
+  it('documents the Phase 5A CRM surface and concurrency contract', () => {
+    expect(openApiDocument.paths['/v1/crm/opportunities'].post.parameters).toContainEqual(expect.objectContaining({ name: 'Idempotency-Key', in: 'header', required: true }))
+    expect(openApiDocument.paths['/v1/crm/opportunities/{id}'].patch.responses['409']).toBeTruthy()
+    expect(openApiDocument.paths['/v1/crm/opportunities/{id}/state'].patch.responses['409']).toBeTruthy()
+    expect(openApiDocument.paths['/v1/crm/{resource}'].post.responses['409']).toBeTruthy()
   })
 })

@@ -1,7 +1,7 @@
 'use client'
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
-import { createClient } from '@/utils/supabase/client'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 import { useRouter } from 'next/navigation'
 import type { EstadoPlanificacion, PlanificacionListado } from '@/types/auditoria'
 
@@ -57,7 +57,6 @@ export default function PlanificacionesTabla({
   const [cancelandoId, setCancelandoId] = useState<string | null>(null)
 
   const router = useRouter()
-  const supabase = createClient()
 
   const filtradas = useMemo(() => {
     return planificaciones
@@ -66,15 +65,18 @@ export default function PlanificacionesTabla({
       .sort((a, b) => a.fecha_propuesta.localeCompare(b.fecha_propuesta))
   }, [planificaciones, filtroEstado, filtroSupervisor])
 
-  async function cancelar(id: string) {
+  async function cancelar(planificacion: PlanificacionListado) {
     if (!confirm('¿Cancelar esta planificación de auditoría?')) return
-    setCancelandoId(id)
-    const { error } = await supabase.from('auditoria_planificaciones').update({ estado: 'cancelada' }).eq('id', id)
-    setCancelandoId(null)
-    if (error) {
-      alert('Error al cancelar: ' + error.message)
+    setCancelandoId(planificacion.id)
+    try {
+      const api = await createAuthenticatedBrowserApiClient()
+      await api.cancelAuditPlanning(planificacion.id, { updatedAt: planificacion.updated_at })
+    } catch (err) {
+      setCancelandoId(null)
+      alert('Error al cancelar: ' + (err instanceof Error ? err.message : 'No se pudo cancelar la planificación'))
       return
     }
+    setCancelandoId(null)
     router.refresh()
   }
 
@@ -138,7 +140,7 @@ export default function PlanificacionesTabla({
                         </Link>
                         <button
                           type="button"
-                          onClick={() => cancelar(p.id)}
+                          onClick={() => cancelar(p)}
                           disabled={cancelandoId === p.id}
                           className="text-rose-600 hover:underline disabled:opacity-50"
                         >

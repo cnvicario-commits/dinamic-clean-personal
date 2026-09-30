@@ -2,7 +2,8 @@
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { DndContext, useDraggable, useDroppable, type DragEndEvent } from '@dnd-kit/core'
-import { createClient } from '@/utils/supabase/client'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
+import { reconcileCrmTransition } from '@/utils/crm-transition'
 import BotonWhatsApp from './BotonWhatsApp'
 import { ESTADOS, nombreResponsable, type OportunidadVista, type EstadoOportunidad, type PerfilResumen, type CatalogoItem } from '@/types/crm'
 
@@ -109,7 +110,6 @@ export default function TableroVentas({
   const novedadesSet = useMemo(() => new Set(novedadesIds), [novedadesIds])
   const [filtroResponsable, setFiltroResponsable] = useState('')
   const [filtroTipoCliente, setFiltroTipoCliente] = useState('')
-  const supabase = createClient()
 
   const filtradas = useMemo(() => {
     let base = oportunidades
@@ -125,30 +125,25 @@ export default function TableroVentas({
     const oportunidadId = active.id as string
     const actual = oportunidades.find((o) => o.id === oportunidadId)
     if (!actual || actual.estado === nuevoEstado) return
-
-    // Update directo al toque (mismo criterio que el resto de la app para
-    // cambios de estado), con reversión visual si la base devuelve error.
-    setOportunidades((prev) => prev.map((o) => (o.id === oportunidadId ? { ...o, estado: nuevoEstado } : o)))
-    const { error } = await supabase.from('crm_oportunidades').update({ estado: nuevoEstado }).eq('id', oportunidadId)
-    if (error) {
-      setOportunidades((prev) => prev.map((o) => (o.id === oportunidadId ? { ...o, estado: actual.estado } : o)))
-      alert('Error al cambiar el estado: ' + error.message)
+    if (!actual.updated_at) {
+      alert('La oportunidad no tiene versión de concurrencia. Recargá la página o contactá a soporte.')
       return
     }
 
-    // Deja registro en el historial de seguimientos sin que haya que
-    // cargarlo a mano — así la ficha siempre muestra quién y cuándo movió
-    // la oportunidad de columna. Si esto falla no se avisa ni se revierte
-    // nada: el cambio de estado ya se guardó bien, que es lo importante.
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      const etiquetaAnterior = ESTADOS.find((e) => e.valor === actual.estado)?.etiqueta ?? actual.estado
-      const etiquetaNueva = ESTADOS.find((e) => e.valor === nuevoEstado)?.etiqueta ?? nuevoEstado
-      await supabase.from('crm_seguimientos').insert({
-        oportunidad_id: oportunidadId,
-        nota: `Estado cambiado de "${etiquetaAnterior}" a "${etiquetaNueva}".`,
-        usuario_id: user.id,
-      })
+    // Mantenemos la respuesta optimista, pero la reconciliamos con el recurso
+    // devuelto por el servidor: incluye updated_at V2 y campos derivados.
+    const previo = actual
+    setOportunidades((prev) => prev.map((o) => (o.id === oportunidadId ? { ...o, estado: nuevoEstado } : o)))
+    let error:unknown=null
+    try {
+      const api=await createAuthenticatedBrowserApiClient()
+      const response=await api.transitionCrmOpportunity(oportunidadId,{estado:nuevoEstado,updatedAt:actual.updated_at})
+      setOportunidades(prev => prev.map(o => o.id===oportunidadId ? reconcileCrmTransition(o,response) : o))
+    } catch (cause) { error=cause }
+    if (error) {
+      setOportunidades((prev) => prev.map((o) => (o.id === oportunidadId ? previo : o)))
+      alert('Error al cambiar el estado: ' + (error instanceof Error ? error.message : 'desconocido'))
+      return
     }
   }
 

@@ -1,16 +1,11 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 import type { EstadoPlanAccion, PlanAccionItem } from '@/types/auditoria'
 
 type OpcionNoConforme = { respuestaId: string; texto: string }
 type Perfil = { id: string; nombre_completo: string }
-
-function hoyISO() {
-  const hoy = new Date()
-  return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`
-}
 
 function formatearFecha(fecha: string | null) {
   if (!fecha) return '-'
@@ -51,7 +46,6 @@ export default function PlanAccionPanel({
   const [cambiandoId, setCambiandoId] = useState<string | null>(null)
 
   const router = useRouter()
-  const supabase = createClient()
 
   async function agregar() {
     setError('')
@@ -60,15 +54,16 @@ export default function PlanAccionPanel({
       return
     }
     setGuardando(true)
-    const { error: errInsert } = await supabase.from('auditoria_plan_accion').insert({
-      auditoria_id: auditoriaId,
-      respuesta_id: vinculo || null,
-      descripcion: descripcion.trim(),
-      responsable_id: responsableId || null,
-      fecha_limite: fechaLimite || null,
-    })
-    if (errInsert) {
-      setError('Error al guardar: ' + errInsert.message)
+    try {
+      const api = await createAuthenticatedBrowserApiClient()
+      await api.createAuditAction(auditoriaId, {
+        respuestaId: vinculo || null,
+        descripcion: descripcion.trim(),
+        responsableId: responsableId || null,
+        fechaLimite: fechaLimite || null,
+      })
+    } catch (err) {
+      setError('Error al guardar: ' + (err instanceof Error ? err.message : 'No se pudo guardar el plan'))
       setGuardando(false)
       return
     }
@@ -80,17 +75,17 @@ export default function PlanAccionPanel({
     router.refresh()
   }
 
-  async function cambiarEstado(planId: string, nuevoEstado: EstadoPlanAccion) {
-    setCambiandoId(planId)
-    const { error: errUpdate } = await supabase
-      .from('auditoria_plan_accion')
-      .update({ estado: nuevoEstado, fecha_resolucion: nuevoEstado === 'resuelto' ? hoyISO() : null })
-      .eq('id', planId)
-    setCambiandoId(null)
-    if (errUpdate) {
-      alert('Error al cambiar el estado: ' + errUpdate.message)
+  async function cambiarEstado(plan: PlanAccionItem, nuevoEstado: EstadoPlanAccion) {
+    setCambiandoId(plan.id)
+    try {
+      const api = await createAuthenticatedBrowserApiClient()
+      await api.updateAuditAction(plan.id, { estado: nuevoEstado, updatedAt: plan.updated_at })
+    } catch (err) {
+      setCambiandoId(null)
+      alert('Error al cambiar el estado: ' + (err instanceof Error ? err.message : 'No se pudo actualizar el plan'))
       return
     }
+    setCambiandoId(null)
     router.refresh()
   }
 
@@ -150,7 +145,7 @@ export default function PlanAccionPanel({
                 <p className="text-sm text-slate-800">{p.descripcion}</p>
                 <select
                   value={p.estado}
-                  onChange={(e) => cambiarEstado(p.id, e.target.value as EstadoPlanAccion)}
+                  onChange={(e) => cambiarEstado(p, e.target.value as EstadoPlanAccion)}
                   disabled={cambiandoId === p.id}
                   className={`text-xs font-medium px-2 py-1 rounded-full border-0 shrink-0 ${COLORES_ESTADO[p.estado]}`}
                 >

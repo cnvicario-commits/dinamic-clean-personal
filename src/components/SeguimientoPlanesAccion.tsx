@@ -2,15 +2,10 @@
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 import type { EstadoPlanAccion, PlanAccionSeguimiento } from '@/types/auditoria'
 
 type Perfil = { id: string; nombre_completo: string }
-
-function hoyISO() {
-  const hoy = new Date()
-  return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`
-}
 
 function formatearFecha(fecha: string | null) {
   if (!fecha) return '-'
@@ -43,8 +38,7 @@ export default function SeguimientoPlanesAccion({
   const [cambiandoId, setCambiandoId] = useState<string | null>(null)
 
   const router = useRouter()
-  const supabase = createClient()
-  const hoy = hoyISO()
+  const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date())
 
   const filtrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase()
@@ -65,17 +59,17 @@ export default function SeguimientoPlanesAccion({
       .sort((a, b) => (a.fecha_limite ?? '9999').localeCompare(b.fecha_limite ?? '9999'))
   }, [planes, busqueda, filtroEstado, filtroResponsable, soloVencidos, hoy])
 
-  async function cambiarEstado(planId: string, nuevoEstado: EstadoPlanAccion) {
-    setCambiandoId(planId)
-    const { error } = await supabase
-      .from('auditoria_plan_accion')
-      .update({ estado: nuevoEstado, fecha_resolucion: nuevoEstado === 'resuelto' ? hoy : null })
-      .eq('id', planId)
-    setCambiandoId(null)
-    if (error) {
-      alert('Error al cambiar el estado: ' + error.message)
+  async function cambiarEstado(plan: PlanAccionSeguimiento, nuevoEstado: EstadoPlanAccion) {
+    setCambiandoId(plan.id)
+    try {
+      const api = await createAuthenticatedBrowserApiClient()
+      await api.updateAuditAction(plan.id, { estado: nuevoEstado, updatedAt: plan.updated_at })
+    } catch (err) {
+      setCambiandoId(null)
+      alert('Error al cambiar el estado: ' + (err instanceof Error ? err.message : 'No se pudo actualizar el plan'))
       return
     }
+    setCambiandoId(null)
     router.refresh()
   }
 
@@ -132,7 +126,7 @@ export default function SeguimientoPlanesAccion({
                 </div>
                 <select
                   value={p.estado}
-                  onChange={(e) => cambiarEstado(p.id, e.target.value as EstadoPlanAccion)}
+                    onChange={(e) => cambiarEstado(p, e.target.value as EstadoPlanAccion)}
                   disabled={cambiandoId === p.id}
                   className={`text-xs font-medium px-2 py-1 rounded-full border-0 shrink-0 ${COLORES_ESTADO[p.estado]}`}
                 >
