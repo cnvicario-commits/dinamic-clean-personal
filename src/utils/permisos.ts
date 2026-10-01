@@ -4,7 +4,7 @@
 // (bloquea la navegación a rutas no permitidas) como en NavBar.tsx (oculta
 // los links que no correspondan).
 
-export type Rol = 'admin' | 'gerente' | 'compras' | 'supervisor' | 'auditoria'
+export type Rol = 'admin' | 'gerente' | 'compras' | 'supervisor' | 'auditoria' | 'ventas'
 
 export const ROLES: { valor: Rol; etiqueta: string }[] = [
   { valor: 'admin', etiqueta: 'Administrador' },
@@ -12,6 +12,7 @@ export const ROLES: { valor: Rol; etiqueta: string }[] = [
   { valor: 'compras', etiqueta: 'Compras' },
   { valor: 'supervisor', etiqueta: 'Supervisor' },
   { valor: 'auditoria', etiqueta: 'Auditoría' },
+  { valor: 'ventas', etiqueta: 'Ventas' },
 ]
 
 // Prefijo de ruta -> roles que pueden entrar. Se evalúa por startsWith, así
@@ -29,7 +30,9 @@ const RUTAS_PERMITIDAS: { prefijo: string; roles: Rol[] }[] = [
   { prefijo: '/clientes', roles: ['admin', 'gerente', 'compras'] },
   { prefijo: '/empresas', roles: ['admin', 'gerente'] },
   { prefijo: '/dashboard', roles: ['admin', 'gerente'] },
-  { prefijo: '/ventas', roles: ['admin', 'gerente'] },
+  // 'ventas' es un rol acotado a propósito: solo entra a /ventas/*, a ningún
+  // otro módulo (no aparece en ninguna otra entrada de esta lista).
+  { prefijo: '/ventas', roles: ['admin', 'gerente', 'ventas'] },
   // Administrar el checklist (crear/activar versiones) queda restringido a
   // admin/gerente/auditoria — va antes para matchear primero. El resto del
   // módulo (planificar, cargar auditorías, ver la ficha propia con su plan
