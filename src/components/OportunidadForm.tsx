@@ -18,6 +18,8 @@ export default function OportunidadForm({
   referidores,
   responsables,
   responsableFijo = null,
+  prospectoInicial = null,
+  leadId = null,
 }: {
   prospectos: Prospecto[]
   tiposServicio: CatalogoItem[]
@@ -29,11 +31,16 @@ export default function OportunidadForm({
   // responsable (ver src/app/ventas/nueva/page.tsx y la RLS de la migración
   // 0035_crm_ventas_rls_por_responsable.sql).
   responsableFijo?: PerfilResumen | null
+  // Cuando se viene de "Convertir a oportunidad" en un lead (ver
+  // DatosLead.tsx): precarga el prospecto ya elegido en el lead, y al
+  // guardar se marca ese lead como convertido (ver handleSubmit).
+  prospectoInicial?: Prospecto | null
+  leadId?: string | null
 }) {
   // Elegir un prospecto existente o crear uno nuevo al vuelo: mismo patrón
   // de dos modos excluyentes que ya usa PendientesTabla.tsx.
   const [modoProspecto, setModoProspecto] = useState<'buscar' | 'crear'>('buscar')
-  const [prospecto, setProspecto] = useState<Prospecto | null>(null)
+  const [prospecto, setProspecto] = useState<Prospecto | null>(prospectoInicial)
 
   const [numeroReferencia, setNumeroReferencia] = useState('')
   const [fechaIngreso, setFechaIngreso] = useState(() => new Date().toISOString().slice(0, 10))
@@ -96,6 +103,14 @@ export default function OportunidadForm({
         nota: 'Oportunidad creada.',
         usuario_id: user.id,
       })
+    }
+
+    // Si esto viene de "Convertir a oportunidad" en un lead, lo marca como
+    // convertido y lo enlaza con la oportunidad nueva (ver DatosLead.tsx y
+    // la RLS de crm_leads en la migración 0036). Si falla, no se avisa ni se
+    // revierte nada: la oportunidad ya se guardó bien, que es lo importante.
+    if (leadId) {
+      await supabase.from('crm_leads').update({ estado: 'convertido', oportunidad_id: data.id }).eq('id', leadId)
     }
 
     router.push(`/ventas/${data.id}`)
