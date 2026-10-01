@@ -17,12 +17,18 @@ export default function OportunidadForm({
   tiposCliente,
   referidores,
   responsables,
+  responsableFijo = null,
 }: {
   prospectos: Prospecto[]
   tiposServicio: CatalogoItem[]
   tiposCliente: CatalogoItem[]
   referidores: CatalogoItem[]
   responsables: PerfilResumen[]
+  // Cuando viene seteado (cualquier rol que no sea admin), la oportunidad se
+  // crea siempre a nombre de quien está logueado: no se puede elegir otro
+  // responsable (ver src/app/ventas/nueva/page.tsx y la RLS de la migración
+  // 0035_crm_ventas_rls_por_responsable.sql).
+  responsableFijo?: PerfilResumen | null
 }) {
   // Elegir un prospecto existente o crear uno nuevo al vuelo: mismo patrón
   // de dos modos excluyentes que ya usa PendientesTabla.tsx.
@@ -37,7 +43,7 @@ export default function OportunidadForm({
   const [montoEstimado, setMontoEstimado] = useState('')
   const [fechaEnvio, setFechaEnvio] = useState('')
   const [comisionMonto, setComisionMonto] = useState('')
-  const [responsableId, setResponsableId] = useState('')
+  const [responsableId, setResponsableId] = useState(responsableFijo?.id ?? '')
   const [comentarios, setComentarios] = useState('')
 
   const [error, setError] = useState('')
@@ -182,12 +188,16 @@ export default function OportunidadForm({
         </div>
         <div className="flex flex-col">
           <label className="text-xs text-slate-500 mb-1">Responsable</label>
-          <select value={responsableId} onChange={(e) => setResponsableId(e.target.value)} required className={`w-48 ${inputStyle}`}>
-            <option value="">Elegir responsable</option>
-            {responsables.map((r) => (
-              <option key={r.id} value={r.id}>{r.nombre_completo}</option>
-            ))}
-          </select>
+          {responsableFijo ? (
+            <p className={`w-48 ${inputStyle} bg-slate-50 text-slate-600 flex items-center`}>{responsableFijo.nombre_completo}</p>
+          ) : (
+            <select value={responsableId} onChange={(e) => setResponsableId(e.target.value)} required className={`w-48 ${inputStyle}`}>
+              <option value="">Elegir responsable</option>
+              {responsables.map((r) => (
+                <option key={r.id} value={r.id}>{r.nombre_completo}</option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 

@@ -4,6 +4,19 @@ import OportunidadForm from '@/components/OportunidadForm'
 
 export default async function NuevaOportunidadPage() {
   const supabase = await createClient()
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+
+  // Solo admin puede asignarle la oportunidad a cualquier perfil del
+  // sistema: el resto (gerente, ventas) la crea siempre a su propio nombre,
+  // porque con la RLS de crm_oportunidades (ver migración 0035) solo va a
+  // poder ver/editar después lo que le quede asignado a sí mismo.
+  const { data: miPerfil } = session
+    ? await supabase.from('perfiles').select('nombre_completo, rol').eq('id', session.user.id).single()
+    : { data: null }
+  const esAdmin = miPerfil?.rol === 'admin'
+
   const [
     { data: prospectos },
     { data: tiposServicio },
@@ -15,8 +28,13 @@ export default async function NuevaOportunidadPage() {
     supabase.from('crm_tipos_servicio').select('id, nombre').eq('activo', true).order('nombre'),
     supabase.from('crm_tipos_cliente').select('id, nombre').eq('activo', true).order('nombre'),
     supabase.from('crm_referidores').select('id, nombre').eq('activo', true).order('nombre'),
-    supabase.from('perfiles').select('id, nombre_completo').order('nombre_completo'),
+    esAdmin
+      ? supabase.from('perfiles').select('id, nombre_completo').order('nombre_completo')
+      : Promise.resolve({ data: [] as { id: string; nombre_completo: string }[] }),
   ])
+
+  const responsableFijo =
+    !esAdmin && session && miPerfil ? { id: session.user.id, nombre_completo: miPerfil.nombre_completo } : null
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-10">
@@ -30,6 +48,7 @@ export default async function NuevaOportunidadPage() {
         tiposCliente={tiposCliente ?? []}
         referidores={referidores ?? []}
         responsables={responsables ?? []}
+        responsableFijo={responsableFijo}
       />
     </div>
   )
