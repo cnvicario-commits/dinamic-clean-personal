@@ -31,6 +31,8 @@ export type {
   AttendanceItem,
   AttendanceResponse,
   AttendanceUpsert,
+  JustificationUploadBody,
+  JustificationDownload,
   BejermanReportData,
   OvertimeReportData,
   ClientRecord,

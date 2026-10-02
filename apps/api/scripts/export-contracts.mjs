@@ -302,9 +302,11 @@ export type HrCatalogsResponse = {
 export type HrCatalogInclude = 'employees' | 'clients' | 'employees,clients'
 export type AttendanceQuery = { page?: number; pageSize?: number; empleadoId?: string; desde?: string; hasta?: string }
 export type AttendanceCode = { codigo: string; descripcion: string; codigoBejerman: string | null; cuentaComoAusencia: boolean }
-export type AttendanceItem = { id:string; empleadoId:string; fecha:string; codigo:string; horasExtras:number; cargadoPor:string|null; createdAt:string; observaciones:string|null; archivoUrl:string|null; clienteDestinoId:string|null; clienteHorasExtraId:string|null; empleadoNombre:string|null }
+export type AttendanceItem = { id:string; empleadoId:string; fecha:string; codigo:string; horasExtras:number; cargadoPor:string|null; createdAt:string; observaciones:string|null; hasJustification:boolean; clienteDestinoId:string|null; clienteHorasExtraId:string|null; empleadoNombre:string|null }
 export type AttendanceResponse = { items: AttendanceItem[]; page:number; pageSize:number; total:number }
-export type AttendanceUpsert = { empleadoId:string; fecha:string; codigo:string; horasExtras?:number; observaciones?:string|null; archivoUrl?:string|null; clienteDestinoId?:string|null; clienteHorasExtraId?:string|null }
+export type AttendanceUpsert = { empleadoId:string; fecha:string; codigo:string; horasExtras?:number; observaciones?:string|null; clienteDestinoId?:string|null; clienteHorasExtraId?:string|null }
+export type JustificationUploadBody = { fileName:string; contentBase64:string }
+export type JustificationDownload = { url:string; expiresIn:number|null; fileName:string; legacy:boolean }
 export type BejermanReportData = { employees: {id:string;nombre_apellido:string;legajo:string|null;empresa:string|null}[]; assignments:{empleado_id:string;cliente_id:string}[]; clients:{id:string;nombre:string;codigo_costos:string|null}[]; attendance:{empleado_id:string;fecha:string;codigo:string}[] }
 export type OvertimeReportData = { attendance:{empleado_id:string;horas_extras:number;cliente_destino_id:string|null;cliente_horas_extra_id:string|null;nombre_apellido:string}[]; assignments:{empleado_id:string;cliente_id:string}[]; clients:{id:string;nombre:string}[] }
 
@@ -341,6 +343,8 @@ import type {
   AttendanceItem,
   AttendanceResponse,
   AttendanceUpsert,
+  JustificationUploadBody,
+  JustificationDownload,
   BejermanReportData,
   OvertimeReportData,
   MeResponse,
@@ -417,6 +421,9 @@ export type DinamicApiClient = {
   listAttendance: (query?: AttendanceQuery) => Promise<AttendanceResponse>
   listAttendanceCodes: () => Promise<AttendanceCode[]>
   upsertAttendance: (body: AttendanceUpsert) => Promise<AttendanceItem>
+  uploadAttendanceJustification: (attendanceId:string, body:JustificationUploadBody) => Promise<{attendanceId:string;hasJustification:boolean}>
+  getAttendanceJustificationDownload: (attendanceId:string) => Promise<JustificationDownload>
+  deleteAttendanceJustification: (attendanceId:string) => Promise<void>
   getBejermanReport: (from:string,to:string) => Promise<BejermanReportData>
   getOvertimeReport: (from:string,to:string) => Promise<OvertimeReportData>
   listUsers: () => Promise<UsersListResponse>
@@ -624,6 +631,15 @@ export function createDinamicApiClient(options: DinamicApiClientOptions): Dinami
     },
     listAttendanceCodes() { return requestJson<AttendanceCode[]>('/v1/attendance/codes') },
     upsertAttendance(body) { return requestJson<AttendanceItem>('/v1/attendance', { method: 'PUT', body: JSON.stringify(body) }) },
+    uploadAttendanceJustification(attendanceId, body) {
+      return requestJson<{attendanceId:string;hasJustification:boolean}>(\`/v1/attendance/\${attendanceId}/justification\`, { method: 'POST', body: JSON.stringify(body) })
+    },
+    getAttendanceJustificationDownload(attendanceId) {
+      return requestJson<JustificationDownload>(\`/v1/attendance/\${attendanceId}/justification/download\`)
+    },
+    deleteAttendanceJustification(attendanceId) {
+      return requestJson<void>(\`/v1/attendance/\${attendanceId}/justification\`, { method: 'DELETE', emptyResponse: true })
+    },
     getBejermanReport(from,to) { return requestJson<BejermanReportData>('/v1/hr/reports/bejerman',{query:{from,to}}) },
     getOvertimeReport(from,to) { return requestJson<OvertimeReportData>('/v1/hr/reports/overtime',{query:{from,to}}) },
     listUsers() {
@@ -744,6 +760,8 @@ export type {
   AttendanceItem,
   AttendanceResponse,
   AttendanceUpsert,
+  JustificationUploadBody,
+  JustificationDownload,
   BejermanReportData,
   OvertimeReportData,
   ClientRecord,

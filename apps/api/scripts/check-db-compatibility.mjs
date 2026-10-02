@@ -4,6 +4,10 @@ import { config as loadDotenv } from 'dotenv'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import pg from 'pg'
+import {
+  extractProjectRefFromDatabaseUrl,
+  extractSupabaseProjectRefFromUrl,
+} from './supabase-project-ref.mjs'
 
 const apiRoot = resolve(fileURLToPath(new URL('.', import.meta.url)), '..')
 const repoRoot = resolve(apiRoot, '../..')
@@ -22,14 +26,19 @@ if (!['test', 'staging', 'production'].includes(target ?? '')) fail('DB_COMPATIB
 const expected = (process.env.EXPECTED_SUPABASE_PROJECT_REF ?? '').trim().toLowerCase()
 const supabaseUrl = process.env.SUPABASE_URL ?? ''
 const databaseUrl = process.env.DATABASE_URL ?? ''
-const urlMatch = supabaseUrl.match(/^https:\/\/([a-z0-9]+)\.supabase\.co\/?$/i)
+const migrationsUrl = process.env.MIGRATIONS_DATABASE_URL ?? ''
+const supabaseRef = extractSupabaseProjectRefFromUrl(supabaseUrl)
 if (!expected) fail('EXPECTED_SUPABASE_PROJECT_REF is required')
-if (!urlMatch || urlMatch[1].toLowerCase() !== expected) fail('SUPABASE_URL project ref mismatch')
+if (!supabaseRef) fail('SUPABASE_URL must be https://<ref>.supabase.co')
+if (supabaseRef !== expected) fail('SUPABASE_URL project ref mismatch')
 if (!databaseUrl) fail('DATABASE_URL is required')
-const dbRefMatch = databaseUrl.match(/(?:postgresql:\/\/[^:@]*?\.|\.)([a-z0-9]+)(?:[:@]|\.pooler\.supabase)/i)
-const dbRef = (process.env.DATABASE_PROJECT_REF ?? dbRefMatch?.[1] ?? '').toLowerCase()
-if (!dbRef) fail('DATABASE_PROJECT_REF is required when DATABASE_URL does not encode project ref')
+const dbRef = (process.env.DATABASE_PROJECT_REF ?? extractProjectRefFromDatabaseUrl(databaseUrl) ?? '').toLowerCase()
+if (!dbRef) fail('DATABASE_URL project ref could not be parsed; set DATABASE_PROJECT_REF explicitly')
 if (dbRef !== expected) fail('DATABASE_URL project ref mismatch')
+if (migrationsUrl) {
+  const migrationsRef = extractProjectRefFromDatabaseUrl(migrationsUrl)
+  if (migrationsRef && migrationsRef !== expected) fail('MIGRATIONS_DATABASE_URL project ref mismatch')
+}
 if (process.exitCode) process.exit()
 
 const { loadEnv } = await import('../dist/config/env.js')

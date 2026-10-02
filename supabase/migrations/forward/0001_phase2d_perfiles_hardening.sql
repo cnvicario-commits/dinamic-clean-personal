@@ -70,18 +70,28 @@ BEGIN
   IF NOT COALESCE(rls_on, false) THEN
     EXECUTE 'ALTER TABLE public.perfiles ENABLE ROW LEVEL SECURITY';
   END IF;
+
+  -- Role attribute normalization (LOGIN, NOSUPERUSER, NOBYPASSRLS, …) lives in
+  -- supabase/ops/create_api_role.sql. Supabase hosted migration users cannot
+  -- ALTER ROLE on roles managed with elevated attributes; verify instead.
+  IF EXISTS (
+    SELECT 1 FROM pg_roles
+    WHERE rolname = 'dinamic_api'
+      AND (
+        NOT rolcanlogin
+        OR rolsuper
+        OR rolbypassrls
+        OR rolcreatedb
+        OR rolcreaterole
+        OR rolinherit
+        OR rolreplication
+      )
+  ) THEN
+    RAISE EXCEPTION
+      'Phase 2D precondition failed: dinamic_api role attributes drift — run supabase/ops/create_api_role.sql or fix role on host before re-applying';
+  END IF;
 END
 $$;
-
--- Normalize role attributes again (defense against drift)
-ALTER ROLE dinamic_api
-  LOGIN
-  NOSUPERUSER
-  NOCREATEDB
-  NOCREATEROLE
-  NOINHERIT
-  NOREPLICATION
-  NOBYPASSRLS;
 
 -- ---------------------------------------------------------------------------
 -- 1) Column-level grants for dinamic_api (no DELETE, no UPDATE on id/created_at)
