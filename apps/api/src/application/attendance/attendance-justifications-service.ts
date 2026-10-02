@@ -149,6 +149,7 @@ export function createAttendanceJustificationsService(
               operation: 'attendance_justification.upload',
               attendanceId: input.attendanceId,
               storagePath,
+              stage: 'metadata_update.storage_delete_compensation',
               originalErrorCode: error instanceof AppError ? error.code : 'unknown',
               compensationErrorCode:
                 compensationError instanceof AppError ? compensationError.code : 'unknown',
@@ -243,6 +244,7 @@ export function createAttendanceJustificationsService(
                 operation: 'attendance_justification.delete',
                 attendanceId: input.attendanceId,
                 storagePath: objectPath,
+                stage: 'storage_delete.metadata_restore_compensation',
                 originalErrorCode: error instanceof AppError ? error.code : 'unknown',
                 compensationErrorCode:
                   compensationError instanceof AppError ? compensationError.code : 'unknown',
