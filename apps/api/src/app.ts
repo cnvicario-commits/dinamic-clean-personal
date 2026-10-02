@@ -217,7 +217,13 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
     createAttendanceJustificationsService(
       app.attendanceRepo,
       app.attendanceJustificationsStorage,
-      (data, message) => app.log.info(data, message),
+      (data, message) => {
+        if (data.result === 'error') {
+          app.log.warn(data, message)
+        } else {
+          app.log.info(data, message)
+        }
+      },
     ),
   )
   app.decorate('hrReportsRepo', createHrReportsRepository(db))

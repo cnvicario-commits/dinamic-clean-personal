@@ -9,4 +9,12 @@ describe('hr reports repository',()=>{
   it('filters overtime and joins employee name',async()=>{
     const query=vi.fn().mockResolvedValue({rows:[]});const repo=createHrReportsRepository({query} as never);await repo.overtime('2026-09-01','2026-09-30');const sql=String(query.mock.calls[0][0]);expect(sql).toContain('horas_extras > 0');expect(sql).toContain('join public.empleados');expect(query.mock.calls[0][1]).toEqual(['2026-09-01','2026-09-30'])
   })
+  it('scopes Bejerman clients to active assignments and overtime helpers to period employees',async()=>{
+    const query=vi.fn().mockResolvedValue({rows:[]});const repo=createHrReportsRepository({query} as never)
+    await repo.bejerman('2026-09-01','2026-09-30')
+    expect(String(query.mock.calls[2][0])).toContain('exists')
+    await repo.overtime('2026-09-01','2026-09-30')
+    expect(String(query.mock.calls[5][0])).toContain('empleado_id in')
+    expect(String(query.mock.calls[6][0])).toContain('union')
+  })
 })
