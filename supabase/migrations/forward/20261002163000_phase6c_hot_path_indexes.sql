@@ -1,14 +1,9 @@
--- Phase 6C: indexes for Phase 6 hot paths (attendance list/export date filters, HR reports, active assignments).
+-- Phase 6C: hot-path index review (evidence-driven; no speculative indexes).
+-- Target DB inspection (2026-10-02): asistencias date-range list/count and Bejerman/overtime
+-- attendance extracts already use Bitmap Index Scan on asistencias_empleado_id_fecha_key
+-- for fecha bounds; a standalone idx_asistencias(fecha) would duplicate that access path.
+-- asignaciones active lookups (fecha_hasta IS NULL) showed Seq Scan at current volume (est_rows=0);
+-- partial (empleado_id, cliente_id) was not demonstrated to improve real report SQL and does not
+-- align with cliente_id-first EXISTS filters without measurement at representative row counts.
 BEGIN;
-
--- Range scans: GET /v1/attendance (desde/hasta), HR Bejerman/overtime attendance extracts.
--- UNIQUE (empleado_id, fecha) does not accelerate cross-employee fecha ranges.
-CREATE INDEX IF NOT EXISTS idx_asistencias_fecha
-  ON public.asistencias USING btree (fecha);
-
--- Active assignment lookups in HR reports and Bejerman client scoping.
-CREATE INDEX IF NOT EXISTS idx_asignaciones_active_empleado_cliente
-  ON public.asignaciones USING btree (empleado_id, cliente_id)
-  WHERE fecha_hasta IS NULL;
-
 COMMIT;
