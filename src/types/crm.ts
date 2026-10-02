@@ -94,16 +94,22 @@ export type OportunidadResumen = {
   id: string
   estado: EstadoOportunidad
   fecha_ingreso: string
+  // Se completa sola al pasar a aceptado/rechazado/en_espera (migración
+  // 0018) — es la fecha que usa el desglose mensual para "aceptadas en el
+  // mes" (no fecha_ingreso, que es cuando se cargó, no cuando se cerró).
+  fecha_cierre: string | null
   monto_estimado: number | null
   comision_monto: number | null
   comision_liquidada: boolean
   responsable_id: string | null
   responsable_nombre_libre: string | null
+  tipo_servicio_id: string | null
   crm_prospectos: {
     tipo_cliente_id: string | null
     crm_tipos_cliente: { nombre: string } | null
     crm_referidores: { nombre: string } | null
   } | null
+  crm_tipos_servicio: { nombre: string } | null
   perfiles: { nombre_completo: string } | null
 }
 
