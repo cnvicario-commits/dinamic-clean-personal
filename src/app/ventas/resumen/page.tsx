@@ -5,15 +5,16 @@ import type { OportunidadResumen } from '@/types/crm'
 export default async function ResumenVentasPage() {
   const supabase = await createClient()
 
-  const [{ data: oportunidades }, { data: responsables }, { data: tiposCliente }] = await Promise.all([
+  const [{ data: oportunidades }, { data: responsables }, { data: tiposCliente }, { data: tiposServicio }] = await Promise.all([
     supabase
       .from('crm_oportunidades')
       .select(
-        'id, estado, fecha_ingreso, monto_estimado, comision_monto, comision_liquidada, responsable_id, responsable_nombre_libre, crm_prospectos(tipo_cliente_id, crm_tipos_cliente(nombre), crm_referidores(nombre)), perfiles(nombre_completo)'
+        'id, estado, fecha_ingreso, fecha_cierre, monto_estimado, comision_monto, comision_liquidada, responsable_id, responsable_nombre_libre, tipo_servicio_id, crm_prospectos(tipo_cliente_id, crm_tipos_cliente(nombre), crm_referidores(nombre)), crm_tipos_servicio(nombre), perfiles(nombre_completo)'
       )
       .order('fecha_ingreso', { ascending: false }),
     supabase.from('perfiles').select('id, nombre_completo').order('nombre_completo'),
     supabase.from('crm_tipos_cliente').select('id, nombre').eq('activo', true).order('nombre'),
+    supabase.from('crm_tipos_servicio').select('id, nombre').eq('activo', true).order('nombre'),
   ])
 
   return (
@@ -23,6 +24,7 @@ export default async function ResumenVentasPage() {
         oportunidades={(oportunidades ?? []) as unknown as OportunidadResumen[]}
         responsables={responsables ?? []}
         tiposCliente={tiposCliente ?? []}
+        tiposServicio={tiposServicio ?? []}
       />
     </div>
   )

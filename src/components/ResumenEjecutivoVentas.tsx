@@ -1,6 +1,7 @@
 'use client'
 import { useState, useMemo } from 'react'
 import BotonImprimir from './BotonImprimir'
+import DesgloseMensualVentas from './DesgloseMensualVentas'
 import { ESTADOS, type OportunidadResumen, type PerfilResumen, type CatalogoItem } from '@/types/crm'
 
 function formatearMonto(valor: number): string {
@@ -16,10 +17,12 @@ export default function ResumenEjecutivoVentas({
   oportunidades,
   responsables,
   tiposCliente,
+  tiposServicio,
 }: {
   oportunidades: OportunidadResumen[]
   responsables: PerfilResumen[]
   tiposCliente: CatalogoItem[]
+  tiposServicio: CatalogoItem[]
 }) {
   const [fechaDesde, setFechaDesde] = useState('')
   const [fechaHasta, setFechaHasta] = useState('')
@@ -137,6 +140,15 @@ export default function ResumenEjecutivoVentas({
           <p className="text-xs text-slate-400 mt-0.5">aceptadas / (aceptadas + rechazadas)</p>
         </div>
       </div>
+
+      <DesgloseMensualVentas
+        oportunidades={oportunidades}
+        tiposServicio={tiposServicio}
+        responsables={responsables}
+        fechaDesde={fechaDesde}
+        fechaHasta={fechaHasta}
+        filtroResponsable={filtroResponsable}
+      />
 
       {/* Por estado */}
       <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Por estado</h2>
