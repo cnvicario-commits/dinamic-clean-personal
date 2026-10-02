@@ -28,6 +28,11 @@ import { createAssignmentsRepository, type AssignmentsRepository } from './infra
 import { createHrCatalogsRepository } from './infrastructure/db/hr-catalogs-repository.js'
 import { createAttendanceRepository } from './infrastructure/db/attendance-repository.js'
 import { createAttendanceService } from './application/attendance/attendance-service.js'
+import {
+  createAttendanceJustificationsStorage,
+  type AttendanceJustificationsStorage,
+} from './infrastructure/storage/attendance-justifications-storage.js'
+import { createAttendanceJustificationsService } from './application/attendance/attendance-justifications-service.js'
 import { createHrReportsRepository } from './infrastructure/db/hr-reports-repository.js'
 import { createHrReportsService } from './application/hr-reports/hr-reports-service.js'
 import { createClientsRepository, type ClientsRepository } from './infrastructure/db/clients-repository.js'
@@ -62,6 +67,8 @@ declare module 'fastify' {
     hrCatalogsRepo: ReturnType<typeof createHrCatalogsRepository>
     attendanceRepo: ReturnType<typeof createAttendanceRepository>
     attendanceService: ReturnType<typeof createAttendanceService>
+    attendanceJustificationsStorage: AttendanceJustificationsStorage
+    attendanceJustificationsService: ReturnType<typeof createAttendanceJustificationsService>
     hrReportsRepo: ReturnType<typeof createHrReportsRepository>
     hrReportsService: ReturnType<typeof createHrReportsService>
     clientsRepo: ClientsRepository
@@ -95,6 +102,8 @@ export type BuildAppOptions = {
   profilesRepo?: ProfilesRepository
   clientsRepo?: ClientsRepository
   clientQuotesStorage?: ClientQuotesStorage
+  attendanceRepo?: ReturnType<typeof createAttendanceRepository>
+  attendanceJustificationsStorage?: AttendanceJustificationsStorage
   catalogRepo?: CatalogRepository
   purchasesRepo?: PurchasesRepository
   resultsRepo?: ResultsRepository
@@ -197,8 +206,20 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
   app.decorate('employeesRepo', createEmployeesRepository(db))
   app.decorate('assignmentsRepo', createAssignmentsRepository(db))
   app.decorate('hrCatalogsRepo', createHrCatalogsRepository(db))
-  app.decorate('attendanceRepo', createAttendanceRepository(db))
+  app.decorate('attendanceRepo', options.attendanceRepo ?? createAttendanceRepository(db))
   app.decorate('attendanceService', createAttendanceService(app.attendanceRepo))
+  app.decorate(
+    'attendanceJustificationsStorage',
+    options.attendanceJustificationsStorage ?? createAttendanceJustificationsStorage(env),
+  )
+  app.decorate(
+    'attendanceJustificationsService',
+    createAttendanceJustificationsService(
+      app.attendanceRepo,
+      app.attendanceJustificationsStorage,
+      (data, message) => app.log.info(data, message),
+    ),
+  )
   app.decorate('hrReportsRepo', createHrReportsRepository(db))
   app.decorate('hrReportsService', createHrReportsService(app.hrReportsRepo))
   app.decorate('clientsRepo', options.clientsRepo ?? createClientsRepository(db))

@@ -36,6 +36,7 @@ import {
 import { articleCreate,articleImportBody,articleUpdate,priceListBody,relationCreate,relationUpdate,supplierCreate,supplierUpdate } from './schemas/catalog.js'
 import { assignments as purchaseAssignments, importBody as purchaseImportBody, purchaseOrder, purchaseRequest, transition as purchaseTransition } from './schemas/purchases.js'
 import { resultsImport } from './schemas/results.js'
+import { justificationDownloadSchema, justificationUploadBodySchema } from './schemas/attendance.js'
 import { crmCatalogCreate, crmCatalogUpdate, crmCreateFollowUp, crmCreateOpportunity, crmCreateProspect, crmTransition, crmUpdateOpportunity, crmUpdateProspect } from './schemas/crm.js'
 import {
   actionCreate,
@@ -349,6 +350,55 @@ export const openApiDocument = {
       put: { summary:'Create or update attendance', security: bearer, requestBody:{required:true,content:{'application/json':{schema:{type:'object',required:['empleadoId','fecha','codigo']}}}}, responses:{'200':{description:'Attendance'},'400':{description:'Invalid body/code'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'}} },
     },
     '/v1/attendance/codes': { get:{summary:'List attendance codes',security:bearer,responses:{'200':{description:'Codes'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'}}} },
+    '/v1/attendance/{id}/justification': {
+      post: {
+        summary: 'Upload attendance justification through backend-managed private storage',
+        security: bearer,
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/JustificationUploadBody' } } },
+        },
+        responses: {
+          '201': { description: 'Uploaded' },
+          '400': { description: 'Validation or unsupported file type' },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' },
+          '404': { description: 'Attendance not found' },
+          '413': { description: 'File exceeds 15 MB' },
+          '502': { description: 'Storage failure' },
+        },
+      },
+      delete: {
+        summary: 'Delete attendance justification',
+        security: bearer,
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        responses: {
+          '204': { description: 'Deleted' },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' },
+          '404': { description: 'Not found' },
+          '502': { description: 'Storage deletion failure' },
+        },
+      },
+    },
+    '/v1/attendance/{id}/justification/download': {
+      get: {
+        summary: 'Prepare short-lived download for attendance justification',
+        security: bearer,
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        responses: {
+          '200': {
+            description: 'Signed download or legacy URL',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/JustificationDownload' } } },
+          },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' },
+          '404': { description: 'Justification not found' },
+          '502': { description: 'Storage signing failure' },
+        },
+      },
+    },
     '/v1/hr/reports/bejerman': { get:{summary:'Bejerman report dataset',security:bearer,parameters:[{name:'from',in:'query',required:true,schema:{type:'string',format:'date'}},{name:'to',in:'query',required:true,schema:{type:'string',format:'date'}}],responses:{'200':{description:'Report dataset',content:{'application/json':{schema:{$ref:'#/components/schemas/BejermanReportData'}}}},'400':{description:'Invalid range'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'}}} },
     '/v1/hr/reports/overtime': { get:{summary:'Overtime report dataset',security:bearer,parameters:[{name:'from',in:'query',required:true,schema:{type:'string',format:'date'}},{name:'to',in:'query',required:true,schema:{type:'string',format:'date'}}],responses:{'200':{description:'Report dataset',content:{'application/json':{schema:{$ref:'#/components/schemas/OvertimeReportData'}}}},'400':{description:'Invalid range'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'}}} },
     '/v1/users': {
@@ -864,6 +914,8 @@ export const openApiDocument = {
       ClientQuote: { type:'object',required:['id','cliente_id','nombre_archivo','subido_por','created_at'],properties:{id:{type:'string',format:'uuid'},cliente_id:{type:'string',format:'uuid'},nombre_archivo:{type:'string'},subido_por:{type:['string','null'],format:'uuid'},subido_por_nombre:{type:['string','null']},created_at:{type:'string'}} },
       ClientDetail: { type:'object',required:['client','addresses','quotes'],properties:{client:{$ref:'#/components/schemas/ClientRecord'},addresses:{type:'array',items:{$ref:'#/components/schemas/ClientAddress'}},quotes:{type:'array',items:{$ref:'#/components/schemas/ClientQuote'}}} },
       QuoteDownload: { type:'object',required:['url','expiresIn','fileName'],properties:{url:{type:'string'},expiresIn:{type:'integer'},fileName:{type:'string'}} },
+      JustificationUploadBody: zodJsonSchema(justificationUploadBodySchema),
+      JustificationDownload: zodJsonSchema(justificationDownloadSchema),
       BejermanReportData: { type:'object',required:['employees','assignments','clients','attendance'],properties:{employees:{type:'array',items:{type:'object',required:['id','nombre_apellido','legajo','empresa'],properties:{id:{type:'string'},nombre_apellido:{type:'string'},legajo:{type:['string','null']},empresa:{type:['string','null']}}}},assignments:{type:'array',items:{type:'object',required:['empleado_id','cliente_id'],properties:{empleado_id:{type:'string'},cliente_id:{type:'string'}}}},clients:{type:'array',items:{type:'object',required:['id','nombre','codigo_costos'],properties:{id:{type:'string'},nombre:{type:'string'},codigo_costos:{type:['string','null']}}}},attendance:{type:'array',items:{type:'object',required:['empleado_id','fecha','codigo'],properties:{empleado_id:{type:'string'},fecha:{type:'string',format:'date'},codigo:{type:'string'}}}}}},
       OvertimeReportData: { type:'object',required:['attendance','assignments','clients'],properties:{attendance:{type:'array',items:{type:'object',required:['empleado_id','horas_extras','cliente_destino_id','cliente_horas_extra_id','nombre_apellido'],properties:{empleado_id:{type:'string'},horas_extras:{type:'number'},cliente_destino_id:{type:['string','null']},cliente_horas_extra_id:{type:['string','null']},nombre_apellido:{type:'string'}}}},assignments:{type:'array',items:{type:'object',required:['empleado_id','cliente_id'],properties:{empleado_id:{type:'string'},cliente_id:{type:'string'}}}},clients:{type:'array',items:{type:'object',required:['id','nombre'],properties:{id:{type:'string'},nombre:{type:'string'}}}}}},
       ResultsImportBody: zodJsonSchema(resultsImport),

@@ -23,6 +23,8 @@ import type {
   AttendanceItem,
   AttendanceResponse,
   AttendanceUpsert,
+  JustificationUploadBody,
+  JustificationDownload,
   BejermanReportData,
   OvertimeReportData,
   MeResponse,
@@ -99,6 +101,9 @@ export type DinamicApiClient = {
   listAttendance: (query?: AttendanceQuery) => Promise<AttendanceResponse>
   listAttendanceCodes: () => Promise<AttendanceCode[]>
   upsertAttendance: (body: AttendanceUpsert) => Promise<AttendanceItem>
+  uploadAttendanceJustification: (attendanceId:string, body:JustificationUploadBody) => Promise<{attendanceId:string;hasJustification:boolean}>
+  getAttendanceJustificationDownload: (attendanceId:string) => Promise<JustificationDownload>
+  deleteAttendanceJustification: (attendanceId:string) => Promise<void>
   getBejermanReport: (from:string,to:string) => Promise<BejermanReportData>
   getOvertimeReport: (from:string,to:string) => Promise<OvertimeReportData>
   listUsers: () => Promise<UsersListResponse>
@@ -306,6 +311,15 @@ export function createDinamicApiClient(options: DinamicApiClientOptions): Dinami
     },
     listAttendanceCodes() { return requestJson<AttendanceCode[]>('/v1/attendance/codes') },
     upsertAttendance(body) { return requestJson<AttendanceItem>('/v1/attendance', { method: 'PUT', body: JSON.stringify(body) }) },
+    uploadAttendanceJustification(attendanceId, body) {
+      return requestJson<{attendanceId:string;hasJustification:boolean}>(`/v1/attendance/${attendanceId}/justification`, { method: 'POST', body: JSON.stringify(body) })
+    },
+    getAttendanceJustificationDownload(attendanceId) {
+      return requestJson<JustificationDownload>(`/v1/attendance/${attendanceId}/justification/download`)
+    },
+    deleteAttendanceJustification(attendanceId) {
+      return requestJson<void>(`/v1/attendance/${attendanceId}/justification`, { method: 'DELETE', emptyResponse: true })
+    },
     getBejermanReport(from,to) { return requestJson<BejermanReportData>('/v1/hr/reports/bejerman',{query:{from,to}}) },
     getOvertimeReport(from,to) { return requestJson<OvertimeReportData>('/v1/hr/reports/overtime',{query:{from,to}}) },
     listUsers() {

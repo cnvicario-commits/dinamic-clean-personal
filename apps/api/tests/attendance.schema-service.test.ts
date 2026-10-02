@@ -14,7 +14,7 @@ describe('attendance schemas',()=>{
     expect(attendanceUpsertSchema.safeParse(valid).success).toBe(true)
     expect(attendanceUpsertSchema.safeParse({...valid,horasExtras:-1}).success).toBe(false)
     expect(attendanceUpsertSchema.safeParse({...valid,fecha:'2026-13-01'}).success).toBe(false)
-    expect(attendanceUpsertSchema.safeParse({...valid,archivoUrl:'bad'}).success).toBe(false)
+    expect(attendanceUpsertSchema.safeParse({...valid,archivoUrl:'https://example.com/x'}).success).toBe(false)
     expect(attendanceUpsertSchema.safeParse({...valid,unknown:true}).success).toBe(false)
   })
 })
