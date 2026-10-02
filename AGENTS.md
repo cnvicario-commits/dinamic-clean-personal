@@ -23,12 +23,13 @@ Enterprise system (200+ employees). Backend traditional API is mandatory.
 
 ## Slash commands (`.cursor/commands/`)
 
-- `/implementar` — stage-scoped implementation + tests + `review/` + `evidence/`
-- `/corregir` — explicit fix-list corrections only + scope control + review package
+- `/audit-dinamic-clean-stage` — read-only audit of a phase/subphase/feature/evidence
+- `/implement-dinamic-clean-stage` — implement only the named stage + focused validation + `review/` Git artifacts
+- `/fix-dinamic-clean-review` — triage and fix adversarial review findings only + regenerate `review/` artifacts
 
-Helper: `./scripts/review_working_tree.sh` (writes gitignored `review/` and `.review/`).
+Helper: `./scripts/review_working_tree.sh` (writes gitignored `review/` and `.review/`). Capture exits with `./scripts/capture_cmd_exit.sh`.
 
 ## Docs
 
 - `docs/cursor-development-workflow.md`
-- Enterprise rules in `.cursor/rules/*.mdc` (always apply)
+- Project rule: `.cursor/rules/dinamic-clean.mdc` (`alwaysApply: true`)
