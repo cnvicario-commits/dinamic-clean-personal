@@ -1,8 +1,10 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
 import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
+
+const TAMANIO_MAXIMO = 15 * 1024 * 1024
+const EXTENSIONES = /\.(pdf|jpe?g|png|webp|gif)$/i
 
 type Empleado = { id: string; nombre_apellido: string }
 type Cliente = { id: string; nombre: string }
@@ -46,7 +48,6 @@ export default function AusenciaForm({
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   const contenedorClienteRef = useRef<HTMLDivElement>(null)
   const contenedorEmpleadoRef = useRef<HTMLDivElement>(null)
@@ -128,35 +129,68 @@ export default function AusenciaForm({
     }
 
     setLoading(true)
-    let archivoUrl: string | null = null
-    if (archivo) {
-      const nombreArchivo = `${empleadoId}_${Date.now()}_${archivo.name}`
-      const { error: uploadError } = await supabase.storage
-        .from('justificaciones')
-        .upload(nombreArchivo, archivo)
-      if (uploadError) {
-        setError('Error al subir archivo: ' + uploadError.message)
+    try {
+      const api = await createAuthenticatedBrowserApiClient()
+      if (archivo) {
+        if (!EXTENSIONES.test(archivo.name)) {
+          setError('Solo se aceptan PDF o imágenes (JPEG, PNG, WebP, GIF).')
+          setLoading(false)
+          return
+        }
+        if (archivo.size > TAMANIO_MAXIMO) {
+          setError('El archivo no puede pesar más de 15 MB.')
+          setLoading(false)
+          return
+        }
+      }
+
+      let record
+      try {
+        record = await api.upsertAttendance({
+          empleadoId,
+          fecha,
+          codigo,
+          horasExtras: parseFloat(horasExtras) || 0,
+          observaciones,
+          clienteDestinoId: trabajoElDia ? (clienteDestinoId || null) : null,
+          clienteHorasExtraId: tieneHorasExtra ? (clienteHorasExtraId || null) : null,
+        })
+      } catch (e) {
+        setError(
+          'Error al guardar la novedad: ' + (e instanceof Error ? e.message : 'Error al guardar'),
+        )
         setLoading(false)
         return
       }
-      const { data: signedData } = await supabase.storage
-        .from('justificaciones')
-        .createSignedUrl(nombreArchivo, 60 * 60 * 24 * 365)
-      archivoUrl = signedData?.signedUrl || null
-    }
-    const { error: insertError } = await (async () => { try {
-      const api = await createAuthenticatedBrowserApiClient()
-      await api.upsertAttendance({
-        empleadoId, fecha, codigo, horasExtras: parseFloat(horasExtras) || 0,
-        observaciones, archivoUrl, clienteDestinoId: trabajoElDia ? (clienteDestinoId || null) : null,
-        clienteHorasExtraId: tieneHorasExtra ? (clienteHorasExtraId || null) : null,
-      }); return { error:null as {message:string}|null }
-    } catch (e) { return { error: { message: e instanceof Error ? e.message : 'Error al guardar' } } } })()
-    setLoading(false)
-    if (insertError) {
-      setError('Error al guardar: ' + insertError.message)
+
+      if (archivo) {
+        try {
+          const bytes = new Uint8Array(await archivo.arrayBuffer())
+          let binary = ''
+          for (let i = 0; i < bytes.length; i += 0x8000) {
+            binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+          }
+          await api.uploadAttendanceJustification(record.id, {
+            fileName: archivo.name,
+            contentBase64: btoa(binary),
+          })
+        } catch (e) {
+          setError(
+            'La novedad se guardó correctamente, pero no se pudo adjuntar el archivo: ' +
+              (e instanceof Error ? e.message : 'error desconocido') +
+              '. Podés volver a intentar con el mismo empleado y fecha.',
+          )
+          setLoading(false)
+          router.refresh()
+          return
+        }
+      }
+    } catch (e) {
+      setError('Error al guardar: ' + (e instanceof Error ? e.message : 'Error al guardar'))
+      setLoading(false)
       return
     }
+    setLoading(false)
     setEmpleadoId('')
     setBusqueda('')
     setFecha(fechaHoy())
@@ -344,8 +378,13 @@ export default function AusenciaForm({
       </div>
 
       <div>
-        <label className="text-sm text-slate-700 block mb-1">Justificación (opcional, foto o PDF)</label>
-        <input type="file" onChange={(e) => setArchivo(e.target.files?.[0] || null)} className="text-sm text-slate-700" />
+        <label className="text-sm text-slate-700 block mb-1">Justificación (opcional, foto o PDF, máx. 15 MB)</label>
+        <input
+          type="file"
+          accept="application/pdf,.pdf,image/jpeg,image/png,image/webp,image/gif"
+          onChange={(e) => setArchivo(e.target.files?.[0] || null)}
+          className="text-sm text-slate-700"
+        />
       </div>
 
       <button
