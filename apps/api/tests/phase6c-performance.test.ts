@@ -23,16 +23,8 @@ const phase6cSql = readFileSync(
 )
 
 describe('phase 6C hot-path indexes migration', () => {
-  it('adds fecha index for attendance date-range queries without duplicating empleado_fecha unique', () => {
-    expect(phase6cSql).toContain('idx_asistencias_fecha')
-    expect(phase6cSql).toMatch(
-      /CREATE INDEX IF NOT EXISTS idx_asistencias_fecha[\s\S]*ON public\.asistencias.*\(fecha\)/i,
-    )
-  })
-
-  it('adds partial index for active assignments used by HR reports', () => {
-    expect(phase6cSql).toContain('idx_asignaciones_active_empleado_cliente')
-    expect(phase6cSql).toContain('WHERE fecha_hasta IS NULL')
+  it('does not add speculative indexes without DB evidence', () => {
+    expect(phase6cSql).not.toMatch(/CREATE INDEX/i)
   })
 })
 
@@ -60,6 +52,21 @@ describe('phase 6C import limit observability', () => {
       },
       'import payload rejected by limit',
     )
+  })
+
+  it('does not log import_limit when a field max length is exceeded', () => {
+    const warn = vi.fn()
+    const req = {
+      id: 'req-field',
+      body: {
+        rows: [{ fila: 2, nombre: 'x'.repeat(501) }],
+      },
+      log: { warn },
+    }
+    expect(() =>
+      parseImportPayload(req as never, articleImportBody, 'articles.import', 'Invalid catalog payload'),
+    ).toThrow(/Invalid catalog payload/)
+    expect(warn).not.toHaveBeenCalled()
   })
 })
 
