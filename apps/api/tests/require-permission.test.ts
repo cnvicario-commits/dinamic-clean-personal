@@ -62,7 +62,7 @@ describe('requirePermission HTTP guard (canonical authorize)', () => {
   })
 
   it('E. guard outcomes match canonical authorize() for all role×permission pairs', async () => {
-    const roles: Role[] = ['admin', 'gerente', 'compras', 'supervisor', 'auditoria']
+    const roles: Role[] = ['admin', 'gerente', 'compras', 'supervisor', 'auditoria', 'ventas']
     const permissions: Permission[] = ['profile:read_self', 'employees:read']
     for (const permission of permissions) {
       const guard = requirePermission(permission)

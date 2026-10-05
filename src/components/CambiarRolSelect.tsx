@@ -1,9 +1,10 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ROLES, type Rol } from '@/utils/permisos'
+import type { Role } from '@/lib/api/generated/types'
+import { ROLES } from '@/utils/permisos'
 
-export default function CambiarRolSelect({ perfilId, rolActual }: { perfilId: string; rolActual: Rol | null }) {
+export default function CambiarRolSelect({ perfilId, rolActual }: { perfilId: string; rolActual: Role | null }) {
   const [rol, setRol] = useState(rolActual ?? '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')

@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import NavBar from "@/components/NavBar";
 import { createClient } from "@/utils/supabase/server";
-import type { Rol } from "@/utils/permisos";
+import type { Role } from '@/lib/api/generated/types'
 
 export const metadata: Metadata = {
   title: "Dinamic Clean",
@@ -29,14 +29,14 @@ export default async function RootLayout({
   const {
     data: { session },
   } = await supabase.auth.getSession();
-  let rol: Rol | null = null;
+  let rol: Role | null = null;
   if (session) {
     const { data: perfil } = await supabase
       .from("perfiles")
       .select("rol")
       .eq("id", session.user.id)
       .single();
-    rol = (perfil?.rol as Rol) ?? null;
+    rol = (perfil?.rol as Role) ?? null;
   }
 
   return (

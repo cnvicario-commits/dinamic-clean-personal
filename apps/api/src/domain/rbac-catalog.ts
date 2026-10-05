@@ -13,6 +13,7 @@ export const ROLES = Object.freeze([
   'compras',
   'supervisor',
   'auditoria',
+  'ventas',
 ] as const)
 
 export type Role = (typeof ROLES)[number]

@@ -2,24 +2,32 @@
 // autorización: cada dominio debe aplicar RBAC backend y RLS/grants propios.
 // Se usa tanto en src/proxy.ts (bloquea navegación) como en NavBar.tsx
 // (oculta los links que no correspondan).
+//
+// Roles: contrato generado desde apps/api (rbac-catalog). No redefinir uniones manuales.
 
-export type Rol = 'admin' | 'gerente' | 'compras' | 'supervisor' | 'auditoria' | 'ventas'
+import { GENERATED_ROLES, type Role } from '@/lib/api/generated/types'
 
-export const ROLES: { valor: Rol; etiqueta: string }[] = [
-  { valor: 'admin', etiqueta: 'Administrador' },
-  { valor: 'gerente', etiqueta: 'Gerente' },
-  { valor: 'compras', etiqueta: 'Compras' },
-  { valor: 'supervisor', etiqueta: 'Supervisor' },
-  { valor: 'auditoria', etiqueta: 'Auditoría' },
-  { valor: 'ventas', etiqueta: 'Ventas' },
-]
+/** Etiquetas de UI por rol — debe cubrir todos los GENERATED_ROLES (testeado en API). */
+export const ROLE_UI_METADATA: Record<Role, { etiqueta: string }> = {
+  admin: { etiqueta: 'Administrador' },
+  gerente: { etiqueta: 'Gerente' },
+  compras: { etiqueta: 'Compras' },
+  supervisor: { etiqueta: 'Supervisor' },
+  auditoria: { etiqueta: 'Auditoría' },
+  ventas: { etiqueta: 'Ventas' },
+}
+
+export const ROLES = GENERATED_ROLES.map((valor) => ({
+  valor,
+  etiqueta: ROLE_UI_METADATA[valor].etiqueta,
+}))
 
 // Prefijo de ruta -> roles que pueden entrar. Se evalúa por startsWith, así
 // que /pedidos-compra/nuevo o /pedidos-compra/123 quedan cubiertos por la
 // entrada de /pedidos-compra sin tener que listarlos aparte. El orden importa:
 // se usa la primera entrada cuyo prefijo matchee, por eso /pedidos-compra va
 // antes que nada que pudiera confundirse con el resto de Compras.
-const RUTAS_PERMITIDAS: { prefijo: string; roles: Rol[] }[] = [
+const RUTAS_PERMITIDAS: { prefijo: string; roles: Role[] }[] = [
   { prefijo: '/pedidos-compra', roles: ['admin', 'gerente', 'compras', 'supervisor'] },
   { prefijo: '/proveedores', roles: ['admin', 'gerente', 'compras'] },
   { prefijo: '/articulos', roles: ['admin', 'gerente', 'compras'] },
@@ -49,7 +57,7 @@ const RUTAS_PERMITIDAS: { prefijo: string; roles: Rol[] }[] = [
 
 // Rutas que no están en la tabla (/portal, /login, /sin-acceso) quedan
 // siempre permitidas: no son módulos con datos, son pantallas comunes.
-export function puedeAcceder(rol: Rol | null, pathname: string): boolean {
+export function puedeAcceder(rol: Role | null, pathname: string): boolean {
   const entrada = RUTAS_PERMITIDAS.find((r) => pathname.startsWith(r.prefijo))
   if (!entrada) return true
   if (!rol) return false // sin rol asignado: no entra a ningún módulo (fail closed)

@@ -70,7 +70,7 @@ describe('permission engine (Phase 2A)', () => {
   })
 
   it('11. authorize is the sole public policy (consistent allow/deny matrix)', () => {
-    const roles: Role[] = ['admin', 'gerente', 'compras', 'supervisor', 'auditoria']
+    const roles: Role[] = ['admin', 'gerente', 'compras', 'supervisor', 'auditoria', 'ventas']
     const permissions: Permission[] = ['profile:read_self', 'employees:read']
     for (const role of roles) {
       for (const permission of permissions) {

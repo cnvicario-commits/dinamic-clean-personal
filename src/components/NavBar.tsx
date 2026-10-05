@@ -3,7 +3,8 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import LogoutButton from './LogoutButton'
-import { puedeAcceder, type Rol } from '@/utils/permisos'
+import type { Role } from '@/lib/api/generated/types'
+import { puedeAcceder } from '@/utils/permisos'
 
 type Enlace = { href: string; label: string }
 type Grupo = { id: string; label: string; enlaces: Enlace[] }
@@ -80,7 +81,7 @@ function ChevronAbajo({ className = '' }: { className?: string }) {
   )
 }
 
-export default function NavBar({ rol }: { rol: Rol | null }) {
+export default function NavBar({ rol }: { rol: Role | null }) {
   const [abierto, setAbierto] = useState(false) // menú mobile (hamburguesa)
   const pathname = usePathname()
   const [gruposAbiertos, setGruposAbiertos] = useState<Set<string>>(() => {

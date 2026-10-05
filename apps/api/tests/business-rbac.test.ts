@@ -63,6 +63,7 @@ const CONFIRMED_PRODUCTIVE_GRANTS: Readonly<Record<Role, readonly Permission[]>>
     'purchase_requests:read','purchase_requests:create','purchase_requests:update','purchase_orders:read','purchase_orders:create','purchase_orders:update','warehouse_requests:read','warehouse_requests:create','warehouse_requests:update'],
   supervisor: ['profile:read_self', 'profile:update_self', 'audits:read','audits:create','audits:update'],
   auditoria: ['profile:read_self', 'profile:update_self', 'audits:read','audits:create','audits:update','audit_checklists:manage'],
+  ventas: ['profile:read_self', 'profile:update_self', 'crm:read', 'crm:create', 'crm:update'],
 }
 
 /** Catalog capabilities that must remain DENY for all roles until Phase 3+ confirms grants. */
@@ -118,6 +119,19 @@ describe('business RBAC catalog (Phase 2C corrections)', () => {
     expect(authorize({ role: 'auditoria' }, 'audits:create')).toBe(true)
     expect(authorize({ role: 'auditoria' }, 'audits:update')).toBe(true)
     expect(authorize({ role: 'auditoria' }, 'audit_checklists:manage')).toBe(true)
+  })
+
+  it('main-sync grants least-privilege CRM to ventas (no delete)', () => {
+    for (const permission of ['crm:read', 'crm:create', 'crm:update'] as const) {
+      expect(authorize({ role: 'ventas' }, permission)).toBe(true)
+    }
+    expect(authorize({ role: 'ventas' }, 'crm:delete')).toBe(false)
+    expect(authorize({ role: 'ventas' }, 'audits:read')).toBe(false)
+    expect(authorize({ role: 'ventas' }, 'audits:create')).toBe(false)
+    expect(authorize({ role: 'ventas' }, 'users:change_role')).toBe(false)
+    expect(authorize({ role: 'ventas' }, 'purchase_orders:read')).toBe(false)
+    expect(authorize({ role: 'ventas' }, 'clients:read')).toBe(false)
+    expect(authorize({ role: 'ventas' }, 'employees:read')).toBe(false)
   })
 
   it('finance permissions stay in catalog but DENY all roles (UI/RLS alone insufficient)', () => {

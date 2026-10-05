@@ -57,6 +57,7 @@ next-env.d.ts
 
 # Formal + local evidence / review dumps (generate locally; never commit)
 /evidence/
+/evidencia/
 /review/
 .review/
 review-working-tree.txt

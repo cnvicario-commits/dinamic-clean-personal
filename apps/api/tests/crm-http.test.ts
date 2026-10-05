@@ -53,6 +53,15 @@ describe('Phase 5A CRM HTTP/RBAC', () => {
     expect((await instance.inject({ method: 'DELETE', url: `/v1/crm/opportunities/${ID}`, headers })).statusCode).toBe(204)
   })
 
+  it('allows ventas to read, create and update CRM but denies delete', async () => {
+    const instance = await app('ventas')
+    const headers = await auth()
+    expect((await instance.inject({ method: 'GET', url: '/v1/crm/opportunities', headers })).statusCode).toBe(200)
+    expect((await instance.inject({ method: 'POST', url: '/v1/crm/prospects', headers, payload: { nombre: 'Prospecto' } })).statusCode).toBe(201)
+    expect((await instance.inject({ method: 'PATCH', url: `/v1/crm/opportunities/${ID}`, headers, payload: { updatedAt: opportunity.updated_at, comentarios: 'Cambio' } })).statusCode).toBe(200)
+    expect((await instance.inject({ method: 'DELETE', url: `/v1/crm/opportunities/${ID}`, headers })).statusCode).toBe(403)
+  })
+
   it.each(['compras', 'supervisor', 'auditoria'])('denies %s CRM operations', async role => {
     const instance = await app(role)
     const headers = await auth()

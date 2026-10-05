@@ -4,7 +4,8 @@ import UsuarioForm from '@/components/UsuarioForm'
 import CambiarRolSelect from '@/components/CambiarRolSelect'
 import CambiarPasswordBoton from '@/components/CambiarPasswordBoton'
 import UsuarioEstadoBoton from '@/components/UsuarioEstadoBoton'
-import { ROLES, type Rol } from '@/utils/permisos'
+import type { Role } from '@/lib/api/generated/types'
+import { ROLES } from '@/utils/permisos'
 import {
   ApiClientError,
   createDinamicApiClient,
@@ -106,7 +107,7 @@ export default async function UsuariosPage() {
                   <td className="px-4 py-3 text-slate-800">{p.nombreCompleto}</td>
                   <td className="px-4 py-3 text-slate-600">{p.email ?? '-'}</td>
                   <td className="px-4 py-3">
-                    <CambiarRolSelect perfilId={p.id} rolActual={(p.rol as Rol) ?? null} />
+                    <CambiarRolSelect perfilId={p.id} rolActual={(p.rol as Role) ?? null} />
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-col gap-1">

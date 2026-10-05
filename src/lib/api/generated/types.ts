@@ -10,6 +10,7 @@ export type Role =
   | 'compras'
   | 'supervisor'
   | 'auditoria'
+  | 'ventas'
 
 /** Permissions mirrored from apps/api/src/domain/rbac-catalog.ts */
 export type Permission =
@@ -73,6 +74,7 @@ export const GENERATED_ROLES = [
   'compras',
   'supervisor',
   'auditoria',
+  'ventas',
 ] as const
 
 export const GENERATED_PERMISSIONS = [
