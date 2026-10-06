@@ -1,17 +1,76 @@
-import { z } from 'zod'
-import { CATALOG_IMPORT_MAX_ROWS } from '../../domain/import-limits.js'
-const text=z.string().trim().max(500).nullable().optional().default(null)
-export const uuid=z.string().uuid()
-export const supplierCreate=z.object({razonSocial:z.string().trim().min(1).max(300),cuit:z.string().trim().min(1).max(50),domicilio:text,telefono:text,provincia:text,condicionPagoDefault:text}).strict()
-export const supplierUpdate=supplierCreate.partial().strict().refine(x=>Object.keys(x).length>0)
-export const articleCreate=z.object({codigoInterno:z.string().trim().max(100).optional(),nombre:z.string().trim().min(1).max(500),categoria:text,unidad:text,proveedorHabitualId:uuid.nullable().optional()}).strict()
-export const articleUpdate=articleCreate.partial().strict().refine(x=>Object.keys(x).length>0)
-export const relationCreate=z.object({proveedorId:uuid,codigoProveedor:z.string().trim().max(300).nullable().optional(),nombreProveedor:text,precio:z.number().finite().min(0),activo:z.boolean().optional()}).strict()
-export const relationUpdate=relationCreate.omit({proveedorId:true}).partial().strict().refine(x=>Object.keys(x).length>0)
-export const status=z.object({activo:z.boolean()}).strict()
-export const articleImportRow=z.object({fila:z.number().int().positive(),codigoInterno:z.string().trim().max(100).optional().default(''),nombre:z.string().trim().min(1).max(500),categoria:text,unidad:text}).strict()
-export const articleImportBody=z.object({rows:z.array(articleImportRow).min(1).max(CATALOG_IMPORT_MAX_ROWS)}).strict()
-export const priceRow=z.object({fila:z.number().int().positive(),codigoProveedor:z.string().trim().max(300),codigoInterno:z.string().trim().max(100).optional().default(''),nombreProveedor:z.string().trim().max(500),precio:z.number().finite().min(0)}).strict()
-export const priceListBody=z.object({proveedorId:uuid,archivoOrigen:z.string().trim().min(1).max(255),rows:z.array(priceRow).min(1).max(CATALOG_IMPORT_MAX_ROWS)}).strict()
-export const idempotencyKey=z.string().trim().min(1).max(255)
-export const resolvePendingBody=z.object({articuloId:uuid}).strict()
+import { z } from "zod";
+import { CATALOG_IMPORT_MAX_ROWS } from "../../domain/import-limits.js";
+const text = z.string().trim().max(500).nullable().optional().default(null);
+export const uuid = z.string().uuid();
+export const supplierCreate = z
+  .object({
+    razonSocial: z.string().trim().min(1).max(300),
+    cuit: z.string().trim().min(1).max(50),
+    domicilio: text,
+    telefono: text,
+    provincia: text,
+    condicionPagoDefault: text,
+  })
+  .strict();
+export const supplierUpdate = supplierCreate
+  .partial()
+  .strict()
+  .refine((x) => Object.keys(x).length > 0);
+export const articleCreate = z
+  .object({
+    codigoInterno: z.string().trim().max(100).optional(),
+    nombre: z.string().trim().min(1).max(500),
+    categoria: text,
+    unidad: text,
+    proveedorHabitualId: uuid.nullable().optional(),
+  })
+  .strict();
+export const articleUpdate = articleCreate
+  .partial()
+  .strict()
+  .refine((x) => Object.keys(x).length > 0);
+export const relationCreate = z
+  .object({
+    proveedorId: uuid,
+    codigoProveedor: z.string().trim().max(300).nullable().optional(),
+    nombreProveedor: text,
+    precio: z.number().finite().min(0),
+    activo: z.boolean().optional(),
+  })
+  .strict();
+export const relationUpdate = relationCreate
+  .omit({ proveedorId: true })
+  .partial()
+  .strict()
+  .refine((x) => Object.keys(x).length > 0);
+export const status = z.object({ activo: z.boolean() }).strict();
+export const articleImportRow = z
+  .object({
+    fila: z.number().int().positive(),
+    codigoInterno: z.string().trim().max(100).optional().default(""),
+    nombre: z.string().trim().min(1).max(500),
+    categoria: text,
+    unidad: text,
+  })
+  .strict();
+export const articleImportBody = z
+  .object({ rows: z.array(articleImportRow).min(1).max(CATALOG_IMPORT_MAX_ROWS) })
+  .strict();
+export const priceRow = z
+  .object({
+    fila: z.number().int().positive(),
+    codigoProveedor: z.string().trim().max(300),
+    codigoInterno: z.string().trim().max(100).optional().default(""),
+    nombreProveedor: z.string().trim().max(500),
+    precio: z.number().finite().min(0),
+  })
+  .strict();
+export const priceListBody = z
+  .object({
+    proveedorId: uuid,
+    archivoOrigen: z.string().trim().min(1).max(255),
+    rows: z.array(priceRow).min(1).max(CATALOG_IMPORT_MAX_ROWS),
+  })
+  .strict();
+export const idempotencyKey = z.string().trim().min(1).max(255);
+export const resolvePendingBody = z.object({ articuloId: uuid }).strict();
