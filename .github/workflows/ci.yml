@@ -22,7 +22,7 @@ jobs:
       - name: build
         run: npm run build
       - name: audit
-        run: npm audit --audit-level=critical
+        run: PYTHONPATH=scripts/audit python3 scripts/audit/check_frontend_npm_audit_gate.py
       - name: Secret scan (basic)
         run: |
           if rg -n "SUPABASE_SERVICE_ROLE_KEY\s*=\s*['\"]?eyJ|sb_secret_|service_role" --glob '!**/.env*' --glob '!**/node_modules/**' --glob '!**/*.lock' . ; then
