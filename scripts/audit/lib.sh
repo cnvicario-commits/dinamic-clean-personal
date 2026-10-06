@@ -222,6 +222,20 @@ run_npm_audit_json() {
   return 0
 }
 
+run_madge_circular() {
+  local workdir="$1"
+  local target="$2"
+  local extensions="$3"
+  local outfile="$4"
+  local status_name="$5"
+  local npm_cache="${AUDIT_RAW}/.npm-madge-cache"
+  mkdir -p "${npm_cache}"
+  run_optional_tool \
+    "cd '${workdir}' && npm_config_cache='${npm_cache}' npm exec --yes --package=madge@8.0.0 -- madge --circular --extensions ${extensions} ${target}" \
+    "${outfile}" \
+    "${status_name}"
+}
+
 run_optional_tool() {
   local tool_cmd="$1"
   local outfile="$2"

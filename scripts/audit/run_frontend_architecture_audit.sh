@@ -44,7 +44,7 @@ SOLID="${AUDIT_RAW}/frontend-solid-react-audit.md"
   fi
 } > "${COMPLEXITY}"
 
-run_optional_tool "cd '${FRONTEND_DIR}' && npx --yes madge --circular --extensions ts,tsx src" "${IMPORTS}" "frontend-circular-imports"
+run_madge_circular "${FRONTEND_DIR}" "src" "ts,tsx" "${IMPORTS}" "frontend-circular-imports"
 run_optional_tool "cd '${FRONTEND_DIR}' && npx --yes jscpd --min-lines 8 --min-tokens 60 --format 'typescript' --reporters 'console' src" "${DUP}" "frontend-duplication"
 run_optional_tool "cd '${FRONTEND_DIR}' && npx --yes ts-prune -p tsconfig.json" "${DEAD}" "frontend-dead-code"
 

@@ -49,7 +49,7 @@ DOMAIN="${AUDIT_RAW}/backend-domain-rules-audit.md"
   fi
 } > "${COMPLEXITY}"
 
-run_optional_tool "cd '${BACKEND_DIR}' && npx --yes madge --circular --extensions ts src" "${IMPORTS}" "backend-circular-imports"
+run_madge_circular "${BACKEND_DIR}" "src" "ts" "${IMPORTS}" "backend-circular-imports"
 run_optional_tool "cd '${BACKEND_DIR}' && npx --yes jscpd --min-lines 10 --min-tokens 70 --format 'typescript' --reporters 'console' src" "${DUP}" "backend-duplication"
 run_optional_tool "cd '${BACKEND_DIR}' && npx --yes ts-prune -p tsconfig.json" "${DEAD}" "backend-dead-code"
 

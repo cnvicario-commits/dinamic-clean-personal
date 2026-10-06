@@ -1,0 +1,18 @@
+{
+  "braces-dev-chain": {
+    "enabled": true,
+    "packages": [
+      "braces",
+      "eslint-config-next",
+      "@next/eslint-plugin-next",
+      "fast-glob",
+      "micromatch"
+    ],
+    "description": "Phase 1 dev-only eslint-config-next / braces chain (non-production runtime)"
+  },
+  "vitest-dev-toolchain": {
+    "enabled": true,
+    "packages": ["vitest", "tinypool", "@vitest/mocker"],
+    "description": "Vitest 5.0.3 (tinypool fix) conflicts with @types/node@20 peer; dev-only test runner. Attempted vitest@3.2.7 and vitest@5.0.3 install per npm audit — 5.x blocked by peer dependency."
+  }
+}

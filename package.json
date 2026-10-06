@@ -12,7 +12,7 @@
     "audit:summary": "python3 scripts/audit/generate_audit_summary.py",
     "audit:framework": "python3 scripts/audit/run_framework_audit.py --run-type full --print-summary",
     "test": "vitest run",
-    "test:audit-framework": "python3 -m unittest discover -s scripts/audit/framework/tests -p 'test_*.py' && python3 -m unittest discover -s scripts/audit/collectors/tests -p 'test_*.py'"
+    "test:audit-framework": "PYTHONPATH=scripts/audit python3 -m unittest discover -s scripts/audit/framework/tests -p 'test_*.py' && PYTHONPATH=scripts/audit python3 -m unittest discover -s scripts/audit/collectors/tests -p 'test_*.py' && PYTHONPATH=scripts/audit python3 -m unittest discover -s scripts/audit/tests -p 'test_*.py'"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -33,7 +33,7 @@
     "eslint-config-next": "16.3.8",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.7"
   },
   "overrides": {
     "sharp": "^0.35.5",

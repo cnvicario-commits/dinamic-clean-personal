@@ -534,21 +534,17 @@ def build_accepted_exceptions(sql_class: dict[str, int], checks: list[dict] | No
             )
     if checks:
         for check in checks:
-            if check.get("accepted_risk") == "braces-dev-chain":
-                info = check.get("npm_audit") or {}
-                counts = info.get("counts") or {}
+            for risk in check.get("accepted_risks") or []:
                 exceptions.append(
                     {
-                        "category": "braces-dev-chain",
-                        "id": "braces-dev-chain",
-                        "count": counts.get("high", 0),
-                        "description": (
-                            "Frontend npm audit highs from eslint-config-next dev toolchain "
-                            "(non-production dependency)"
-                        ),
-                        "severity": "high",
-                        "status": "ACCEPTED_RISK",
-                        "check": "frontend-npm-audit",
+                        "category": risk.get("id", "accepted-risk"),
+                        "id": risk.get("id"),
+                        "count": len(risk.get("packages") or []),
+                        "description": risk.get("description", ""),
+                        "severity": risk.get("severity", "high"),
+                        "status": risk.get("status", "ACCEPTED_RISK"),
+                        "check": check.get("check"),
+                        "packages": risk.get("packages"),
                     }
                 )
     return exceptions
@@ -843,7 +839,7 @@ def main() -> int:
             checks.append({"check": name, "status": "pass", "severity": "none", "message": "Passed"})
 
     checks = [enrich_check(c, root) for c in checks]
-    checks = apply_policy_overrides(checks)
+    checks = apply_policy_overrides(checks, root)
     areas = build_area_summary(checks)
     overall, max_sev = overall_status(areas, checks)
     blocking_status, blocking_count = compute_blocking_status(checks)

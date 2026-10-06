@@ -125,6 +125,10 @@ shopt -u nullglob
 echo "${RUN_TS}" > "${AUDIT_RAW}/LATEST_RUN.txt"
 log_info "Snapshot saved to ${SNAPSHOT_DIR}"
 
+if ! python3 "${SCRIPT_DIR}/write_phase4_final_evidence.py"; then
+  log_warn "write_phase4_final_evidence.py failed"
+fi
+
 if [[ "${AUDIT_STRICT:-0}" == "1" ]]; then
   # Strict gate is enforced by the npm script after this shell; still run diagnostic print
   python3 "${SCRIPT_DIR}/enforce_quality_gate.py" || true

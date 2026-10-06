@@ -22,39 +22,23 @@ if command -v semgrep >/dev/null 2>&1 && [[ ${#scan_paths[@]} -gt 0 ]]; then
   export SEMGREP_USER_LOG_FILE="${AUDIT_RAW}/semgrep-user.log"
   semgrep --version > "${SAST_LOG}" 2>&1 || true
   semgrep scan --config auto --config p/typescript --config p/nodejs --config p/security-audit \
-    --json --quiet "${scan_paths[@]}" > "${SAST_JSON}" 2>> "${SAST_LOG}"
-  sast_exit=$?
-  finding_count=0
-  if [[ -s "${SAST_JSON}" ]]; then
-    finding_count="$(SAST_JSON_PATH="${SAST_JSON}" python3 - <<'PY'
-import json
-import os
-from pathlib import Path
-p = Path(os.environ["SAST_JSON_PATH"])
-try:
-    data = json.loads(p.read_text(encoding="utf-8"))
-except json.JSONDecodeError:
-    print(-1)
-    raise SystemExit
-print(len(data.get("results") or []))
-PY
-)"
-  fi
-  if [[ "${finding_count}" == "-1" ]] || [[ ! -s "${SAST_JSON}" ]]; then
-    write_status_json "security-sast" "error" "high" "Semgrep failed (see security-sast-semgrep.txt)"
-  elif [[ "${finding_count}" -gt 0 ]]; then
-    write_status_json "security-sast" "findings" "high" "Semgrep reported ${finding_count} finding(s)"
-  elif [[ "${sast_exit}" -ne 0 && "${sast_exit}" -ne 1 ]]; then
-    write_status_json "security-sast" "error" "high" "Semgrep exited ${sast_exit}"
+    --json --quiet "${scan_paths[@]}" > "${SAST_JSON}" 2>> "${SAST_LOG}" || true
+  read -r sast_status finding_count error_count < <(
+    python3 "${SCRIPT_DIR}/semgrep_evaluate.py" "${SAST_JSON}" | tr '\t' ' '
+  )
+  if [[ "${sast_status}" == "pass" ]]; then
+    write_status_json "security-sast" "pass" "none" "Semgrep: findings=0 errors=0"
+  elif [[ "${sast_status}" == "findings" ]]; then
+    write_status_json "security-sast" "findings" "high" "Semgrep: findings=${finding_count} errors=${error_count}"
   else
-    write_status_json "security-sast" "pass" "none" "Semgrep completed (0 findings)"
+    write_status_json "security-sast" "error" "high" "Semgrep: findings=${finding_count} errors=${error_count} (incomplete scan)"
   fi
 else
   {
     echo "STATUS: NOT_RUN"
     echo "semgrep not installed or scan paths missing"
   } > "${SAST_LOG}"
-  echo '{"status":"NOT_RUN","results":[]}' > "${SAST_JSON}"
+  echo '{"status":"NOT_RUN","results":[],"errors":[]}' > "${SAST_JSON}"
   write_status_json "security-sast" "not_run" "info" "semgrep not available"
 fi
 
