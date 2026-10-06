@@ -11,6 +11,7 @@
     "audit:strict": "AUDIT_STRICT=1 bash scripts/audit/run_full_audit.sh",
     "audit:summary": "python3 scripts/audit/generate_audit_summary.py",
     "audit:framework": "python3 scripts/audit/run_framework_audit.py --run-type full --print-summary",
+    "test": "vitest run",
     "test:audit-framework": "python3 -m unittest discover -s scripts/audit/framework/tests -p 'test_*.py' && python3 -m unittest discover -s scripts/audit/collectors/tests -p 'test_*.py'"
   },
   "dependencies": {
@@ -31,7 +32,8 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.8",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.4"
   },
   "overrides": {
     "sharp": "^0.35.5",

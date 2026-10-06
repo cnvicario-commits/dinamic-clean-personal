@@ -40,6 +40,19 @@ run_step "run_frontend_audit.sh"
 run_step "run_backend_architecture_audit.sh"
 run_step "run_frontend_architecture_audit.sh"
 run_step "run_security_audit.sh"
+run_step "run_sast_audit.sh"
+
+TENANT_REPORT="${AUDIT_DIR}/tenant-isolation-audit.txt"
+if python3 "${SCRIPT_DIR}/audit_tenant_isolation.py"; then
+  if [[ -f "${TENANT_REPORT}" ]] && grep -q "NOT_APPLICABLE" "${TENANT_REPORT}"; then
+    write_status_json "tenant-isolation" "not_applicable" "info" "No empresa A/B security tenant model (RBAC only)"
+  else
+    write_status_json "tenant-isolation" "pass" "none" "Tenant isolation collector completed"
+  fi
+else
+  write_status_json "tenant-isolation" "findings" "high" "Tenant isolation collector reported findings"
+fi
+
 run_step "run_db_audit.sh"
 run_step "run_line_length_audit.sh"
 

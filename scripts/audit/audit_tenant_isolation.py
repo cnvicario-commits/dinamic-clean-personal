@@ -154,7 +154,36 @@ def audit_backend_routes() -> list[str]:
     return findings
 
 
+def is_dinamic_clean_monorepo() -> bool:
+    return (REPO_ROOT / "apps" / "api" / "package.json").is_file() and (REPO_ROOT / "src").is_dir()
+
+
+def write_not_applicable_report() -> int:
+    AUDIT_DIR.mkdir(parents=True, exist_ok=True)
+    lines = [
+        "Tenant isolation audit report",
+        "===========================",
+        "",
+        "STATUS: NOT_APPLICABLE",
+        "",
+        "Dinamic Clean does not implement multi-tenant security isolation by empresa_id.",
+        "Security boundary: Supabase Auth JWT + RBAC on apps/api (single org deployment).",
+        "empresa_id / empresaId is an operational dimension (e.g. DINAMIC vs MORAL), not a",
+        "row-level tenant enforced on every API read/write.",
+        "",
+        "Evaluate RBAC (role permissions) and PostgREST RLS tests separately.",
+        "Legacy paths frontend/src/api and backend/src/repositories do not apply to this repo.",
+        "",
+    ]
+    REPORT_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(REPORT_PATH)
+    return 0
+
+
 def main() -> int:
+    if is_dinamic_clean_monorepo() and not FRONTEND_API.is_dir():
+        return write_not_applicable_report()
+
     findings: list[str] = []
     findings.extend(audit_frontend_api())
     findings.extend(audit_backend_repositories())

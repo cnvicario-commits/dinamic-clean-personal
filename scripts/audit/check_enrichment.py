@@ -30,6 +30,9 @@ CHECK_EVIDENCE: dict[str, str] = {
     "backend-architecture": "audit/raw/backend-architecture-audit.md",
     "backend-domain-rules": "audit/raw/backend-domain-rules-audit.md",
     "security-audit": "audit/raw/security-npm-audit.txt",
+    "security-sast": "audit/raw/security-sast-semgrep.json",
+    "security-gitleaks": "audit/raw/security-gitleaks.json",
+    "tenant-isolation": "audit/tenant-isolation-audit.txt",
 }
 
 CHECK_EVIDENCE_FILES: dict[str, list[str]] = {
@@ -182,10 +185,16 @@ def parse_npm_audit(path: Path) -> dict:
             }
         )
     packages.sort(key=lambda p: SEVERITY_ORDER.index(p["severity"]) if p["severity"] in SEVERITY_ORDER else 0, reverse=True)
+    all_package_names = sorted(
+        n
+        for n in data.get("vulnerabilities", {})
+        if n != "metadata" and isinstance(data.get("vulnerabilities", {}).get(n), dict)
+    )
     return {
         "available": True,
         "counts": counts,
         "packages": packages[:15],
+        "all_package_names": all_package_names,
         "recommendation": (
             "Review lockfile changes before applying fixes. Prefer `npm audit fix` without `--force`. "
             "Avoid `--force` unless you can validate major upgrades manually."
@@ -270,6 +279,8 @@ def enrich_check(check: dict, repo_root: Path) -> dict:
         severity = npm_audit_severity(counts) if counts else severity
         action_hint = audit_info.get("recommendation", "Review npm audit output.")
         blocking = counts.get("critical", 0) > 0 or counts.get("high", 0) > 0
+        if name == "frontend-npm-audit" and is_frontend_dev_toolchain_npm_audit(audit_info):
+            blocking = False
     elif name == "security-secrets":
         if status == "fail":
             failure_type = "security_issue"
@@ -456,6 +467,52 @@ def enrich_check(check: dict, repo_root: Path) -> dict:
         }
     )
     return enriched
+
+
+FRONTEND_DEV_AUDIT_PACKAGES = frozenset(
+    {
+        "braces",
+        "eslint",
+        "eslint-config-next",
+        "@next/eslint-plugin-next",
+        "@vitest/mocker",
+        "fast-glob",
+        "glob",
+        "micromatch",
+        "minimatch",
+        "tinypool",
+        "vitest",
+    }
+)
+
+
+def is_frontend_dev_toolchain_npm_audit(audit_info: dict) -> bool:
+    counts = audit_info.get("counts") or {}
+    if sum(counts.values()) <= 0:
+        return False
+    names = audit_info.get("all_package_names") or []
+    if not names:
+        return False
+    return set(names).issubset(FRONTEND_DEV_AUDIT_PACKAGES)
+
+
+def apply_policy_overrides(checks: list[dict]) -> list[dict]:
+    result: list[dict] = []
+    for check in checks:
+        c = dict(check)
+        if c.get("check") == "frontend-npm-audit" and c.get("status") == "fail":
+            info = c.get("npm_audit") or {}
+            if is_frontend_dev_toolchain_npm_audit(info):
+                c["blocking"] = False
+                c["accepted_risk"] = "braces-dev-chain"
+                c["failure_type"] = "accepted_dependency_risk"
+                c["severity"] = "high"
+                c["action_hint"] = (
+                    "Documented accepted risk: dev-only eslint/braces chain (Phase 1). "
+                    "Advisory remains visible; not a production runtime dependency."
+                )
+        result.append(c)
+    return result
 
 
 def compute_blocking_status(checks: list[dict]) -> tuple[str, int]:

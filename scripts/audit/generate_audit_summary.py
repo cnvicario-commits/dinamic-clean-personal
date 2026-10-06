@@ -8,7 +8,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from check_enrichment import compute_blocking_status, enrich_check, SEVERITY_ORDER
+from check_enrichment import apply_policy_overrides, compute_blocking_status, enrich_check, SEVERITY_ORDER
 
 # Re-export max_severity from enrichment - need to add it to check_enrichment or define here
 def max_severity(*values: str) -> str:
@@ -514,7 +514,7 @@ def parse_security_secrets(raw: Path) -> dict:
     return result
 
 
-def build_accepted_exceptions(sql_class: dict[str, int]) -> list[dict]:
+def build_accepted_exceptions(sql_class: dict[str, int], checks: list[dict] | None = None) -> list[dict]:
     exceptions: list[dict] = []
     labels = {
         "allowed_operational_sql": "SQL in scripts, migrations, and store utilities",
@@ -532,6 +532,25 @@ def build_accepted_exceptions(sql_class: dict[str, int]) -> list[dict]:
                     "severity": "info",
                 }
             )
+    if checks:
+        for check in checks:
+            if check.get("accepted_risk") == "braces-dev-chain":
+                info = check.get("npm_audit") or {}
+                counts = info.get("counts") or {}
+                exceptions.append(
+                    {
+                        "category": "braces-dev-chain",
+                        "id": "braces-dev-chain",
+                        "count": counts.get("high", 0),
+                        "description": (
+                            "Frontend npm audit highs from eslint-config-next dev toolchain "
+                            "(non-production dependency)"
+                        ),
+                        "severity": "high",
+                        "status": "ACCEPTED_RISK",
+                        "check": "frontend-npm-audit",
+                    }
+                )
     return exceptions
 
 
@@ -624,8 +643,10 @@ def accepted_exceptions_section(exceptions: list[dict]) -> list[str]:
         lines.append("These are informational and do not count as unresolved architectural defects.")
         lines.append("")
         for exc in exceptions:
+            status = exc.get("status")
+            suffix = f" — **{status}**" if status else ""
             lines.append(
-                f"- **{exc['category']}** ({exc['count']}): {exc['description']}"
+                f"- **{exc['category']}** ({exc.get('count', 'n/a')}): {exc['description']}{suffix}"
             )
     lines.append("")
     return lines
@@ -822,6 +843,7 @@ def main() -> int:
             checks.append({"check": name, "status": "pass", "severity": "none", "message": "Passed"})
 
     checks = [enrich_check(c, root) for c in checks]
+    checks = apply_policy_overrides(checks)
     areas = build_area_summary(checks)
     overall, max_sev = overall_status(areas, checks)
     blocking_status, blocking_count = compute_blocking_status(checks)
@@ -829,7 +851,7 @@ def main() -> int:
     raw = audit_raw()
     sql_class = parse_sql_classification(raw)
     env_info = parse_security_env(raw)
-    accepted_exceptions = build_accepted_exceptions(sql_class)
+    accepted_exceptions = build_accepted_exceptions(sql_class, checks)
     non_blocking_findings = build_non_blocking_findings(checks, env_info, sql_class)
 
     baseline_path = audit_dir() / "baseline" / "audit-status.baseline.json"
