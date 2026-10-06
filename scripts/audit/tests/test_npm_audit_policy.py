@@ -71,10 +71,29 @@ class NpmAuditPolicyTests(unittest.TestCase):
         self.assertEqual(policy["status"], "pass")
         self.assertFalse(policy["blocking"])
 
+    def test_vitest_not_accepted_without_owner_explicit_acceptance(self) -> None:
+        packages = [("vitest", "critical"), ("tinypool", "critical")]
+        config = load_accepted_risk_config(REPO_ROOT)
+        config["vitest-dev-toolchain"]["enabled"] = True
+        config["vitest-dev-toolchain"]["owner_explicit_acceptance"] = False
+        policy = evaluate_frontend_npm_audit(
+            audit_info(
+                packages,
+                counts={"critical": 2, "high": 0, "moderate": 0, "low": 0},
+            ),
+            config,
+        )
+        self.assertTrue(policy["blocking"])
+        self.assertNotIn(
+            "vitest-dev-toolchain",
+            [r["id"] for r in policy["accepted_risks"]],
+        )
+
     def test_vitest_accepted_keeps_critical_severity_not_downgraded(self) -> None:
         packages = [("vitest", "critical"), ("tinypool", "critical")]
         config = load_accepted_risk_config(REPO_ROOT)
         config["vitest-dev-toolchain"]["enabled"] = True
+        config["vitest-dev-toolchain"]["owner_explicit_acceptance"] = True
         policy = evaluate_frontend_npm_audit(
             audit_info(
                 packages,

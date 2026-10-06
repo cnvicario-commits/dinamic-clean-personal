@@ -12,7 +12,10 @@
   },
   "vitest-dev-toolchain": {
     "enabled": true,
+    "owner_explicit_acceptance": true,
+    "owner_acceptance_recorded": "2026-10-06 — Owner explicit acceptance (Phase 4 close): dev/test-only tooling; not production runtime; advisories remain visible in npm audit; severity not downgraded; vitest@3.2.7 attempted; vitest@5.0.3 blocked by @types/node@20 peer; tests pass. Does not auto-accept future packages.",
     "packages": ["vitest", "tinypool", "@vitest/mocker"],
-    "description": "Vitest 5.0.3 (tinypool fix) conflicts with @types/node@20 peer; dev-only test runner. Attempted vitest@3.2.7 and vitest@5.0.3 install per npm audit — 5.x blocked by peer dependency."
+    "max_severity": "critical",
+    "description": "Vitest/tinypool/@vitest/mocker npm audit advisories (max CRITICAL). Dev/test toolchain only. Separate from braces-dev-chain."
   }
 }

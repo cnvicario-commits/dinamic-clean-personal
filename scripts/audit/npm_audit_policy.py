@@ -62,13 +62,21 @@ def _max_severity(packages: list[dict[str, str]]) -> str:
     return max(packages, key=lambda p: _severity_rank(p.get("severity", "low")))["severity"]
 
 
+def _risk_is_active(risk_id: str, entry: dict[str, Any]) -> bool:
+    if not entry.get("enabled"):
+        return False
+    if risk_id == "vitest-dev-toolchain":
+        return bool(entry.get("owner_explicit_acceptance"))
+    return True
+
+
 def _packages_for_risk(
     risk_id: str,
     config: dict[str, dict[str, Any]],
     vulnerable_names: set[str],
 ) -> set[str]:
     entry = config.get(risk_id) or {}
-    if not entry.get("enabled"):
+    if not _risk_is_active(risk_id, entry):
         return set()
     allowed = set(entry.get("packages") or [])
     return vulnerable_names & allowed
