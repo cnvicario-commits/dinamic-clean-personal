@@ -23,7 +23,18 @@ export default function RegistrarSeguimientoForm({ oportunidadId }: { oportunida
       return
     }
     setLoading(true)
-    let errInsert:unknown=null;try{const api=await createAuthenticatedBrowserApiClient();await api.createCrmFollowUp(oportunidadId,{fechaContacto,tipoContacto,nota:nota.trim(),proximaFechaSeguimiento:proximaFecha||null})}catch(error){errInsert=error}
+    let errInsert: unknown = null
+    try {
+      const api = await createAuthenticatedBrowserApiClient()
+      await api.createCrmFollowUp(oportunidadId, {
+        fechaContacto,
+        tipoContacto,
+        nota: nota.trim(),
+        proximaFechaSeguimiento: proximaFecha || null,
+      })
+    } catch (error) {
+      errInsert = error
+    }
     setLoading(false)
     if (errInsert) {
       setError('Error al guardar: ' + (errInsert instanceof Error?errInsert.message:'desconocido'))

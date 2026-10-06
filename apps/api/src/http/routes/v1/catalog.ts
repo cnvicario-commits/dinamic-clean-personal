@@ -1,19 +1,187 @@
-import type { FastifyPluginAsync } from 'fastify'
-import { requirePermission } from '../../plugins/auth.js'
-import { badRequest } from '../../errors/app-error.js'
-import { parseImportPayload } from '../../parse-import-payload.js'
-import { articleCreate,articleImportBody,articleUpdate,idempotencyKey,priceListBody,relationCreate,relationUpdate,resolvePendingBody,status,supplierCreate,supplierUpdate,uuid } from '../../schemas/catalog.js'
-const id=(v:unknown)=>{const p=uuid.safeParse(v);if(!p.success)throw badRequest('Invalid id');return p.data};const actor=(r:{auth?:{userId:string};id:string})=>({userId:r.auth!.userId,requestId:r.id});const body=<T>(s:{safeParse:(x:unknown)=>{success:boolean;data?:T}},x:unknown):T=>{const p=s.safeParse(x);if(!p.success)throw badRequest('Invalid catalog payload');return p.data!}
-export const catalogRoutes:FastifyPluginAsync=async app=>{
- app.get('/v1/suppliers',{preHandler:[requirePermission('suppliers:read')]},()=>app.catalogService.listSuppliers());app.get('/v1/suppliers/:id',{preHandler:[requirePermission('suppliers:read')]},r=>app.catalogService.supplier(id((r.params as {id:unknown}).id)));app.post('/v1/suppliers',{preHandler:[requirePermission('suppliers:update')]},async(r,reply)=>reply.code(201).send(await app.catalogService.createSupplier(body(supplierCreate,r.body),actor(r))));app.patch('/v1/suppliers/:id',{preHandler:[requirePermission('suppliers:update')]},r=>app.catalogService.updateSupplier(id((r.params as {id:unknown}).id),body(supplierUpdate,r.body),actor(r)));app.patch('/v1/suppliers/:id/status',{preHandler:[requirePermission('suppliers:update')]},r=>app.catalogService.supplierStatus(id((r.params as {id:unknown}).id),body(status,r.body).activo,actor(r)));
- app.get('/v1/suppliers/:id/articles',{preHandler:[requirePermission('suppliers:read')]},r=>app.catalogService.supplierArticles(id((r.params as {id:unknown}).id)));
- app.get('/v1/articles',{preHandler:[requirePermission('articles:read')]},()=>app.catalogService.listArticles());app.get('/v1/articles/:id',{preHandler:[requirePermission('articles:read')]},r=>app.catalogService.article(id((r.params as {id:unknown}).id)));app.post('/v1/articles',{preHandler:[requirePermission('articles:update')]},async(r,reply)=>reply.code(201).send(await app.catalogService.createArticle(body(articleCreate,r.body),actor(r))));app.patch('/v1/articles/:id',{preHandler:[requirePermission('articles:update')]},r=>app.catalogService.updateArticle(id((r.params as {id:unknown}).id),body(articleUpdate,r.body),actor(r)));app.patch('/v1/articles/:id/status',{preHandler:[requirePermission('articles:update')]},r=>app.catalogService.articleStatus(id((r.params as {id:unknown}).id),body(status,r.body).activo,actor(r)));
- app.get('/v1/articles/:id/suppliers',{preHandler:[requirePermission('articles:read')]},r=>app.catalogService.relations(id((r.params as {id:unknown}).id)));app.post('/v1/articles/:id/suppliers',{preHandler:[requirePermission('articles:update')]},async(r,reply)=>reply.code(201).send(await app.catalogService.createRelation(id((r.params as {id:unknown}).id),body(relationCreate,r.body),actor(r))));app.patch('/v1/articles/:id/suppliers/:relationId',{preHandler:[requirePermission('articles:update')]},r=>{const p=r.params as {id:unknown;relationId:unknown};return app.catalogService.updateRelation(id(p.id),id(p.relationId),body(relationUpdate,r.body),actor(r))});
- const key=(r:{headers:Record<string,unknown>})=>{const p=idempotencyKey.safeParse(r.headers['idempotency-key']);if(!p.success)throw badRequest('Idempotency-Key header is required');return p.data}
- app.post('/v1/articles/import',{preHandler:[requirePermission('articles:import')]},r=>{const payload=parseImportPayload(r,articleImportBody,'articles.import','Invalid catalog payload');return app.catalogService.importArticles(payload.rows,key(r),actor(r))});
- app.post('/v1/articles/import/preview',{preHandler:[requirePermission('articles:import')]},r=>app.catalogService.previewArticleImport(parseImportPayload(r,articleImportBody,'articles.import.preview','Invalid catalog payload').rows));
- app.post('/v1/price-lists/apply',{preHandler:[requirePermission('articles:import')]},r=>app.catalogService.applyPriceList(parseImportPayload(r,priceListBody,'price_lists.apply','Invalid catalog payload'),key(r),actor(r)));
- app.post('/v1/price-lists/preview',{preHandler:[requirePermission('articles:import')]},r=>app.catalogService.previewPriceList(parseImportPayload(r,priceListBody,'price_lists.preview','Invalid catalog payload')));
- app.get('/v1/supplier-article-pending',{preHandler:[requirePermission('articles:read')]},()=>app.catalogService.pending());
- app.post('/v1/supplier-article-pending/:id/resolve',{preHandler:[requirePermission('articles:update')]},r=>{const p=r.params as {id:unknown};const b=body(resolvePendingBody,r.body);return app.catalogService.resolvePending(id(p.id),b.articuloId,actor(r))});
-}
+import type { FastifyPluginAsync } from "fastify";
+import { requirePermission } from "../../plugins/auth.js";
+import { badRequest } from "../../errors/app-error.js";
+import { parseImportPayload } from "../../parse-import-payload.js";
+import {
+  articleCreate,
+  articleImportBody,
+  articleUpdate,
+  idempotencyKey,
+  priceListBody,
+  relationCreate,
+  relationUpdate,
+  resolvePendingBody,
+  status,
+  supplierCreate,
+  supplierUpdate,
+  uuid,
+} from "../../schemas/catalog.js";
+const id = (v: unknown) => {
+  const p = uuid.safeParse(v);
+  if (!p.success) throw badRequest("Invalid id");
+  return p.data;
+};
+const actor = (r: { auth?: { userId: string }; id: string }) => ({
+  userId: r.auth!.userId,
+  requestId: r.id,
+});
+const body = <T>(
+  s: { safeParse: (x: unknown) => { success: boolean; data?: T } },
+  x: unknown,
+): T => {
+  const p = s.safeParse(x);
+  if (!p.success) throw badRequest("Invalid catalog payload");
+  return p.data!;
+};
+export const catalogRoutes: FastifyPluginAsync = async (app) => {
+  app.get("/v1/suppliers", { preHandler: [requirePermission("suppliers:read")] }, () =>
+    app.catalogService.listSuppliers(),
+  );
+  app.get("/v1/suppliers/:id", { preHandler: [requirePermission("suppliers:read")] }, (r) =>
+    app.catalogService.supplier(id((r.params as { id: unknown }).id)),
+  );
+  app.post(
+    "/v1/suppliers",
+    { preHandler: [requirePermission("suppliers:update")] },
+    async (r, reply) =>
+      reply
+        .code(201)
+        .send(await app.catalogService.createSupplier(body(supplierCreate, r.body), actor(r))),
+  );
+  app.patch("/v1/suppliers/:id", { preHandler: [requirePermission("suppliers:update")] }, (r) =>
+    app.catalogService.updateSupplier(
+      id((r.params as { id: unknown }).id),
+      body(supplierUpdate, r.body),
+      actor(r),
+    ),
+  );
+  app.patch(
+    "/v1/suppliers/:id/status",
+    { preHandler: [requirePermission("suppliers:update")] },
+    (r) =>
+      app.catalogService.supplierStatus(
+        id((r.params as { id: unknown }).id),
+        body(status, r.body).activo,
+        actor(r),
+      ),
+  );
+  app.get(
+    "/v1/suppliers/:id/articles",
+    { preHandler: [requirePermission("suppliers:read")] },
+    (r) => app.catalogService.supplierArticles(id((r.params as { id: unknown }).id)),
+  );
+  app.get("/v1/articles", { preHandler: [requirePermission("articles:read")] }, () =>
+    app.catalogService.listArticles(),
+  );
+  app.get("/v1/articles/:id", { preHandler: [requirePermission("articles:read")] }, (r) =>
+    app.catalogService.article(id((r.params as { id: unknown }).id)),
+  );
+  app.post(
+    "/v1/articles",
+    { preHandler: [requirePermission("articles:update")] },
+    async (r, reply) =>
+      reply
+        .code(201)
+        .send(await app.catalogService.createArticle(body(articleCreate, r.body), actor(r))),
+  );
+  app.patch("/v1/articles/:id", { preHandler: [requirePermission("articles:update")] }, (r) =>
+    app.catalogService.updateArticle(
+      id((r.params as { id: unknown }).id),
+      body(articleUpdate, r.body),
+      actor(r),
+    ),
+  );
+  app.patch(
+    "/v1/articles/:id/status",
+    { preHandler: [requirePermission("articles:update")] },
+    (r) =>
+      app.catalogService.articleStatus(
+        id((r.params as { id: unknown }).id),
+        body(status, r.body).activo,
+        actor(r),
+      ),
+  );
+  app.get("/v1/articles/:id/suppliers", { preHandler: [requirePermission("articles:read")] }, (r) =>
+    app.catalogService.relations(id((r.params as { id: unknown }).id)),
+  );
+  app.post(
+    "/v1/articles/:id/suppliers",
+    { preHandler: [requirePermission("articles:update")] },
+    async (r, reply) =>
+      reply
+        .code(201)
+        .send(
+          await app.catalogService.createRelation(
+            id((r.params as { id: unknown }).id),
+            body(relationCreate, r.body),
+            actor(r),
+          ),
+        ),
+  );
+  app.patch(
+    "/v1/articles/:id/suppliers/:relationId",
+    { preHandler: [requirePermission("articles:update")] },
+    (r) => {
+      const p = r.params as { id: unknown; relationId: unknown };
+      return app.catalogService.updateRelation(
+        id(p.id),
+        id(p.relationId),
+        body(relationUpdate, r.body),
+        actor(r),
+      );
+    },
+  );
+  const key = (r: { headers: Record<string, unknown> }) => {
+    const p = idempotencyKey.safeParse(r.headers["idempotency-key"]);
+    if (!p.success) throw badRequest("Idempotency-Key header is required");
+    return p.data;
+  };
+  app.post("/v1/articles/import", { preHandler: [requirePermission("articles:import")] }, (r) => {
+    const payload = parseImportPayload(
+      r,
+      articleImportBody,
+      "articles.import",
+      "Invalid catalog payload",
+    );
+    return app.catalogService.importArticles(payload.rows, key(r), actor(r));
+  });
+  app.post(
+    "/v1/articles/import/preview",
+    { preHandler: [requirePermission("articles:import")] },
+    (r) =>
+      app.catalogService.previewArticleImport(
+        parseImportPayload(
+          r,
+          articleImportBody,
+          "articles.import.preview",
+          "Invalid catalog payload",
+        ).rows,
+      ),
+  );
+  app.post("/v1/price-lists/apply", { preHandler: [requirePermission("articles:import")] }, (r) =>
+    app.catalogService.applyPriceList(
+      parseImportPayload(r, priceListBody, "price_lists.apply", "Invalid catalog payload"),
+      key(r),
+      actor(r),
+    ),
+  );
+  app.post("/v1/price-lists/preview", { preHandler: [requirePermission("articles:import")] }, (r) =>
+    app.catalogService.previewPriceList(
+      parseImportPayload(r, priceListBody, "price_lists.preview", "Invalid catalog payload"),
+    ),
+  );
+  app.get(
+    "/v1/supplier-article-pending",
+    { preHandler: [requirePermission("articles:read")] },
+    () => app.catalogService.pending(),
+  );
+  app.post(
+    "/v1/supplier-article-pending/:id/resolve",
+    { preHandler: [requirePermission("articles:update")] },
+    (r) => {
+      const p = r.params as { id: unknown };
+      const b = body(resolvePendingBody, r.body);
+      return app.catalogService.resolvePending(id(p.id), b.articuloId, actor(r));
+    },
+  );
+};

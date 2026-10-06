@@ -1,6 +1,16 @@
-'use client'
-import { useState, useMemo, Fragment } from 'react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList } from 'recharts'
+"use client";
+import { useState, useMemo, Fragment } from "react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  LabelList,
+} from "recharts";
 import {
   RUBROS,
   CAMPOS_CON_DETALLE,
@@ -10,109 +20,121 @@ import {
   type ResultadoMensual,
   type ResultadoMensualDetalle,
   type CampoResultado,
-} from '@/types/resultados'
+} from "@/types/resultados";
 
 function comparar(a: string, b: string) {
-  return a.localeCompare(b, 'es', { sensitivity: 'base' })
+  return a.localeCompare(b, "es", { sensitivity: "base" });
 }
 
 function formatearMonto(valor: number | null | undefined): string {
-  if (valor === null || valor === undefined) return '-'
-  return new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 }).format(valor)
+  if (valor === null || valor === undefined) return "-";
+  return new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 }).format(valor);
 }
 
 function formatearMontoCompacto(valor: number): string {
-  return new Intl.NumberFormat('es-AR', { notation: 'compact', maximumFractionDigits: 1 }).format(valor)
+  return new Intl.NumberFormat("es-AR", { notation: "compact", maximumFractionDigits: 1 }).format(
+    valor,
+  );
 }
 
 // Filas resaltadas en la tabla comparativa: los 3 hitos del resultado
 // económico (venta total, margen bruto y resultado final).
-const FILAS_DESTACADAS = new Set(['total_ventas', 'resultado_bruto', 'resultado_periodo'])
+const FILAS_DESTACADAS = new Set(["total_ventas", "resultado_bruto", "resultado_periodo"]);
 
-const SERIES_GRAFICO: { campo: 'total_ventas' | 'total_costos_directos' | 'resultado_bruto' | 'resultado_periodo'; nombre: string; color: string }[] = [
-  { campo: 'total_ventas', nombre: 'Total Ventas', color: '#0d9488' },
-  { campo: 'total_costos_directos', nombre: 'Total Costos Directos', color: '#f59e0b' },
-  { campo: 'resultado_bruto', nombre: 'Resultado Bruto', color: '#0ea5e9' },
-  { campo: 'resultado_periodo', nombre: 'Resultado del Período', color: '#16a34a' },
-]
+const SERIES_GRAFICO: {
+  campo: "total_ventas" | "total_costos_directos" | "resultado_bruto" | "resultado_periodo";
+  nombre: string;
+  color: string;
+}[] = [
+  { campo: "total_ventas", nombre: "Total Ventas", color: "#0d9488" },
+  { campo: "total_costos_directos", nombre: "Total Costos Directos", color: "#f59e0b" },
+  { campo: "resultado_bruto", nombre: "Resultado Bruto", color: "#0ea5e9" },
+  { campo: "resultado_periodo", nombre: "Resultado del Período", color: "#16a34a" },
+];
 
 // Etiqueta custom sobre cada barra: valor compacto + % de incidencia sobre
 // Total Ventas del mismo mes (el pct se busca por índice en datosGrafico,
 // recharts no pasa el resto de la fila al content de LabelList).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- props vienen del content render-prop de recharts (tipado interno muy amplio), más simple aceptarlas sueltas acá.
 function EtiquetaBarra(props: any) {
-  const { value, pct } = props as { value?: number | string | null; pct?: number | null }
-  const x = Number(props.x)
-  const y = Number(props.y)
-  const width = Number(props.width)
-  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(width)) return null
-  if (value === null || value === undefined || value === '') return null
-  const numero = typeof value === 'number' ? value : Number(value)
-  if (!Number.isFinite(numero)) return null
+  const { value, pct } = props as { value?: number | string | null; pct?: number | null };
+  const x = Number(props.x);
+  const y = Number(props.y);
+  const width = Number(props.width);
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(width)) return null;
+  if (value === null || value === undefined || value === "") return null;
+  const numero = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numero)) return null;
   return (
     <text x={x + width / 2} y={y - 6} textAnchor="middle" fontSize={10} fill="#475569">
       {formatearMontoCompacto(numero)}
       {pct !== null && pct !== undefined && ` (${pct.toFixed(0)}%)`}
     </text>
-  )
+  );
 }
 
 export default function PanelResultados({
   resultados,
   detalle,
 }: {
-  resultados: ResultadoMensual[]
-  detalle: ResultadoMensualDetalle[]
+  resultados: ResultadoMensual[];
+  detalle: ResultadoMensualDetalle[];
 }) {
   // Qué filas de rubro están desplegadas, por campo (ej. 'total_rrhh').
-  const [filasAbiertas, setFilasAbiertas] = useState<Set<CampoResultado>>(new Set())
+  const [filasAbiertas, setFilasAbiertas] = useState<Set<CampoResultado>>(new Set());
   function toggleDetalle(campo: CampoResultado) {
     setFilasAbiertas((prev) => {
-      const next = new Set(prev)
-      if (next.has(campo)) next.delete(campo)
-      else next.add(campo)
-      return next
-    })
+      const next = new Set(prev);
+      if (next.has(campo)) next.delete(campo);
+      else next.add(campo);
+      return next;
+    });
   }
 
   const [desdeClave, setDesdeClave] = useState<number>(() => {
-    if (resultados.length === 0) return 0
-    const idx = Math.max(0, resultados.length - 12)
-    return clavePeriodo(resultados[idx].anio, resultados[idx].mes)
-  })
+    if (resultados.length === 0) return 0;
+    const idx = Math.max(0, resultados.length - 12);
+    return clavePeriodo(resultados[idx].anio, resultados[idx].mes);
+  });
   const [hastaClave, setHastaClave] = useState<number>(() => {
-    if (resultados.length === 0) return 0
-    const ultimo = resultados[resultados.length - 1]
-    return clavePeriodo(ultimo.anio, ultimo.mes)
-  })
+    if (resultados.length === 0) return 0;
+    const ultimo = resultados[resultados.length - 1];
+    return clavePeriodo(ultimo.anio, ultimo.mes);
+  });
 
   const rango = useMemo(
-    () => resultados.filter((r) => {
-      const c = clavePeriodo(r.anio, r.mes)
-      return c >= desdeClave && c <= hastaClave
-    }),
-    [resultados, desdeClave, hastaClave]
-  )
+    () =>
+      resultados.filter((r) => {
+        const c = clavePeriodo(r.anio, r.mes);
+        return c >= desdeClave && c <= hastaClave;
+      }),
+    [resultados, desdeClave, hastaClave],
+  );
 
   // Variación del último mes del rango contra el mes cronológicamente
   // anterior en TODO el historial (no solo dentro del rango elegido), para
   // que el indicador tenga sentido aunque el rango arranque justo ahí.
-  const ultimoDelRango = rango[rango.length - 1]
-  const indiceUltimoEnTodos = ultimoDelRango ? resultados.findIndex((r) => r.id === ultimoDelRango.id) : -1
-  const anterior = indiceUltimoEnTodos > 0 ? resultados[indiceUltimoEnTodos - 1] : null
-  let variacion: number | null = null
+  const ultimoDelRango = rango[rango.length - 1];
+  const indiceUltimoEnTodos = ultimoDelRango
+    ? resultados.findIndex((r) => r.id === ultimoDelRango.id)
+    : -1;
+  const anterior = indiceUltimoEnTodos > 0 ? resultados[indiceUltimoEnTodos - 1] : null;
+  let variacion: number | null = null;
   if (
     ultimoDelRango?.resultado_periodo != null &&
     anterior?.resultado_periodo != null &&
     anterior.resultado_periodo !== 0
   ) {
-    variacion = ((ultimoDelRango.resultado_periodo - anterior.resultado_periodo) / Math.abs(anterior.resultado_periodo)) * 100
+    variacion =
+      ((ultimoDelRango.resultado_periodo - anterior.resultado_periodo) /
+        Math.abs(anterior.resultado_periodo)) *
+      100;
   }
 
   // % de incidencia sobre Total Ventas del mismo mes, para mostrar debajo
   // del valor en la etiqueta de cada barra (mismo cálculo que en la tabla).
   function pctSobreVentas(valor: number | null, ventas: number | null): number | null {
-    return ventas ? ((valor ?? 0) / ventas) * 100 : null
+    return ventas ? ((valor ?? 0) / ventas) * 100 : null;
   }
 
   const datosGrafico = rango.map((r) => ({
@@ -125,36 +147,39 @@ export default function PanelResultados({
     pct_total_costos_directos: pctSobreVentas(r.total_costos_directos, r.total_ventas),
     pct_resultado_bruto: pctSobreVentas(r.resultado_bruto, r.total_ventas),
     pct_resultado_periodo: pctSobreVentas(r.resultado_periodo, r.total_ventas),
-  }))
+  }));
 
   // Acumulado del rango elegido (suma de cada rubro, no promedio de los
   // porcentajes): mismo criterio que la columna "Total" del Excel original.
   // Solo tiene sentido si el rango cubre más de un mes.
   function sumarRubro(campo: CampoResultado): number | null {
-    let tieneValor = false
-    let suma = 0
+    let tieneValor = false;
+    let suma = 0;
     rango.forEach((r) => {
-      const v = r[campo]
+      const v = r[campo];
       if (v !== null) {
-        tieneValor = true
-        suma += v
+        tieneValor = true;
+        suma += v;
       }
-    })
-    return tieneValor ? suma : null
+    });
+    return tieneValor ? suma : null;
   }
 
   const acumulado =
     rango.length > 1
-      ? RUBROS.reduce((acc, rubro) => {
-          acc[rubro.campo] = sumarRubro(rubro.campo)
-          return acc
-        }, {} as Record<CampoResultado, number | null>)
-      : null
+      ? RUBROS.reduce(
+          (acc, rubro) => {
+            acc[rubro.campo] = sumarRubro(rubro.campo);
+            return acc;
+          },
+          {} as Record<CampoResultado, number | null>,
+        )
+      : null;
 
   if (acumulado) {
-    const ventasAcumuladas = acumulado.total_ventas
+    const ventasAcumuladas = acumulado.total_ventas;
     datosGrafico.push({
-      label: 'Acumulado',
+      label: "Acumulado",
       total_ventas: acumulado.total_ventas,
       total_costos_directos: acumulado.total_costos_directos,
       resultado_bruto: acumulado.resultado_bruto,
@@ -163,7 +188,7 @@ export default function PanelResultados({
       pct_total_costos_directos: pctSobreVentas(acumulado.total_costos_directos, ventasAcumuladas),
       pct_resultado_bruto: pctSobreVentas(acumulado.resultado_bruto, ventasAcumuladas),
       pct_resultado_periodo: pctSobreVentas(acumulado.resultado_periodo, ventasAcumuladas),
-    })
+    });
   }
 
   // Detalle desplegable de cada rubro con desglose: conceptos presentes en
@@ -171,48 +196,62 @@ export default function PanelResultados({
   // tabla no preserva el orden del Excel), con un mapa rubro+concepto+mes
   // -> monto para acceso O(1) al armar cada celda.
   const mapaDetalle = useMemo(() => {
-    const mapa = new Map<string, number>()
+    const mapa = new Map<string, number>();
     detalle.forEach((d) => {
-      if (d.monto !== null) mapa.set(`${d.rubro}|${d.concepto}|${d.anio}-${d.mes}`, d.monto)
-    })
-    return mapa
-  }, [detalle])
+      if (d.monto !== null) mapa.set(`${d.rubro}|${d.concepto}|${d.anio}-${d.mes}`, d.monto);
+    });
+    return mapa;
+  }, [detalle]);
 
   const conceptosPorRubro = useMemo(() => {
-    const clavesRango = new Set(rango.map((r) => clavePeriodo(r.anio, r.mes)))
-    const agrupado = new Map<string, Set<string>>()
+    const clavesRango = new Set(rango.map((r) => clavePeriodo(r.anio, r.mes)));
+    const agrupado = new Map<string, Set<string>>();
     detalle.forEach((d) => {
-      if (!clavesRango.has(clavePeriodo(d.anio, d.mes))) return
-      if (!agrupado.has(d.rubro)) agrupado.set(d.rubro, new Set())
-      agrupado.get(d.rubro)!.add(d.concepto)
-    })
-    const resultado = new Map<string, string[]>()
-    agrupado.forEach((conjunto, rubro) => resultado.set(rubro, Array.from(conjunto).sort(comparar)))
-    return resultado
-  }, [detalle, rango])
+      if (!clavesRango.has(clavePeriodo(d.anio, d.mes))) return;
+      if (!agrupado.has(d.rubro)) agrupado.set(d.rubro, new Set());
+      agrupado.get(d.rubro)!.add(d.concepto);
+    });
+    const resultado = new Map<string, string[]>();
+    agrupado.forEach((conjunto, rubro) =>
+      resultado.set(rubro, Array.from(conjunto).sort(comparar)),
+    );
+    return resultado;
+  }, [detalle, rango]);
 
   if (resultados.length === 0) {
-    return <p className="text-slate-500 text-sm">No hay resultados importados todavía.</p>
+    return <p className="text-slate-500 text-sm">No hay resultados importados todavía.</p>;
   }
 
-  const selectStyle = 'border border-slate-300 rounded-md px-3 py-2 text-sm'
+  const selectStyle = "border border-slate-300 rounded-md px-3 py-2 text-sm";
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center gap-3">
         <label className="text-sm text-slate-600">
-          Desde{' '}
-          <select value={desdeClave} onChange={(e) => setDesdeClave(Number(e.target.value))} className={selectStyle}>
+          Desde{" "}
+          <select
+            value={desdeClave}
+            onChange={(e) => setDesdeClave(Number(e.target.value))}
+            className={selectStyle}
+          >
             {resultados.map((r) => (
-              <option key={r.id} value={clavePeriodo(r.anio, r.mes)}>{formatearMesAnio(r.anio, r.mes)}</option>
+              <option key={r.id} value={clavePeriodo(r.anio, r.mes)}>
+                {formatearMesAnio(r.anio, r.mes)}
+              </option>
             ))}
           </select>
         </label>
         <label className="text-sm text-slate-600">
-          Hasta{' '}
-          <select value={hastaClave} onChange={(e) => setHastaClave(Number(e.target.value))} className={selectStyle}>
+          Hasta{" "}
+          <select
+            value={hastaClave}
+            onChange={(e) => setHastaClave(Number(e.target.value))}
+            className={selectStyle}
+          >
             {resultados.map((r) => (
-              <option key={r.id} value={clavePeriodo(r.anio, r.mes)}>{formatearMesAnio(r.anio, r.mes)}</option>
+              <option key={r.id} value={clavePeriodo(r.anio, r.mes)}>
+                {formatearMesAnio(r.anio, r.mes)}
+              </option>
             ))}
           </select>
         </label>
@@ -222,10 +261,14 @@ export default function PanelResultados({
             <span className="text-slate-500">
               Resultado del Período ({formatearMesAnio(ultimoDelRango.anio, ultimoDelRango.mes)}):
             </span>
-            <span className="font-bold text-slate-800">{formatearMonto(ultimoDelRango.resultado_periodo)}</span>
+            <span className="font-bold text-slate-800">
+              {formatearMonto(ultimoDelRango.resultado_periodo)}
+            </span>
             {variacion !== null && (
-              <span className={`inline-flex items-center gap-1 font-medium ${variacion >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                {variacion >= 0 ? '▲' : '▼'} {Math.abs(variacion).toFixed(1)}% vs mes anterior
+              <span
+                className={`inline-flex items-center gap-1 font-medium ${variacion >= 0 ? "text-emerald-600" : "text-rose-600"}`}
+              >
+                {variacion >= 0 ? "▲" : "▼"} {Math.abs(variacion).toFixed(1)}% vs mes anterior
               </span>
             )}
           </div>
@@ -239,21 +282,33 @@ export default function PanelResultados({
           <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-4">
             <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
               Comparativo mensual
-              {acumulado && <span className="normal-case font-normal text-slate-400"> — &quot;Acumulado&quot; es la suma del rango elegido</span>}
+              {acumulado && (
+                <span className="normal-case font-normal text-slate-400">
+                  {" "}
+                  — &quot;Acumulado&quot; es la suma del rango elegido
+                </span>
+              )}
             </h2>
             <ResponsiveContainer width="100%" height={360}>
               <BarChart data={datosGrafico} margin={{ top: 24 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="label" tick={{ fontSize: 12 }} />
                 <YAxis tickFormatter={formatearMontoCompacto} tick={{ fontSize: 12 }} />
-                <Tooltip formatter={(valor: unknown) => formatearMonto(typeof valor === 'number' ? valor : Number(valor))} />
+                <Tooltip
+                  formatter={(valor: unknown) =>
+                    formatearMonto(typeof valor === "number" ? valor : Number(valor))
+                  }
+                />
                 <Legend />
                 {SERIES_GRAFICO.map((s) => (
                   <Bar key={s.campo} dataKey={s.campo} name={s.nombre} fill={s.color}>
                     <LabelList
                       dataKey={s.campo}
                       content={(props) => (
-                        <EtiquetaBarra {...props} pct={datosGrafico[props.index as number]?.[`pct_${s.campo}` as const]} />
+                        <EtiquetaBarra
+                          {...props}
+                          pct={datosGrafico[props.index as number]?.[`pct_${s.campo}` as const]}
+                        />
                       )}
                     />
                   </Bar>
@@ -284,16 +339,18 @@ export default function PanelResultados({
               </thead>
               <tbody>
                 {RUBROS.map((rubro) => {
-                  const tieneDetalle = CAMPOS_CON_DETALLE.includes(rubro.campo)
-                  const rubroSlug = tieneDetalle ? rubroSlugDeCampo(rubro.campo) : null
-                  const abierto = tieneDetalle && filasAbiertas.has(rubro.campo)
-                  const conceptos = rubroSlug ? conceptosPorRubro.get(rubroSlug) ?? [] : []
-                  const totalColumnas = 1 + rango.length + (acumulado ? 1 : 0)
+                  const tieneDetalle = CAMPOS_CON_DETALLE.includes(rubro.campo);
+                  const rubroSlug = tieneDetalle ? rubroSlugDeCampo(rubro.campo) : null;
+                  const abierto = tieneDetalle && filasAbiertas.has(rubro.campo);
+                  const conceptos = rubroSlug ? (conceptosPorRubro.get(rubroSlug) ?? []) : [];
+                  const totalColumnas = 1 + rango.length + (acumulado ? 1 : 0);
                   return (
                     <Fragment key={rubro.campo}>
                       <tr
                         className={`border-b border-slate-100 last:border-0 ${
-                          FILAS_DESTACADAS.has(rubro.campo) ? 'bg-teal-50 font-semibold text-teal-900' : ''
+                          FILAS_DESTACADAS.has(rubro.campo)
+                            ? "bg-teal-50 font-semibold text-teal-900"
+                            : ""
                         }`}
                       >
                         <td className="px-4 py-2 text-slate-700 whitespace-nowrap">
@@ -303,7 +360,9 @@ export default function PanelResultados({
                               onClick={() => toggleDetalle(rubro.campo)}
                               className="inline-flex items-center gap-1.5 hover:underline"
                             >
-                              <span className={`inline-block transition-transform ${abierto ? 'rotate-90' : ''}`}>
+                              <span
+                                className={`inline-block transition-transform ${abierto ? "rotate-90" : ""}`}
+                              >
                                 ▶
                               </span>
                               {rubro.etiqueta}
@@ -313,66 +372,93 @@ export default function PanelResultados({
                           )}
                         </td>
                         {rango.map((r) => {
-                          const valor = r[rubro.campo]
+                          const valor = r[rubro.campo];
                           const incidencia =
-                            rubro.esIncidenciaSobreVentas && r.total_ventas ? ((valor ?? 0) / r.total_ventas) * 100 : null
+                            rubro.esIncidenciaSobreVentas && r.total_ventas
+                              ? ((valor ?? 0) / r.total_ventas) * 100
+                              : null;
                           return (
                             <td key={r.id} className="px-4 py-2 text-right text-slate-700">
                               <div>{formatearMonto(valor)}</div>
                               {incidencia !== null && (
-                                <div className="text-xs text-slate-400 font-normal">{incidencia.toFixed(1)}% s/ventas</div>
+                                <div className="text-xs text-slate-400 font-normal">
+                                  {incidencia.toFixed(1)}% s/ventas
+                                </div>
                               )}
                             </td>
-                          )
+                          );
                         })}
-                        {acumulado && (() => {
-                          const valor = acumulado[rubro.campo]
-                          const incidencia =
-                            rubro.esIncidenciaSobreVentas && acumulado.total_ventas
-                              ? ((valor ?? 0) / acumulado.total_ventas) * 100
-                              : null
-                          return (
-                            <td className="px-4 py-2 text-right text-slate-700 border-l border-slate-300 bg-slate-50">
-                              <div>{formatearMonto(valor)}</div>
-                              {incidencia !== null && (
-                                <div className="text-xs text-slate-400 font-normal">{incidencia.toFixed(1)}% s/ventas</div>
-                              )}
-                            </td>
-                          )
-                        })()}
+                        {acumulado &&
+                          (() => {
+                            const valor = acumulado[rubro.campo];
+                            const incidencia =
+                              rubro.esIncidenciaSobreVentas && acumulado.total_ventas
+                                ? ((valor ?? 0) / acumulado.total_ventas) * 100
+                                : null;
+                            return (
+                              <td className="px-4 py-2 text-right text-slate-700 border-l border-slate-300 bg-slate-50">
+                                <div>{formatearMonto(valor)}</div>
+                                {incidencia !== null && (
+                                  <div className="text-xs text-slate-400 font-normal">
+                                    {incidencia.toFixed(1)}% s/ventas
+                                  </div>
+                                )}
+                              </td>
+                            );
+                          })()}
                       </tr>
 
-                      {abierto && rubroSlug && (
-                        conceptos.length === 0 ? (
+                      {abierto &&
+                        rubroSlug &&
+                        (conceptos.length === 0 ? (
                           <tr className="border-b border-slate-100 bg-slate-50/60">
-                            <td colSpan={totalColumnas} className="px-4 py-2 text-xs text-slate-400 italic">
+                            <td
+                              colSpan={totalColumnas}
+                              className="px-4 py-2 text-xs text-slate-400 italic"
+                            >
                               Sin detalle cargado para este rango.
                             </td>
                           </tr>
                         ) : (
                           conceptos.map((concepto) => (
-                            <tr key={concepto} className="border-b border-slate-100 last:border-0 bg-slate-50/60">
+                            <tr
+                              key={concepto}
+                              className="border-b border-slate-100 last:border-0 bg-slate-50/60"
+                            >
                               <td className="px-4 py-1 pl-9 text-xs text-slate-500 whitespace-nowrap italic">
                                 {concepto}
                               </td>
                               {rango.map((r) => (
-                                <td key={r.id} className="px-4 py-1 text-right text-xs text-slate-500">
-                                  {formatearMonto(mapaDetalle.get(`${rubroSlug}|${concepto}|${r.anio}-${r.mes}`) ?? null)}
+                                <td
+                                  key={r.id}
+                                  className="px-4 py-1 text-right text-xs text-slate-500"
+                                >
+                                  {formatearMonto(
+                                    mapaDetalle.get(
+                                      `${rubroSlug}|${concepto}|${r.anio}-${r.mes}`,
+                                    ) ?? null,
+                                  )}
                                 </td>
                               ))}
                               {acumulado && (
                                 <td className="px-4 py-1 text-right text-xs text-slate-500 border-l border-slate-300 bg-slate-100/60">
                                   {formatearMonto(
-                                    rango.reduce((suma, r) => suma + (mapaDetalle.get(`${rubroSlug}|${concepto}|${r.anio}-${r.mes}`) ?? 0), 0)
+                                    rango.reduce(
+                                      (suma, r) =>
+                                        suma +
+                                        (mapaDetalle.get(
+                                          `${rubroSlug}|${concepto}|${r.anio}-${r.mes}`,
+                                        ) ?? 0),
+                                      0,
+                                    ),
                                   )}
                                 </td>
                               )}
                             </tr>
                           ))
-                        )
-                      )}
+                        ))}
                     </Fragment>
-                  )
+                  );
                 })}
               </tbody>
             </table>
@@ -380,5 +466,5 @@ export default function PanelResultados({
         </>
       )}
     </div>
-  )
+  );
 }

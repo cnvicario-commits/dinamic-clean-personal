@@ -1,26 +1,398 @@
-import crypto from 'node:crypto'
-import type pg from 'pg'
-import type { Db } from './pool.js'
-import { conflict, notFound } from '../../http/errors/app-error.js'
-import type { CrmCreateFollowUp, CrmCreateOpportunity, CrmCreateProspect, CrmListQuery, CrmTransition, CrmUpdateOpportunity, CrmUpdateProspect } from '../../http/schemas/crm.js'
+import type pg from "pg";
+import type { Db } from "./pool.js";
+import { conflict, notFound } from "../../http/errors/app-error.js";
+import { createCrmReadModelMethods } from "./crm/crm-read-models.js";
+import { createCrmOpportunityIdempotency } from "./crm/crm-idempotency.js";
+import type {
+  CrmCreateFollowUp,
+  CrmCreateOpportunity,
+  CrmCreateProspect,
+  CrmListQuery,
+  CrmTransition,
+  CrmUpdateOpportunity,
+  CrmUpdateProspect,
+} from "../../http/schemas/crm.js";
 
-const tx=async<T>(db:Db,run:(c:pg.PoolClient)=>Promise<T>)=>{const c=await db.pool.connect();try{await c.query('begin');const r=await run(c);await c.query('commit');return r}catch(e){await c.query('rollback');throw e}finally{c.release()}}
-const first=<T>(rows:T[],message:string)=>{if(!rows[0])throw notFound(message);return rows[0]}
-const hash=(value:unknown)=>crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex')
-type Queryable={query:(text:string,params?:unknown[])=>Promise<{rows:Record<string,unknown>[]}>
-}
-const opportunitySelect=`select o.*, jsonb_build_object('id',p.id,'nombre',p.nombre,'tipo_cliente_id',p.tipo_cliente_id,'contacto_nombre',p.contacto_nombre,'telefono',p.telefono,'email',p.email,'referido_por_id',p.referido_por_id,'crm_tipos_cliente',case when tc.id is null then null else jsonb_build_object('nombre',tc.nombre) end,'crm_referidores',case when r.id is null then null else jsonb_build_object('nombre',r.nombre) end) crm_prospectos, case when ts.id is null then null else jsonb_build_object('nombre',ts.nombre) end crm_tipos_servicio, case when pr.id is null then null else jsonb_build_object('nombre_completo',pr.nombre_completo) end perfiles from public.crm_oportunidades o join public.crm_prospectos p on p.id=o.prospecto_id left join public.crm_tipos_cliente tc on tc.id=p.tipo_cliente_id left join public.crm_referidores r on r.id=p.referido_por_id left join public.crm_tipos_servicio ts on ts.id=o.tipo_servicio_id left join public.perfiles pr on pr.id=o.responsable_id`
-export function createCrmRepository(db:Db){
- const list=async(q:CrmListQuery)=>{const params:unknown[]=[];const clauses:string[]=[];const value=(v:unknown)=>{params.push(v);return `$${params.length}`};if(q.estado)clauses.push(`o.estado=${value(q.estado)}`);if(q.responsableId)clauses.push(`o.responsable_id=${value(q.responsableId)}`);if(q.prospectoId)clauses.push(`o.prospecto_id=${value(q.prospectoId)}`);if(q.tipoClienteId)clauses.push(`p.tipo_cliente_id=${value(q.tipoClienteId)}`);if(q.tipoServicioId)clauses.push(`o.tipo_servicio_id=${value(q.tipoServicioId)}`);if(q.desde)clauses.push(`o.fecha_ingreso>=${value(q.desde)}`);if(q.hasta)clauses.push(`o.fecha_ingreso<=${value(q.hasta)}`);if(q.proximaFecha)clauses.push('o.proxima_fecha_seguimiento is not null');if(q.facturacion)clauses.push("o.estado='aceptado' and o.fecha_facturacion is not null");if(q.search){const term=value(`%${q.search}%`);clauses.push(`(p.nombre ilike ${term} or coalesce(o.numero_referencia,'') ilike ${term})`)}const where=clauses.length?` where ${clauses.join(' and ')}`:'';const order={created:'o.created_at desc,o.id desc',ingreso:'o.fecha_ingreso desc,o.id desc',agenda:'o.proxima_fecha_seguimiento asc nulls last,o.id',facturacion:'o.fecha_facturacion asc nulls last,o.id'}[q.order];const total=await db.query<{count:string}>(`select count(*)::text count from public.crm_oportunidades o join public.crm_prospectos p on p.id=o.prospecto_id${where}`,params);const pageParams=[...params,(q.page-1)*q.pageSize,q.pageSize];const rows=await db.query(`${opportunitySelect}${where} order by ${order} offset $${pageParams.length-1} limit $${pageParams.length}`,pageParams);return{items:rows.rows,page:q.page,pageSize:q.pageSize,total:Number(total.rows[0]?.count??0)}}
- const detailWith=async(c:Queryable,id:string)=>first((await c.query(`${opportunitySelect} where o.id=$1`,[id])).rows,'Opportunity not found')
- const detail=async(id:string)=>detailWith(db,id)
- const catalogs=async()=>{const prospects=await db.query('select id,nombre from public.crm_prospectos order by nombre');const services=await db.query('select id,nombre,activo from public.crm_tipos_servicio where activo=true order by nombre');const types=await db.query('select id,nombre,activo from public.crm_tipos_cliente where activo=true order by nombre');const referrers=await db.query('select id,nombre,activo from public.crm_referidores where activo=true order by nombre');const profiles=await db.query('select id,nombre_completo from public.perfiles order by nombre_completo');return{prospectos:prospects.rows,tiposServicio:services.rows,tiposCliente:types.rows,referidores:referrers.rows,responsables:profiles.rows}}
- const followUps=async(id:string,q:{page:number;pageSize:number})=>{const total=await db.query<{count:string}>('select count(*)::text count from public.crm_seguimientos where oportunidad_id=$1',[id]);const rows=await db.query(`select s.*,case when p.id is null then null else jsonb_build_object('nombre_completo',p.nombre_completo) end perfiles from public.crm_seguimientos s left join public.perfiles p on p.id=s.usuario_id where s.oportunidad_id=$1 order by s.fecha_contacto desc,s.created_at desc offset $2 limit $3`,[id,(q.page-1)*q.pageSize,q.pageSize]);return{items:rows.rows,page:q.page,pageSize:q.pageSize,total:Number(total.rows[0]?.count??0)}}
- const dashboard=async(actor:string,q:CrmListQuery)=>{const opportunities=await list(q);const ids=opportunities.items.map(item=>String((item as {id:string}).id));const [seguimientos,vistas,novedades]=await Promise.all([ids.length?db.query(`select s.oportunidad_id,s.usuario_id,s.usuario_nombre_libre,s.tipo_contacto,s.nota,s.created_at,case when p.id is null then null else jsonb_build_object('nombre_completo',p.nombre_completo) end perfiles from public.crm_seguimientos s left join public.perfiles p on p.id=s.usuario_id where s.oportunidad_id=any($1::uuid[])`,[ids]):Promise.resolve({rows:[] as Record<string,unknown>[]}),ids.length?db.query('select oportunidad_id,last_viewed_at from public.crm_vistas where usuario_id=$1 and oportunidad_id=any($2::uuid[])',[actor,ids]):Promise.resolve({rows:[] as Record<string,unknown>[]}),db.query(`with unread as (select s.oportunidad_id,s.usuario_id,s.usuario_nombre_libre,s.nota,s.created_at,case when pr.id is null then null else jsonb_build_object('nombre_completo',pr.nombre_completo) end perfiles from public.crm_seguimientos s join public.crm_oportunidades o on o.id=s.oportunidad_id join public.crm_prospectos cp on cp.id=o.prospecto_id left join public.crm_vistas v on v.oportunidad_id=s.oportunidad_id and v.usuario_id=$1 left join public.perfiles pr on pr.id=s.usuario_id where v.last_viewed_at is null or s.created_at>v.last_viewed_at), ranked as (select *,count(*) over(partition by oportunidad_id)::int cantidad,row_number() over(partition by oportunidad_id order by created_at desc) rn from unread) select r.oportunidad_id "oportunidadId",cp.nombre "prospectoNombre",r.cantidad,r.usuario_nombre_libre "usuarioNombreLibre",r.nota,r.created_at "creadoEn",r.perfiles from ranked r join public.crm_oportunidades o on o.id=r.oportunidad_id join public.crm_prospectos cp on cp.id=o.prospecto_id where r.rn=1 order by r.created_at desc`,[actor])]);return{...opportunities,seguimientos:seguimientos.rows,vistas:vistas.rows,novedades:novedades.rows}}
- const summary=async(q:CrmListQuery)=>{const params:unknown[]=[];const clauses:string[]=[];const value=(v:unknown)=>{params.push(v);return `$${params.length}`};if(q.responsableId)clauses.push(`o.responsable_id=${value(q.responsableId)}`);if(q.desde)clauses.push(`o.fecha_ingreso>=${value(q.desde)}`);if(q.hasta)clauses.push(`o.fecha_ingreso<=${value(q.hasta)}`);const where=clauses.length?` where ${clauses.join(' and ')}`:'';const from=` from public.crm_oportunidades o join public.crm_prospectos p on p.id=o.prospecto_id left join public.crm_tipos_cliente tc on tc.id=p.tipo_cliente_id left join public.crm_referidores r on r.id=p.referido_por_id`;const [totals,states,types,referrers]=await Promise.all([db.query<{cantidad:string;monto:string;monto_aceptado:string;aceptadas:string;rechazadas:string;comision_total:string;comision_liquidada:string}>(`select count(*)::text cantidad,coalesce(sum(o.monto_estimado),0)::text monto,coalesce(sum(o.monto_estimado) filter(where o.estado='aceptado'),0)::text monto_aceptado,count(*) filter(where o.estado='aceptado')::text aceptadas,count(*) filter(where o.estado='rechazado')::text rechazadas,coalesce(sum(o.comision_monto) filter(where o.estado='aceptado'),0)::text comision_total,coalesce(sum(o.comision_monto) filter(where o.estado='aceptado' and o.comision_liquidada),0)::text comision_liquidada${from}${where}`,params),db.query<{estado:string;cantidad:string;monto:string}>(`select o.estado,count(*)::text cantidad,coalesce(sum(o.monto_estimado),0)::text monto${from}${where} group by o.estado`,params),db.query<{nombre:string;cantidad:string;monto:string}>(`select coalesce(tc.nombre,'Sin tipo de cliente') nombre,count(*)::text cantidad,coalesce(sum(o.monto_estimado),0)::text monto${from}${where} group by coalesce(tc.nombre,'Sin tipo de cliente') order by count(*) desc`,params),db.query<{nombre:string;cantidad:string;monto:string}>(`select coalesce(r.nombre,'Sin referidor') nombre,count(*)::text cantidad,coalesce(sum(o.monto_estimado),0)::text monto${from}${where} group by coalesce(r.nombre,'Sin referidor') order by count(*) desc`,params)]);const total=totals.rows[0]??{cantidad:'0',monto:'0',monto_aceptado:'0',aceptadas:'0',rechazadas:'0',comision_total:'0',comision_liquidada:'0'};const accepted=Number(total.aceptadas),rejected=Number(total.rechazadas),commission=Number(total.comision_total),paid=Number(total.comision_liquidada);return{totalCantidad:Number(total.cantidad),totalMonto:Number(total.monto),porEstado:states.rows.map(x=>({estado:x.estado,cantidad:Number(x.cantidad),monto:Number(x.monto)})),porTipoCliente:types.rows.map(x=>({nombre:x.nombre,cantidad:Number(x.cantidad),monto:Number(x.monto)})),porReferidor:referrers.rows.map(x=>({nombre:x.nombre,cantidad:Number(x.cantidad),monto:Number(x.monto)})),montoAceptado:Number(total.monto_aceptado),tasaConversion:accepted+rejected?accepted/(accepted+rejected):null,comisionTotal:commission,comisionLiquidada:paid,comisionPendiente:commission-paid}}
- const createProspect=async(v:CrmCreateProspect)=>first((await db.query('insert into public.crm_prospectos(nombre,tipo_cliente_id,contacto_nombre,telefono,email,referido_por_id,notas) values($1,$2,$3,$4,$5,$6,$7) returning *',[v.nombre,v.tipoClienteId,v.contactoNombre,v.telefono,v.email,v.referidoPorId,v.notas])).rows,'Prospect creation failed')
- const updateProspect=async(id:string,v:CrmUpdateProspect,c:pg.PoolClient)=>{const map:Record<string,string>={nombre:'nombre',tipoClienteId:'tipo_cliente_id',contactoNombre:'contacto_nombre',telefono:'telefono',email:'email',referidoPorId:'referido_por_id',notas:'notas'};const entries=Object.entries(v).filter(([k])=>map[k]);if(!entries.length)return first((await c.query('select * from public.crm_prospectos where id=$1',[id])).rows,'Prospect not found');const values=entries.map(([,x])=>x);const sets=entries.map(([k],i)=>`${map[k]}=$${i+2}`).join(',');return first((await c.query(`update public.crm_prospectos set ${sets} where id=$1 returning *`,[id,...values])).rows,'Prospect not found')}
- const createFollowUp=async(c:pg.PoolClient,id:string,v:CrmCreateFollowUp,actor:string,note?:string)=>first((await c.query('insert into public.crm_seguimientos(oportunidad_id,fecha_contacto,tipo_contacto,nota,proxima_fecha_seguimiento,usuario_id) values($1,coalesce($2::date,current_date),$3,$4,$5,$6) returning *',[id,v.fechaContacto??null,v.tipoContacto,note??v.nota,v.proximaFechaSeguimiento,actor])).rows,'Follow-up creation failed')
- const idempotent=async<T>(actor:string,key:string,payload:unknown,run:(c:pg.PoolClient)=>Promise<T>)=>tx(db,async c=>{const h=hash(payload);await c.query("insert into public.crm_operation_idempotency(actor_id,operation,idempotency_key,payload_hash,status) values($1,'opportunity_create',$2,$3,'PROCESSING') on conflict do nothing",[actor,key,h]);const current=first((await c.query<{payload_hash:string;status:string;response:T|null}>('select payload_hash,status,response from public.crm_operation_idempotency where actor_id=$1 and operation=$2 and idempotency_key=$3 for update',[actor,'opportunity_create',key])).rows,'Idempotency unavailable');if(current.payload_hash!==h)throw conflict('Idempotency-Key was already used with a different payload');if(current.status==='COMPLETED'&&current.response)return{replayed:true,response:current.response};const response=await run(c);await c.query("update public.crm_operation_idempotency set status='COMPLETED',response=$4,updated_at=now() where actor_id=$1 and operation=$2 and idempotency_key=$3",[actor,'opportunity_create',key,JSON.stringify(response)]);return{replayed:false,response}})
- return {list,dashboard,summary,detail,catalogs,followUps,createProspect,updateProspect:(id:string,v:CrmUpdateProspect)=>tx(db,c=>updateProspect(id,v,c)), async createOpportunity(v:CrmCreateOpportunity,actor:string,key:string){return idempotent(actor,key,v,async c=>{first((await c.query('select id from public.crm_prospectos where id=$1 for key share',[v.prospectoId])).rows,'Prospect not found');first((await c.query('select id from public.perfiles where id=$1 for key share',[v.responsableId])).rows,'Responsible not found');const o=first((await c.query(`insert into public.crm_oportunidades(prospecto_id,numero_referencia,fecha_ingreso,tipo_servicio_id,cantidad_personal,monto_estimado,fecha_envio,comision_monto,comentarios,responsable_id) values($1,$2,coalesce($3,current_date),$4,$5,$6,$7,$8,$9,$10) returning *`,[v.prospectoId,v.numeroReferencia,v.fechaIngreso??null,v.tipoServicioId,v.cantidadPersonal,v.montoEstimado,v.fechaEnvio,v.comisionMonto,v.comentarios,v.responsableId])).rows,'Opportunity creation failed');if(v.seguimientoInicial)await createFollowUp(c,String(o.id),{nota:'Oportunidad creada.',tipoContacto:null,proximaFechaSeguimiento:null},actor);return o})}, async updateOpportunity(id:string,v:CrmUpdateOpportunity){return tx(db,async c=>{const old=first((await c.query<{prospecto_id:string;updated_at:string|null}>('select prospecto_id,updated_at from public.crm_oportunidades where id=$1 for update',[id])).rows,'Opportunity not found');if(old.updated_at!==v.updatedAt)throw conflict('Opportunity was modified by another user');const map:Record<string,string>={numeroReferencia:'numero_referencia',tipoServicioId:'tipo_servicio_id',cantidadPersonal:'cantidad_personal',montoEstimado:'monto_estimado',fechaEnvio:'fecha_envio',fechaFacturacion:'fecha_facturacion',comisionMonto:'comision_monto',comisionLiquidada:'comision_liquidada',comentarios:'comentarios'};const e=Object.entries(v).filter(([k])=>map[k]);if(e.length)await c.query(`update public.crm_oportunidades set ${e.map(([k],i)=>`${map[k]}=$${i+2}`).join(',')} where id=$1`,[id,...e.map(([,x])=>x)]);if(v.prospecto)await updateProspect(old.prospecto_id,v.prospecto,c);return detailWith(c,id)})}, async transition(id:string,v:CrmTransition,actor:string){return tx(db,async c=>{const old=first((await c.query<{estado:string;updated_at:string|null}>('select estado,updated_at from public.crm_oportunidades where id=$1 for update',[id])).rows,'Opportunity not found');if(old.updated_at!==v.updatedAt)throw conflict('Opportunity was modified by another user');if(old.estado!==v.estado){await c.query('update public.crm_oportunidades set estado=$2 where id=$1',[id,v.estado]);await createFollowUp(c,id,{nota:'',tipoContacto:null,proximaFechaSeguimiento:null},actor,`Estado cambiado de "${old.estado}" a "${v.estado}".`)}return detailWith(c,id)})}, async createFollowUp(id:string,v:CrmCreateFollowUp,actor:string){return tx(db,async c=>{first((await c.query('select id from public.crm_oportunidades where id=$1 for key share',[id])).rows,'Opportunity not found');return createFollowUp(c,id,v,actor)})}, async deleteOpportunity(id:string){await tx(db,async c=>{first((await c.query('delete from public.crm_oportunidades where id=$1 returning id',[id])).rows,'Opportunity not found')})}, async markViewed(id:string,actor:string){return first((await db.query('insert into public.crm_vistas(oportunidad_id,usuario_id,last_viewed_at) values($1,$2,now()) on conflict(oportunidad_id,usuario_id) do update set last_viewed_at=excluded.last_viewed_at returning *',[id,actor])).rows,'View mark failed')}, catalog(resource:'tipos-cliente'|'tipos-servicio'|'referidores'){const table={'tipos-cliente':'crm_tipos_cliente','tipos-servicio':'crm_tipos_servicio',referidores:'crm_referidores'}[resource];return{list:()=>db.query(`select id,nombre,activo from public.${table} order by nombre`).then(x=>x.rows),create:async(nombre:string)=>{try{return first((await db.query(`insert into public.${table}(nombre) values($1) returning *`,[nombre])).rows,'Catalog creation failed')}catch(error){if((error as {code?:string}).code==='23505')throw conflict('Catalog record conflicts with an existing unique value');throw error}},status:(id:string,activo:boolean)=>db.query(`update public.${table} set activo=$2 where id=$1 returning *`,[id,activo]).then(x=>first(x.rows,'Catalog item not found'))}} }
+const tx = async <T>(db: Db, run: (c: pg.PoolClient) => Promise<T>) => {
+  const c = await db.pool.connect();
+  try {
+    await c.query("begin");
+    const r = await run(c);
+    await c.query("commit");
+    return r;
+  } catch (e) {
+    await c.query("rollback");
+    throw e;
+  } finally {
+    c.release();
+  }
+};
+const first = <T>(rows: T[], message: string) => {
+  if (!rows[0]) throw notFound(message);
+  return rows[0];
+};
+type Queryable = {
+  query: (text: string, params?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>;
+};
+const opportunitySelect = `select o.*,
+jsonb_build_object('id',p.id,'nombre',p.nombre,'tipo_cliente_id',p.tipo_cliente_id,'contacto_nombre',p.contacto_nombre,
+'telefono',p.telefono,'email',p.email,'referido_por_id',p.referido_por_id,
+'crm_tipos_cliente',case when tc.id is null then null else jsonb_build_object('nombre',tc.nombre) end,
+'crm_referidores',case when r.id is null then null else jsonb_build_object('nombre',r.nombre) end) crm_prospectos,
+case when ts.id is null then null else jsonb_build_object('nombre',ts.nombre) end crm_tipos_servicio,
+case when pr.id is null then null else jsonb_build_object('nombre_completo',pr.nombre_completo) end perfiles
+from public.crm_oportunidades o join public.crm_prospectos p on p.id=o.prospecto_id
+left join public.crm_tipos_cliente tc on tc.id=p.tipo_cliente_id
+left join public.crm_referidores r on r.id=p.referido_por_id
+left join public.crm_tipos_servicio ts on ts.id=o.tipo_servicio_id
+left join public.perfiles pr on pr.id=o.responsable_id`;
+export function createCrmRepository(db: Db) {
+  const list = async (q: CrmListQuery) => {
+    const params: unknown[] = [];
+    const clauses: string[] = [];
+    const value = (v: unknown) => {
+      params.push(v);
+      return `$${params.length}`;
+    };
+    if (q.estado) clauses.push(`o.estado=${value(q.estado)}`);
+    if (q.responsableId) clauses.push(`o.responsable_id=${value(q.responsableId)}`);
+    if (q.prospectoId) clauses.push(`o.prospecto_id=${value(q.prospectoId)}`);
+    if (q.tipoClienteId) clauses.push(`p.tipo_cliente_id=${value(q.tipoClienteId)}`);
+    if (q.tipoServicioId) clauses.push(`o.tipo_servicio_id=${value(q.tipoServicioId)}`);
+    if (q.desde) clauses.push(`o.fecha_ingreso>=${value(q.desde)}`);
+    if (q.hasta) clauses.push(`o.fecha_ingreso<=${value(q.hasta)}`);
+    if (q.proximaFecha) clauses.push("o.proxima_fecha_seguimiento is not null");
+    if (q.facturacion) clauses.push("o.estado='aceptado' and o.fecha_facturacion is not null");
+    if (q.search) {
+      const term = value(`%${q.search}%`);
+      clauses.push(`(p.nombre ilike ${term} or coalesce(o.numero_referencia,'') ilike ${term})`);
+    }
+    const where = clauses.length ? ` where ${clauses.join(" and ")}` : "";
+    const order = {
+      created: "o.created_at desc,o.id desc",
+      ingreso: "o.fecha_ingreso desc,o.id desc",
+      agenda: "o.proxima_fecha_seguimiento asc nulls last,o.id",
+      facturacion: "o.fecha_facturacion asc nulls last,o.id",
+    }[q.order];
+    const total = await db.query<{ count: string }>(
+      `select count(*)::text count from public.crm_oportunidades o join public.crm_prospectos p on p.id=o.prospecto_id${where}`,
+      params,
+    );
+    const pageParams = [...params, (q.page - 1) * q.pageSize, q.pageSize];
+    const rows = await db.query(
+      `${opportunitySelect}${where} order by ${order} offset $${pageParams.length - 1} limit $${pageParams.length}`,
+      pageParams,
+    );
+    return {
+      items: rows.rows,
+      page: q.page,
+      pageSize: q.pageSize,
+      total: Number(total.rows[0]?.count ?? 0),
+    };
+  };
+  const { dashboard, summary } = createCrmReadModelMethods(db, list);
+  const idempotent = createCrmOpportunityIdempotency(db, tx, first);
+  const detailWith = async (c: Queryable, id: string) =>
+    first(
+      (await c.query(`${opportunitySelect} where o.id=$1`, [id])).rows,
+      "Opportunity not found",
+    );
+  const detail = async (id: string) => detailWith(db, id);
+  const catalogs = async () => {
+    const prospects = await db.query("select id,nombre from public.crm_prospectos order by nombre");
+    const services = await db.query(
+      "select id,nombre,activo from public.crm_tipos_servicio where activo=true order by nombre",
+    );
+    const types = await db.query(
+      "select id,nombre,activo from public.crm_tipos_cliente where activo=true order by nombre",
+    );
+    const referrers = await db.query(
+      "select id,nombre,activo from public.crm_referidores where activo=true order by nombre",
+    );
+    const profiles = await db.query(
+      "select id,nombre_completo from public.perfiles order by nombre_completo",
+    );
+    return {
+      prospectos: prospects.rows,
+      tiposServicio: services.rows,
+      tiposCliente: types.rows,
+      referidores: referrers.rows,
+      responsables: profiles.rows,
+    };
+  };
+  const followUps = async (id: string, q: { page: number; pageSize: number }) => {
+    const total = await db.query<{ count: string }>(
+      "select count(*)::text count from public.crm_seguimientos where oportunidad_id=$1",
+      [id],
+    );
+    const rows = await db.query(
+      `select s.*,case when p.id is null then null else jsonb_build_object('nombre_completo',p.nombre_completo) end perfiles
+from public.crm_seguimientos s left join public.perfiles p on p.id=s.usuario_id
+where s.oportunidad_id=$1 order by s.fecha_contacto desc,s.created_at desc offset $2 limit $3`,
+      [id, (q.page - 1) * q.pageSize, q.pageSize],
+    );
+    return {
+      items: rows.rows,
+      page: q.page,
+      pageSize: q.pageSize,
+      total: Number(total.rows[0]?.count ?? 0),
+    };
+  };
+  const createProspect = async (v: CrmCreateProspect) =>
+    first(
+      (
+        await db.query(
+          "insert into public.crm_prospectos(nombre,tipo_cliente_id,contacto_nombre,telefono,email,referido_por_id,notas) values($1,$2,$3,$4,$5,$6,$7) returning *",
+          [
+            v.nombre,
+            v.tipoClienteId,
+            v.contactoNombre,
+            v.telefono,
+            v.email,
+            v.referidoPorId,
+            v.notas,
+          ],
+        )
+      ).rows,
+      "Prospect creation failed",
+    );
+  const updateProspect = async (id: string, v: CrmUpdateProspect, c: pg.PoolClient) => {
+    const map: Record<string, string> = {
+      nombre: "nombre",
+      tipoClienteId: "tipo_cliente_id",
+      contactoNombre: "contacto_nombre",
+      telefono: "telefono",
+      email: "email",
+      referidoPorId: "referido_por_id",
+      notas: "notas",
+    };
+    const entries = Object.entries(v).filter(([k]) => map[k]);
+    if (!entries.length)
+      return first(
+        (await c.query("select * from public.crm_prospectos where id=$1", [id])).rows,
+        "Prospect not found",
+      );
+    const values = entries.map(([, x]) => x);
+    const sets = entries.map(([k], i) => `${map[k]}=$${i + 2}`).join(",");
+    return first(
+      (
+        await c.query(`update public.crm_prospectos set ${sets} where id=$1 returning *`, [
+          id,
+          ...values,
+        ])
+      ).rows,
+      "Prospect not found",
+    );
+  };
+  const createFollowUp = async (
+    c: pg.PoolClient,
+    id: string,
+    v: CrmCreateFollowUp,
+    actor: string,
+    note?: string,
+  ) =>
+    first(
+      (
+        await c.query(
+          `insert into public.crm_seguimientos(oportunidad_id,fecha_contacto,tipo_contacto,nota,proxima_fecha_seguimiento,usuario_id)
+values($1,coalesce($2::date,current_date),$3,$4,$5,$6) returning *`,
+          [
+            id,
+            v.fechaContacto ?? null,
+            v.tipoContacto,
+            note ?? v.nota,
+            v.proximaFechaSeguimiento,
+            actor,
+          ],
+        )
+      ).rows,
+      "Follow-up creation failed",
+    );
+  return {
+    list,
+    dashboard,
+    summary,
+    detail,
+    catalogs,
+    followUps,
+    createProspect,
+    updateProspect: (id: string, v: CrmUpdateProspect) => tx(db, (c) => updateProspect(id, v, c)),
+    async createOpportunity(v: CrmCreateOpportunity, actor: string, key: string) {
+      return idempotent(actor, key, v, async (c) => {
+        first(
+          (
+            await c.query("select id from public.crm_prospectos where id=$1 for key share", [
+              v.prospectoId,
+            ])
+          ).rows,
+          "Prospect not found",
+        );
+        first(
+          (
+            await c.query("select id from public.perfiles where id=$1 for key share", [
+              v.responsableId,
+            ])
+          ).rows,
+          "Responsible not found",
+        );
+        const o = first(
+          (
+            await c.query(
+              `insert into public.crm_oportunidades(prospecto_id,numero_referencia,fecha_ingreso,tipo_servicio_id,cantidad_personal,
+monto_estimado,fecha_envio,comision_monto,comentarios,responsable_id)
+values($1,$2,coalesce($3,current_date),$4,$5,$6,$7,$8,$9,$10) returning *`,
+              [
+                v.prospectoId,
+                v.numeroReferencia,
+                v.fechaIngreso ?? null,
+                v.tipoServicioId,
+                v.cantidadPersonal,
+                v.montoEstimado,
+                v.fechaEnvio,
+                v.comisionMonto,
+                v.comentarios,
+                v.responsableId,
+              ],
+            )
+          ).rows,
+          "Opportunity creation failed",
+        );
+        if (v.seguimientoInicial)
+          await createFollowUp(
+            c,
+            String(o.id),
+            { nota: "Oportunidad creada.", tipoContacto: null, proximaFechaSeguimiento: null },
+            actor,
+          );
+        return o;
+      });
+    },
+    async updateOpportunity(id: string, v: CrmUpdateOpportunity) {
+      return tx(db, async (c) => {
+        const old = first(
+          (
+            await c.query<{ prospecto_id: string; updated_at: string | null }>(
+              "select prospecto_id,updated_at from public.crm_oportunidades where id=$1 for update",
+              [id],
+            )
+          ).rows,
+          "Opportunity not found",
+        );
+        if (old.updated_at !== v.updatedAt)
+          throw conflict("Opportunity was modified by another user");
+        const map: Record<string, string> = {
+          numeroReferencia: "numero_referencia",
+          tipoServicioId: "tipo_servicio_id",
+          cantidadPersonal: "cantidad_personal",
+          montoEstimado: "monto_estimado",
+          fechaEnvio: "fecha_envio",
+          fechaFacturacion: "fecha_facturacion",
+          comisionMonto: "comision_monto",
+          comisionLiquidada: "comision_liquidada",
+          comentarios: "comentarios",
+        };
+        const e = Object.entries(v).filter(([k]) => map[k]);
+        if (e.length)
+          await c.query(
+            `update public.crm_oportunidades set ${e.map(([k], i) => `${map[k]}=$${i + 2}`).join(",")} where id=$1`,
+            [id, ...e.map(([, x]) => x)],
+          );
+        if (v.prospecto) await updateProspect(old.prospecto_id, v.prospecto, c);
+        return detailWith(c, id);
+      });
+    },
+    async transition(id: string, v: CrmTransition, actor: string) {
+      return tx(db, async (c) => {
+        const old = first(
+          (
+            await c.query<{ estado: string; updated_at: string | null }>(
+              "select estado,updated_at from public.crm_oportunidades where id=$1 for update",
+              [id],
+            )
+          ).rows,
+          "Opportunity not found",
+        );
+        if (old.updated_at !== v.updatedAt)
+          throw conflict("Opportunity was modified by another user");
+        if (old.estado !== v.estado) {
+          await c.query("update public.crm_oportunidades set estado=$2 where id=$1", [
+            id,
+            v.estado,
+          ]);
+          await createFollowUp(
+            c,
+            id,
+            { nota: "", tipoContacto: null, proximaFechaSeguimiento: null },
+            actor,
+            `Estado cambiado de "${old.estado}" a "${v.estado}".`,
+          );
+        }
+        return detailWith(c, id);
+      });
+    },
+    async createFollowUp(id: string, v: CrmCreateFollowUp, actor: string) {
+      return tx(db, async (c) => {
+        first(
+          (await c.query("select id from public.crm_oportunidades where id=$1 for key share", [id]))
+            .rows,
+          "Opportunity not found",
+        );
+        return createFollowUp(c, id, v, actor);
+      });
+    },
+    async deleteOpportunity(id: string) {
+      await tx(db, async (c) => {
+        first(
+          (await c.query("delete from public.crm_oportunidades where id=$1 returning id", [id]))
+            .rows,
+          "Opportunity not found",
+        );
+      });
+    },
+    async markViewed(id: string, actor: string) {
+      return first(
+        (
+          await db.query(
+            `insert into public.crm_vistas(oportunidad_id,usuario_id,last_viewed_at) values($1,$2,now())
+on conflict(oportunidad_id,usuario_id) do update set last_viewed_at=excluded.last_viewed_at returning *`,
+            [id, actor],
+          )
+        ).rows,
+        "View mark failed",
+      );
+    },
+    catalog(resource: "tipos-cliente" | "tipos-servicio" | "referidores") {
+      const table = {
+        "tipos-cliente": "crm_tipos_cliente",
+        "tipos-servicio": "crm_tipos_servicio",
+        referidores: "crm_referidores",
+      }[resource];
+      return {
+        list: () =>
+          db
+            .query(`select id,nombre,activo from public.${table} order by nombre`)
+            .then((x) => x.rows),
+        create: async (nombre: string) => {
+          try {
+            return first(
+              (
+                await db.query(`insert into public.${table}(nombre) values($1) returning *`, [
+                  nombre,
+                ])
+              ).rows,
+              "Catalog creation failed",
+            );
+          } catch (error) {
+            if ((error as { code?: string }).code === "23505")
+              throw conflict("Catalog record conflicts with an existing unique value");
+            throw error;
+          }
+        },
+        status: (id: string, activo: boolean) =>
+          db
+            .query(`update public.${table} set activo=$2 where id=$1 returning *`, [id, activo])
+            .then((x) => first(x.rows, "Catalog item not found")),
+      };
+    },
+  };
 }

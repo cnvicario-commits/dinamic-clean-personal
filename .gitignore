@@ -23,6 +23,9 @@ node_modules/
 
 # misc
 .DS_Store
+__pycache__/
+*.py[cod]
+*$py.class
 *.pem
 
 # debug
@@ -58,6 +61,7 @@ next-env.d.ts
 # Formal + local evidence / review dumps (generate locally; never commit)
 /evidence/
 /evidencia/
+/audit/
 /review/
 .review/
 review-working-tree.txt

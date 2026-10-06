@@ -1,17 +1,23 @@
-'use client'
+"use client";
 
-import { useMemo, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
-import type { AsignacionPendiente, DestinoAsignacion, LineaPendiente, ProveedorResumen, ClienteDomicilio } from '@/types/compras'
+import { useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createAuthenticatedBrowserApiClient } from "@/lib/api/browser";
+import type {
+  AsignacionPendiente,
+  DestinoAsignacion,
+  LineaPendiente,
+  ProveedorResumen,
+  ClienteDomicilio,
+} from "@/types/compras";
 
 const inputStyle =
-  'px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500'
+  "px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500";
 
-type PrecioProveedor = { articulo_id: string; proveedor_id: string; precio: number }
+type PrecioProveedor = { articulo_id: string; proveedor_id: string; precio: number };
 
 function requiereProveedor(destino: DestinoAsignacion) {
-  return destino === 'proveedor' || destino === 'proveedor_deposito'
+  return destino === "proveedor" || destino === "proveedor_deposito";
 }
 
 function LineaAsignacionForm({
@@ -21,56 +27,56 @@ function LineaAsignacionForm({
   preciosProveedor,
   onAgregar,
 }: {
-  linea: LineaPendiente
-  pendienteRestante: number
-  proveedores: ProveedorResumen[]
-  preciosProveedor: PrecioProveedor[]
-  onAgregar: (a: AsignacionPendiente) => void
+  linea: LineaPendiente;
+  pendienteRestante: number;
+  proveedores: ProveedorResumen[];
+  preciosProveedor: PrecioProveedor[];
+  onAgregar: (a: AsignacionPendiente) => void;
 }) {
   // Precargados: cantidad con el total pendiente de la línea (editable, para
   // reparto parcial) y proveedor con el "habitual" del artículo si tiene uno
   // cargado (igual editable, sin quedar bloqueado).
-  const [cantidad, setCantidad] = useState(String(pendienteRestante))
-  const [destino, setDestino] = useState<DestinoAsignacion>('proveedor')
-  const [proveedorId, setProveedorId] = useState(linea.articulos?.proveedor_habitual_id ?? '')
-  const [precioManual, setPrecioManual] = useState('')
-  const [observaciones, setObservaciones] = useState('')
-  const [error, setError] = useState('')
+  const [cantidad, setCantidad] = useState(String(pendienteRestante));
+  const [destino, setDestino] = useState<DestinoAsignacion>("proveedor");
+  const [proveedorId, setProveedorId] = useState(linea.articulos?.proveedor_habitual_id ?? "");
+  const [precioManual, setPrecioManual] = useState("");
+  const [observaciones, setObservaciones] = useState("");
+  const [error, setError] = useState("");
 
   const precioCatalogo = useMemo(() => {
-    if (!proveedorId) return null
-    const fila = preciosProveedor.find((p) => p.proveedor_id === proveedorId && p.articulo_id === linea.articulo_id)
-    return fila?.precio ?? null
-  }, [proveedorId, preciosProveedor, linea.articulo_id])
+    if (!proveedorId) return null;
+    const fila = preciosProveedor.find(
+      (p) => p.proveedor_id === proveedorId && p.articulo_id === linea.articulo_id,
+    );
+    return fila?.precio ?? null;
+  }, [proveedorId, preciosProveedor, linea.articulo_id]);
 
   if (pendienteRestante <= 0) {
-    return (
-      <p className="text-sm text-emerald-600">Cantidad totalmente asignada.</p>
-    )
+    return <p className="text-sm text-emerald-600">Cantidad totalmente asignada.</p>;
   }
 
   function agregar() {
-    setError('')
-    const cant = Number(cantidad)
+    setError("");
+    const cant = Number(cantidad);
     if (!cant || cant <= 0) {
-      setError('Ingresá una cantidad mayor a 0.')
-      return
+      setError("Ingresá una cantidad mayor a 0.");
+      return;
     }
     if (cant > pendienteRestante) {
-      setError(`No podés asignar más de lo pendiente (${pendienteRestante}).`)
-      return
+      setError(`No podés asignar más de lo pendiente (${pendienteRestante}).`);
+      return;
     }
     if (requiereProveedor(destino)) {
       if (!proveedorId) {
-        setError('Elegí un proveedor.')
-        return
+        setError("Elegí un proveedor.");
+        return;
       }
-      const precio = precioCatalogo ?? Number(precioManual)
+      const precio = precioCatalogo ?? Number(precioManual);
       if (!precio || precio <= 0) {
-        setError('Ingresá un precio válido para este proveedor.')
-        return
+        setError("Ingresá un precio válido para este proveedor.");
+        return;
       }
-      const proveedor = proveedores.find((p) => p.id === proveedorId)
+      const proveedor = proveedores.find((p) => p.id === proveedorId);
       onAgregar({
         clave: crypto.randomUUID(),
         pedidoCompraItemId: linea.id,
@@ -81,24 +87,24 @@ function LineaAsignacionForm({
         proveedorNombre: proveedor?.razon_social ?? null,
         precioUnitario: precio,
         observaciones,
-      })
+      });
     } else {
       onAgregar({
         clave: crypto.randomUUID(),
         pedidoCompraItemId: linea.id,
         articulo: linea.articulos!,
         cantidad: cant,
-        destino: 'deposito',
+        destino: "deposito",
         proveedorId: null,
         proveedorNombre: null,
         precioUnitario: null,
         observaciones,
-      })
+      });
     }
-    setCantidad('')
-    setProveedorId('')
-    setPrecioManual('')
-    setObservaciones('')
+    setCantidad("");
+    setProveedorId("");
+    setPrecioManual("");
+    setObservaciones("");
   }
 
   return (
@@ -112,17 +118,27 @@ function LineaAsignacionForm({
         onChange={(e) => setCantidad(e.target.value)}
         className={`w-40 ${inputStyle}`}
       />
-      <select value={destino} onChange={(e) => setDestino(e.target.value as DestinoAsignacion)} className={`min-w-[220px] ${inputStyle}`}>
+      <select
+        value={destino}
+        onChange={(e) => setDestino(e.target.value as DestinoAsignacion)}
+        className={`min-w-[220px] ${inputStyle}`}
+      >
         <option value="proveedor">Orden de compra (directo al cliente)</option>
         <option value="proveedor_deposito">Orden de compra (entra a nuestro depósito)</option>
         <option value="deposito">Pedido a depósito (ya tengo stock)</option>
       </select>
       {requiereProveedor(destino) && (
         <>
-          <select value={proveedorId} onChange={(e) => setProveedorId(e.target.value)} className={`min-w-[180px] ${inputStyle}`}>
+          <select
+            value={proveedorId}
+            onChange={(e) => setProveedorId(e.target.value)}
+            className={`min-w-[180px] ${inputStyle}`}
+          >
             <option value="">Seleccionar proveedor</option>
             {proveedores.map((p) => (
-              <option key={p.id} value={p.id}>{p.razon_social}</option>
+              <option key={p.id} value={p.id}>
+                {p.razon_social}
+              </option>
             ))}
           </select>
           {proveedorId && precioCatalogo === null && (
@@ -138,7 +154,7 @@ function LineaAsignacionForm({
           )}
           {proveedorId && precioCatalogo !== null && (
             <span className="px-3 py-2 text-sm text-slate-600">
-              Precio: $ {precioCatalogo.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+              Precio: $ {precioCatalogo.toLocaleString("es-AR", { minimumFractionDigits: 2 })}
             </span>
           )}
         </>
@@ -157,20 +173,21 @@ function LineaAsignacionForm({
       >
         Agregar a la lista
       </button>
-      {destino === 'proveedor_deposito' && (
+      {destino === "proveedor_deposito" && (
         <p className="text-sm text-slate-500 w-full">
-          Se van a generar dos líneas independientes: una en la orden de compra a este proveedor y otra en el pedido a
-          depósito de este pedido de compra.
+          Se van a generar dos líneas independientes: una en la orden de compra a este proveedor y
+          otra en el pedido a depósito de este pedido de compra.
         </p>
       )}
       {requiereProveedor(destino) && proveedorId && precioCatalogo === null && (
         <p className="text-amber-600 text-sm w-full">
-          Sin precio cargado para este proveedor. El precio que ingreses se usa solo para esta orden de compra.
+          Sin precio cargado para este proveedor. El precio que ingreses se usa solo para esta orden
+          de compra.
         </p>
       )}
       {error && <p className="text-rose-600 text-sm w-full">{error}</p>}
     </div>
-  )
+  );
 }
 
 // Mini-form de confirmación para descartar una línea (motivo opcional). No
@@ -181,11 +198,11 @@ function DescarteLineaForm({
   onConfirmar,
   onCancelar,
 }: {
-  procesando: boolean
-  onConfirmar: (motivo: string) => void
-  onCancelar: () => void
+  procesando: boolean;
+  onConfirmar: (motivo: string) => void;
+  onCancelar: () => void;
 }) {
-  const [motivo, setMotivo] = useState('')
+  const [motivo, setMotivo] = useState("");
 
   return (
     <div className="flex flex-wrap gap-2 items-start mt-2">
@@ -202,7 +219,7 @@ function DescarteLineaForm({
         disabled={procesando}
         className="px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
       >
-        {procesando ? 'Descartando...' : 'Confirmar descarte'}
+        {procesando ? "Descartando..." : "Confirmar descarte"}
       </button>
       <button
         type="button"
@@ -213,13 +230,13 @@ function DescarteLineaForm({
         Cancelar
       </button>
     </div>
-  )
+  );
 }
 
 function destinoEtiqueta(a: AsignacionPendiente) {
-  if (a.destino === 'deposito') return 'Depósito'
-  if (a.destino === 'proveedor') return a.proveedorNombre ?? ''
-  return `${a.proveedorNombre} + Depósito`
+  if (a.destino === "deposito") return "Depósito";
+  if (a.destino === "proveedor") return a.proveedorNombre ?? "";
+  return `${a.proveedorNombre} + Depósito`;
 }
 
 export default function PanelComprasAsignacion({
@@ -232,95 +249,143 @@ export default function PanelComprasAsignacion({
   proveedores,
   preciosProveedor,
 }: {
-  pedidoId: string
-  empresaId: string
-  clienteId: string
-  empresaNombre: string | null
-  empresaDomicilio: string | null
-  domicilios: ClienteDomicilio[]
-  lugarEnvioDefault: string
-  lineas: LineaPendiente[]
-  proveedores: ProveedorResumen[]
-  preciosProveedor: PrecioProveedor[]
+  pedidoId: string;
+  empresaId: string;
+  clienteId: string;
+  empresaNombre: string | null;
+  empresaDomicilio: string | null;
+  domicilios: ClienteDomicilio[];
+  lugarEnvioDefault: string;
+  lineas: LineaPendiente[];
+  proveedores: ProveedorResumen[];
+  preciosProveedor: PrecioProveedor[];
 }) {
-  const [asignaciones, setAsignaciones] = useState<AsignacionPendiente[]>([])
-  const [lugarEnvio, setLugarEnvio] = useState(lugarEnvioDefault) // '' | 'empresa' | `domicilio:<id>`
-  const [guardando, setGuardando] = useState(false)
-  const [error, setError] = useState('')
-  const [lineaDescarteAbiertaId, setLineaDescarteAbiertaId] = useState<string | null>(null)
-  const [descartandoId, setDescartandoId] = useState<string | null>(null)
-  const operationKey=useRef<string|null>(null)
-  const router = useRouter()
+  const [asignaciones, setAsignaciones] = useState<AsignacionPendiente[]>([]);
+  const [lugarEnvio, setLugarEnvio] = useState(lugarEnvioDefault); // '' | 'empresa' | `domicilio:<id>`
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState("");
+  const [lineaDescarteAbiertaId, setLineaDescarteAbiertaId] = useState<string | null>(null);
+  const [descartandoId, setDescartandoId] = useState<string | null>(null);
+  const operationKey = useRef<string | null>(null);
+  const router = useRouter();
 
   async function descartarLinea(itemId: string, motivo: string) {
-    setDescartandoId(itemId)
-    setError('')
-    try{await(await createAuthenticatedBrowserApiClient()).setPurchaseRequestItemDiscarded(itemId,true,motivo||null);setLineaDescarteAbiertaId(null);router.refresh()}catch(e){setError('Error al descartar la línea: '+(e instanceof Error?e.message:'desconocido'))}finally{setDescartandoId(null)}
+    setDescartandoId(itemId);
+    setError("");
+    try {
+      await (
+        await createAuthenticatedBrowserApiClient()
+      ).setPurchaseRequestItemDiscarded(itemId, true, motivo || null);
+      setLineaDescarteAbiertaId(null);
+      router.refresh();
+    } catch (e) {
+      setError("Error al descartar la línea: " + (e instanceof Error ? e.message : "desconocido"));
+    } finally {
+      setDescartandoId(null);
+    }
   }
 
   async function revertirDescarte(itemId: string) {
-    setDescartandoId(itemId)
-    setError('')
-    try{await(await createAuthenticatedBrowserApiClient()).setPurchaseRequestItemDiscarded(itemId,false,null);router.refresh()}catch(e){setError('Error al revertir el descarte: '+(e instanceof Error?e.message:'desconocido'))}finally{setDescartandoId(null)}
+    setDescartandoId(itemId);
+    setError("");
+    try {
+      await (
+        await createAuthenticatedBrowserApiClient()
+      ).setPurchaseRequestItemDiscarded(itemId, false, null);
+      router.refresh();
+    } catch (e) {
+      setError(
+        "Error al revertir el descarte: " + (e instanceof Error ? e.message : "desconocido"),
+      );
+    } finally {
+      setDescartandoId(null);
+    }
   }
 
   function resolverLugarEnvioTexto(): string | null {
-    if (lugarEnvio === 'empresa') return empresaDomicilio || null
-    if (lugarEnvio.startsWith('domicilio:')) {
-      const dom = domicilios.find((d) => d.id === lugarEnvio.slice('domicilio:'.length))
-      return dom?.direccion || null
+    if (lugarEnvio === "empresa") return empresaDomicilio || null;
+    if (lugarEnvio.startsWith("domicilio:")) {
+      const dom = domicilios.find((d) => d.id === lugarEnvio.slice("domicilio:".length));
+      return dom?.direccion || null;
     }
-    return null
+    return null;
   }
 
   function resolverLugarEnvioAlias(): string | null {
-    if (lugarEnvio === 'empresa') return empresaNombre || null
-    if (lugarEnvio.startsWith('domicilio:')) {
-      const dom = domicilios.find((d) => d.id === lugarEnvio.slice('domicilio:'.length))
-      return dom?.alias || null
+    if (lugarEnvio === "empresa") return empresaNombre || null;
+    if (lugarEnvio.startsWith("domicilio:")) {
+      const dom = domicilios.find((d) => d.id === lugarEnvio.slice("domicilio:".length));
+      return dom?.alias || null;
     }
-    return null
+    return null;
   }
 
   // Horario del domicilio elegido como lugar de envío, congelado igual que
   // el texto/alias. La empresa no tiene concepto de horario de atención.
   function resolverHorarioAtencionTexto(): string | null {
-    if (lugarEnvio.startsWith('domicilio:')) {
-      const dom = domicilios.find((d) => d.id === lugarEnvio.slice('domicilio:'.length))
-      return dom?.horario_atencion || null
+    if (lugarEnvio.startsWith("domicilio:")) {
+      const dom = domicilios.find((d) => d.id === lugarEnvio.slice("domicilio:".length));
+      return dom?.horario_atencion || null;
     }
-    return null
+    return null;
   }
 
   const hayAsignacionesConProveedor = asignaciones.some(
-    (a) => a.destino === 'proveedor' || a.destino === 'proveedor_deposito'
-  )
+    (a) => a.destino === "proveedor" || a.destino === "proveedor_deposito",
+  );
 
   const pendientePorLinea = useMemo(() => {
-    const mapa = new Map<string, number>()
+    const mapa = new Map<string, number>();
     for (const l of lineas) {
       const enCola = asignaciones
         .filter((a) => a.pedidoCompraItemId === l.id)
-        .reduce((acc, a) => acc + a.cantidad, 0)
-      mapa.set(l.id, l.cantidad_pendiente - enCola)
+        .reduce((acc, a) => acc + a.cantidad, 0);
+      mapa.set(l.id, l.cantidad_pendiente - enCola);
     }
-    return mapa
-  }, [lineas, asignaciones])
+    return mapa;
+  }, [lineas, asignaciones]);
 
   function quitar(clave: string) {
-    setAsignaciones((prev) => prev.filter((a) => a.clave !== clave))
+    setAsignaciones((prev) => prev.filter((a) => a.clave !== clave));
   }
 
   async function confirmar() {
-    setError('')
-    setGuardando(true)
+    setError("");
+    setGuardando(true);
 
-    const lugarEnvioTexto = resolverLugarEnvioTexto()
-    const lugarEnvioAlias = resolverLugarEnvioAlias()
-    const horarioAtencionTexto = resolverHorarioAtencionTexto()
+    const lugarEnvioTexto = resolverLugarEnvioTexto();
+    const lugarEnvioAlias = resolverLugarEnvioAlias();
+    const horarioAtencionTexto = resolverHorarioAtencionTexto();
 
-    operationKey.current??=crypto.randomUUID()
-    try{await(await createAuthenticatedBrowserApiClient()).assignPurchaseRequest(pedidoId,{lugarEnvioTexto,lugarEnvioAlias,horarioAtencionTexto,items:asignaciones.map(a=>({pedidoCompraItemId:a.pedidoCompraItemId,destino:a.destino,proveedorId:a.proveedorId,cantidad:a.cantidad,precioUnitario:a.precioUnitario,observaciones:a.observaciones||null}))},operationKey.current);operationKey.current=null;setAsignaciones([]);router.refresh()}catch(e){setError(e instanceof Error?e.message:'Error al confirmar asignaciones')}finally{setGuardando(false)}
+    operationKey.current ??= crypto.randomUUID();
+    try {
+      await (
+        await createAuthenticatedBrowserApiClient()
+      ).assignPurchaseRequest(
+        pedidoId,
+        {
+          lugarEnvioTexto,
+          lugarEnvioAlias,
+          horarioAtencionTexto,
+          items: asignaciones.map((a) => ({
+            pedidoCompraItemId: a.pedidoCompraItemId,
+            destino: a.destino,
+            proveedorId: a.proveedorId,
+            cantidad: a.cantidad,
+            precioUnitario: a.precioUnitario,
+            observaciones: a.observaciones || null,
+          })),
+        },
+        operationKey.current,
+      );
+      operationKey.current = null;
+      setAsignaciones([]);
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al confirmar asignaciones");
+    } finally {
+      setGuardando(false);
+    }
   }
 
   return (
@@ -334,12 +399,15 @@ export default function PanelComprasAsignacion({
             <div key={l.id} className="bg-white border border-slate-200 rounded-lg shadow-sm p-4">
               <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                 <p className="text-sm font-medium text-slate-800">
-                  {l.articulos ? `${l.articulos.codigo_interno} — ${l.articulos.nombre}` : 'Artículo'}
+                  {l.articulos
+                    ? `${l.articulos.codigo_interno} — ${l.articulos.nombre}`
+                    : "Artículo"}
                 </p>
                 <div className="flex items-center gap-3">
                   <p className="text-xs text-slate-500">
-                    Pedido: {l.cantidad} · Asignado a OC: {l.cantidad_asignada_oc} · Asignado a depósito: {l.cantidad_asignada_deposito}
-                    {' · '}
+                    Pedido: {l.cantidad} · Asignado a OC: {l.cantidad_asignada_oc} · Asignado a
+                    depósito: {l.cantidad_asignada_deposito}
+                    {" · "}
                     <span className="font-medium text-slate-700">
                       Pendiente: {pendientePorLinea.get(l.id) ?? l.cantidad_pendiente}
                     </span>
@@ -359,7 +427,7 @@ export default function PanelComprasAsignacion({
               {l.descartada ? (
                 <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-md px-3 py-2">
                   <p className="text-sm text-slate-600">
-                    Línea descartada{l.motivo_descarte ? `: ${l.motivo_descarte}` : '.'}
+                    Línea descartada{l.motivo_descarte ? `: ${l.motivo_descarte}` : "."}
                   </p>
                   <button
                     type="button"
@@ -367,7 +435,7 @@ export default function PanelComprasAsignacion({
                     disabled={descartandoId === l.id}
                     className="text-teal-600 hover:underline text-sm disabled:opacity-50"
                   >
-                    {descartandoId === l.id ? 'Revirtiendo...' : 'Revertir descarte'}
+                    {descartandoId === l.id ? "Revirtiendo..." : "Revertir descarte"}
                   </button>
                 </div>
               ) : (
@@ -420,14 +488,21 @@ export default function PanelComprasAsignacion({
               <tbody>
                 {asignaciones.map((a) => (
                   <tr key={a.clave} className="border-b border-slate-100 last:border-0">
-                    <td className="px-4 py-3 text-slate-800">{a.articulo.codigo_interno} — {a.articulo.nombre}</td>
+                    <td className="px-4 py-3 text-slate-800">
+                      {a.articulo.codigo_interno} — {a.articulo.nombre}
+                    </td>
                     <td className="px-4 py-3 text-slate-600">{a.cantidad}</td>
                     <td className="px-4 py-3 text-slate-600">{destinoEtiqueta(a)}</td>
                     <td className="px-4 py-3 text-slate-600">
-                      {a.precioUnitario != null ? `$ ${a.precioUnitario.toLocaleString('es-AR', { minimumFractionDigits: 2 })}` : '-'}
+                      {a.precioUnitario != null
+                        ? `$ ${a.precioUnitario.toLocaleString("es-AR", { minimumFractionDigits: 2 })}`
+                        : "-"}
                     </td>
                     <td className="px-4 py-3">
-                      <button onClick={() => quitar(a.clave)} className="text-rose-600 hover:underline text-sm">
+                      <button
+                        onClick={() => quitar(a.clave)}
+                        className="text-rose-600 hover:underline text-sm"
+                      >
                         Quitar
                       </button>
                     </td>
@@ -443,18 +518,26 @@ export default function PanelComprasAsignacion({
             <label className="block text-sm text-slate-600 mb-1">
               Lugar de envío (para las órdenes de compra que se generen ahora)
             </label>
-            <select value={lugarEnvio} onChange={(e) => setLugarEnvio(e.target.value)} className={`w-full max-w-md ${inputStyle}`}>
+            <select
+              value={lugarEnvio}
+              onChange={(e) => setLugarEnvio(e.target.value)}
+              className={`w-full max-w-md ${inputStyle}`}
+            >
               <option value="">Sin especificar</option>
               {domicilios.length > 0 && (
                 <optgroup label="Domicilios del cliente">
                   {domicilios.map((d) => (
-                    <option key={d.id} value={`domicilio:${d.id}`}>{d.alias} — {d.direccion}</option>
+                    <option key={d.id} value={`domicilio:${d.id}`}>
+                      {d.alias} — {d.direccion}
+                    </option>
                   ))}
                 </optgroup>
               )}
               {empresaDomicilio && (
                 <optgroup label="Empresa">
-                  <option value="empresa">{empresaNombre ?? 'Empresa'} — {empresaDomicilio}</option>
+                  <option value="empresa">
+                    {empresaNombre ?? "Empresa"} — {empresaDomicilio}
+                  </option>
                 </optgroup>
               )}
             </select>
@@ -468,9 +551,9 @@ export default function PanelComprasAsignacion({
           disabled={asignaciones.length === 0 || guardando}
           className="mt-4 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
         >
-          {guardando ? 'Confirmando...' : 'Confirmar asignaciones'}
+          {guardando ? "Confirmando..." : "Confirmar asignaciones"}
         </button>
       </div>
     </div>
-  )
+  );
 }

@@ -1,7 +1,11 @@
 import { createAuthenticatedServerApiClient } from '@/lib/api/server'
 import Link from 'next/link'
 import PanelComprasAsignacion from '@/components/PanelComprasAsignacion'
-import type { LineaPendiente, PedidoCompraItemConArticulo } from '@/types/compras'
+import type {
+  LineaPendiente,
+  PedidoCompraDetalleView,
+  PedidoCompraItemConArticulo,
+} from '@/types/compras'
 
 export default async function PanelComprasDetallePage({
   params,
@@ -10,7 +14,7 @@ export default async function PanelComprasDetallePage({
 }) {
   const { id } = await params
   const api=await createAuthenticatedServerApiClient()
-  const pedido=await api.getPurchaseRequest(id).catch(()=>null) as unknown as (import('@/types/compras').PedidoCompraDetalleView|null)
+  const pedido = (await api.getPurchaseRequest(id).catch(() => null)) as PedidoCompraDetalleView | null
 
   if (!pedido) {
     return (

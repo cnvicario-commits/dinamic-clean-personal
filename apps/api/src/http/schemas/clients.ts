@@ -10,7 +10,14 @@ export const createClientBodySchema = z.object({
 }).strict()
 export const updateClientBodySchema = createClientBodySchema.partial().extend({ activo: z.boolean().optional() }).strict()
   .refine((value) => Object.keys(value).length > 0, 'At least one field is required')
-export const createAddressBodySchema = z.object({ alias:z.string().trim().min(1).max(200), direccion:nullableText, horarioAtencion:nullableText, esPrincipal:z.boolean().optional().default(false) }).strict()
+export const createAddressBodySchema = z
+  .object({
+    alias: z.string().trim().min(1).max(200),
+    direccion: nullableText,
+    horarioAtencion: nullableText,
+    esPrincipal: z.boolean().optional().default(false),
+  })
+  .strict()
 export const updateAddressBodySchema = createAddressBodySchema.partial().strict()
   .refine((value) => Object.keys(value).length > 0, 'At least one field is required')
 export const statusBodySchema = z.object({ activo:z.boolean() }).strict()

@@ -1,0 +1,30 @@
+{
+  "_note": "Audit readability thresholds (diagnostic). Not enforced as formatter policy.",
+  "enabled": true,
+  "audit_thresholds": {
+    "warning": 120,
+    "high": 160,
+    "severe": 200
+  },
+  "max_columns": null,
+  "include_globs": ["apps/api/src/**/*.ts", "src/**/*.ts", "src/**/*.tsx"],
+  "exclude_globs": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/.next/**",
+    "**/coverage/**",
+    "**/lib/api/generated/**",
+    "**/__snapshots__/**",
+    "**/*.snap",
+    "**/audit/**",
+    "**/.review/**",
+    "**/review/**",
+    "**/*.min.js",
+    "**/*.min.ts",
+    "**/package-lock.json",
+    "**/pnpm-lock.yaml"
+  ],
+  "snippet_max_chars": 160,
+  "max_findings_in_json": 10000
+}

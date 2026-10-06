@@ -19,7 +19,16 @@ export default function EstadoPedidoDepositoBoton({ id, estado }: { id: string; 
 
   const handleClick = async () => {
     setLoading(true)
-    try{await (await createAuthenticatedBrowserApiClient()).transitionWarehouseRequest(id,siguiente.estado as 'enviada'|'recepcionada');router.refresh()}catch(error){alert(error instanceof Error?error.message:'Error al cambiar estado')}finally{setLoading(false)}
+    try {
+      await (
+        await createAuthenticatedBrowserApiClient()
+      ).transitionWarehouseRequest(id, siguiente.estado as 'enviada' | 'recepcionada')
+      router.refresh()
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Error al cambiar estado')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

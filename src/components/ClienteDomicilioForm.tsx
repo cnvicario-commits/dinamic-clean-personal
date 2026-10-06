@@ -26,8 +26,21 @@ export default function ClienteDomicilioForm({
     setError('')
     setLoading(true)
 
-    try { const api=await createAuthenticatedBrowserApiClient(); const payload={alias,direccion:direccion||null,esPrincipal,horarioAtencion:horarioAtencion||null}; if(domicilio)await api.updateClientAddress(clienteId,domicilio.id,payload);else await api.createClientAddress(clienteId,payload) }
-    catch(cause){setLoading(false);setError('Error al guardar: '+(cause instanceof Error?cause.message:'desconocido'));return}
+    try {
+      const api = await createAuthenticatedBrowserApiClient()
+      const payload = {
+        alias,
+        direccion: direccion || null,
+        esPrincipal,
+        horarioAtencion: horarioAtencion || null,
+      }
+      if (domicilio) await api.updateClientAddress(clienteId, domicilio.id, payload)
+      else await api.createClientAddress(clienteId, payload)
+    } catch (cause) {
+      setLoading(false)
+      setError('Error al guardar: ' + (cause instanceof Error ? cause.message : 'desconocido'))
+      return
+    }
     setLoading(false)
     if (domicilio) {
       onGuardado?.()

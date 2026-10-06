@@ -191,7 +191,11 @@ export default async function PortalPage() {
             <Link
               key={d.href}
               href={d.href}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-full border border-white/[0.14] text-[#d7deea] text-[13.5px] font-semibold hover:text-white hover:border-white/[0.28] transition-colors"
+              className={[
+                'flex items-center gap-2 px-4 py-2.5 rounded-full border border-white/[0.14]',
+                'text-[#d7deea] text-[13.5px] font-semibold hover:text-white',
+                'hover:border-white/[0.28] transition-colors',
+              ].join(' ')}
             >
               <svg className="h-[15px] w-[15px] text-[#8b9bb4]" {...svgProps}>
                 {d.icono}
