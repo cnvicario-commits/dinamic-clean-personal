@@ -138,7 +138,10 @@ export default function CargaAuditoriaForm({
     setGuardando(false)
     setGuardada({
       id: nuevaAuditoria.id,
-      sitio: planificacion ? `${planificacion.clienteNombre} — ${planificacion.sitioAlias}` : (cliente?.nombre ?? '-') + (aliasId ? ` — ${sitiosDelCliente.find((d) => d.id === aliasId)?.alias ?? ''}` : ''),
+      sitio: planificacion
+        ? `${planificacion.clienteNombre} — ${planificacion.sitioAlias}`
+        : (cliente?.nombre ?? '-') +
+          (aliasId ? ` — ${sitiosDelCliente.find((d) => d.id === aliasId)?.alias ?? ''}` : ''),
       fecha: fechaRealizada,
     })
   }

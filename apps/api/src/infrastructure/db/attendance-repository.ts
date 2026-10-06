@@ -66,7 +66,10 @@ export function createAttendanceRepository(db: Db) {
       );
       params.push((q.page - 1) * q.pageSize, q.pageSize);
       const rows = await db.query<Row>(
-        `select a.id,a.empleado_id,a.fecha,a.codigo,a.horas_extras,a.cargado_por,a.created_at,a.observaciones,a.archivo_url,a.archivo_storage_path,a.cliente_destino_id,a.cliente_horas_extra_id,e.nombre_apellido empleado_nombre from public.asistencias a join public.empleados e on e.id=a.empleado_id ${clause} order by a.fecha desc,a.id desc offset $${params.length - 1} limit $${params.length}`,
+        `select a.id,a.empleado_id,a.fecha,a.codigo,a.horas_extras,a.cargado_por,a.created_at,a.observaciones,
+a.archivo_url,a.archivo_storage_path,a.cliente_destino_id,a.cliente_horas_extra_id,e.nombre_apellido empleado_nombre
+from public.asistencias a join public.empleados e on e.id=a.empleado_id ${clause}
+order by a.fecha desc,a.id desc offset $${params.length - 1} limit $${params.length}`,
         params,
       );
       return {
@@ -78,7 +81,13 @@ export function createAttendanceRepository(db: Db) {
     },
     async upsert(input: AttendanceUpsert, userId: string) {
       const r = await db.query<Row>(
-        `insert into public.asistencias (empleado_id,fecha,codigo,horas_extras,cargado_por,observaciones,archivo_url,archivo_storage_path,cliente_destino_id,cliente_horas_extra_id) values ($1,$2,$3,$4,$5,$6,null,null,$7,$8) on conflict (empleado_id,fecha) do update set codigo=excluded.codigo,horas_extras=excluded.horas_extras,cargado_por=excluded.cargado_por,observaciones=excluded.observaciones,cliente_destino_id=excluded.cliente_destino_id,cliente_horas_extra_id=excluded.cliente_horas_extra_id returning *, (select nombre_apellido from public.empleados where id=asistencias.empleado_id) empleado_nombre`,
+        `insert into public.asistencias (empleado_id,fecha,codigo,horas_extras,cargado_por,observaciones,
+archivo_url,archivo_storage_path,cliente_destino_id,cliente_horas_extra_id)
+values ($1,$2,$3,$4,$5,$6,null,null,$7,$8)
+on conflict (empleado_id,fecha) do update set codigo=excluded.codigo,horas_extras=excluded.horas_extras,
+cargado_por=excluded.cargado_por,observaciones=excluded.observaciones,
+cliente_destino_id=excluded.cliente_destino_id,cliente_horas_extra_id=excluded.cliente_horas_extra_id
+returning *, (select nombre_apellido from public.empleados where id=asistencias.empleado_id) empleado_nombre`,
         [
           input.empleadoId,
           input.fecha,

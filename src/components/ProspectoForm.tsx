@@ -37,7 +37,19 @@ export default function ProspectoForm({
     }
     setLoading(true)
     let data: {id:string;nombre:string}|null=null; let errInsert:unknown=null
-    try { const api=await createAuthenticatedBrowserApiClient(); data=await api.createCrmProspect({nombre:nombre.trim(),tipoClienteId:tipoClienteId||null,contactoNombre:contactoNombre||null,telefono:telefono||null,email:email||null,referidoPorId:referidoPorId||null}) } catch (error) { errInsert=error }
+    try {
+      const api = await createAuthenticatedBrowserApiClient()
+      data = await api.createCrmProspect({
+        nombre: nombre.trim(),
+        tipoClienteId: tipoClienteId || null,
+        contactoNombre: contactoNombre || null,
+        telefono: telefono || null,
+        email: email || null,
+        referidoPorId: referidoPorId || null,
+      })
+    } catch (error) {
+      errInsert = error
+    }
     setLoading(false)
     if (errInsert || !data) {
       setError('Error al crear el prospecto: ' + (errInsert instanceof Error ? errInsert.message : 'desconocido'))

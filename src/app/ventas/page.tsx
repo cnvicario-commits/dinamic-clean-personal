@@ -13,7 +13,17 @@ export default async function VentasPage({ searchParams }: { searchParams: Promi
     api.getCrmCatalogs(),
   ])
 
-  const itemsNovedades: ItemNovedad[] = dashboard.novedades.map(n => ({ oportunidadId: n.oportunidadId, prospectoNombre: n.prospectoNombre, cantidad: n.cantidad, usuario: nombreUsuarioSeguimiento({ perfiles: n.perfiles, usuario_nombre_libre: n.usuarioNombreLibre }), nota: n.nota, creadoEn: n.creadoEn }))
+  const itemsNovedades: ItemNovedad[] = dashboard.novedades.map((n) => ({
+    oportunidadId: n.oportunidadId,
+    prospectoNombre: n.prospectoNombre,
+    cantidad: n.cantidad,
+    usuario: nombreUsuarioSeguimiento({
+      perfiles: n.perfiles,
+      usuario_nombre_libre: n.usuarioNombreLibre,
+    }),
+    nota: n.nota,
+    creadoEn: n.creadoEn,
+  }))
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-10">

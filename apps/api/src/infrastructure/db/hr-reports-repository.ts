@@ -13,7 +13,12 @@ export function createHrReportsRepository(db: Db) {
     },
     async overtime(from:string,to:string) {
       const [attendance,assignments,clients]=await Promise.all([
-        db.query('select a.empleado_id,a.horas_extras,a.cliente_destino_id,a.cliente_horas_extra_id,e.nombre_apellido from public.asistencias a join public.empleados e on e.id=a.empleado_id where a.horas_extras > 0 and a.fecha >= $1 and a.fecha <= $2',[from,to]),
+        db.query(
+          `select a.empleado_id,a.horas_extras,a.cliente_destino_id,a.cliente_horas_extra_id,e.nombre_apellido
+from public.asistencias a join public.empleados e on e.id=a.empleado_id
+where a.horas_extras > 0 and a.fecha >= $1 and a.fecha <= $2`,
+          [from, to],
+        ),
         db.query(`select empleado_id,cliente_id from public.asignaciones
           where fecha_hasta is null
           and empleado_id in (

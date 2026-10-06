@@ -126,7 +126,18 @@ export default function PedidoCompraForm({
       estado: estadoDeseado,
       items:lineasFinales.map(l=>({articuloId:l.articulo_id,cantidad:l.cantidad,observaciones:l.observaciones})),
     }
-    try{const api=await createAuthenticatedBrowserApiClient();const saved=pedido?await api.updatePurchaseRequest(pedido.id,payload):await api.createPurchaseRequest(payload);if(pedido)router.refresh();else router.push(`/pedidos-compra/${saved.id}`)}catch(error){setError('Error al guardar: '+(error instanceof Error?error.message:'desconocido'))}finally{setLoading(false)}
+    try {
+      const api = await createAuthenticatedBrowserApiClient()
+      const saved = pedido
+        ? await api.updatePurchaseRequest(pedido.id, payload)
+        : await api.createPurchaseRequest(payload)
+      if (pedido) router.refresh()
+      else router.push(`/pedidos-compra/${saved.id}`)
+    } catch (error) {
+      setError('Error al guardar: ' + (error instanceof Error ? error.message : 'desconocido'))
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

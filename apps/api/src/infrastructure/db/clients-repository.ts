@@ -59,7 +59,10 @@ export function createClientsRepository(db: Db) {
           [id],
         ),
         db.query(
-          `select cp.id,cp.cliente_id,cp.nombre_archivo,cp.created_at,cp.subido_por,p.nombre_completo as subido_por_nombre from public.cliente_presupuestos cp left join public.perfiles p on p.id=cp.subido_por where cp.cliente_id=$1 order by cp.created_at desc,cp.id`,
+          `select cp.id,cp.cliente_id,cp.nombre_archivo,cp.created_at,cp.subido_por,
+p.nombre_completo as subido_por_nombre
+from public.cliente_presupuestos cp left join public.perfiles p on p.id=cp.subido_por
+where cp.cliente_id=$1 order by cp.created_at desc,cp.id`,
           [id],
         ),
       ]);
@@ -200,7 +203,9 @@ export function createClientsRepository(db: Db) {
       await requireClient(clientId);
       return (
         await db.query(
-          "select cp.id,cp.cliente_id,cp.nombre_archivo,cp.subido_por,cp.created_at,p.nombre_completo as subido_por_nombre from public.cliente_presupuestos cp left join public.perfiles p on p.id=cp.subido_por where cp.cliente_id=$1 order by cp.created_at desc,cp.id",
+          `select cp.id,cp.cliente_id,cp.nombre_archivo,cp.subido_por,cp.created_at,p.nombre_completo as subido_por_nombre
+from public.cliente_presupuestos cp left join public.perfiles p on p.id=cp.subido_por
+where cp.cliente_id=$1 order by cp.created_at desc,cp.id`,
           [clientId],
         )
       ).rows;
@@ -214,7 +219,8 @@ export function createClientsRepository(db: Db) {
     }) {
       return transaction(async (client) => {
         const inserted = await client.query(
-          `insert into public.cliente_presupuesto_upload_idempotency(cliente_id,actor_id,idempotency_key,payload_hash,status,storage_path) values($1,$2,$3,$4,'PROCESSING',$5) on conflict(cliente_id,actor_id,idempotency_key) do nothing returning storage_path`,
+          `insert into public.cliente_presupuesto_upload_idempotency(cliente_id,actor_id,idempotency_key,payload_hash,status,storage_path)
+values($1,$2,$3,$4,'PROCESSING',$5) on conflict(cliente_id,actor_id,idempotency_key) do nothing returning storage_path`,
           [
             input.clientId,
             input.actorId,
@@ -287,7 +293,8 @@ export function createClientsRepository(db: Db) {
         if (!quote)
           throw new AppError(502, "quote_create_empty", "Quote metadata persistence failed");
         const completed = await client.query(
-          `update public.cliente_presupuesto_upload_idempotency set status='COMPLETED',quote_id=$6,updated_at=now() where cliente_id=$1 and actor_id=$2 and idempotency_key=$3 and payload_hash=$4 and status='PROCESSING' and storage_path=$5`,
+          `update public.cliente_presupuesto_upload_idempotency set status='COMPLETED',quote_id=$6,updated_at=now()
+where cliente_id=$1 and actor_id=$2 and idempotency_key=$3 and payload_hash=$4 and status='PROCESSING' and storage_path=$5`,
           [
             input.clientId,
             input.actorId,
@@ -314,7 +321,8 @@ export function createClientsRepository(db: Db) {
       storagePath: string;
     }) {
       await db.query(
-        `update public.cliente_presupuesto_upload_idempotency set status='FAILED',updated_at=now() where cliente_id=$1 and actor_id=$2 and idempotency_key=$3 and payload_hash=$4 and storage_path=$5 and status='PROCESSING'`,
+        `update public.cliente_presupuesto_upload_idempotency set status='FAILED',updated_at=now()
+where cliente_id=$1 and actor_id=$2 and idempotency_key=$3 and payload_hash=$4 and storage_path=$5 and status='PROCESSING'`,
         [input.clientId, input.actorId, input.idempotencyKey, input.payloadHash, input.storagePath],
       );
     },

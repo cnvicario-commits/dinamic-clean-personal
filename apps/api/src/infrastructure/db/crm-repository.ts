@@ -35,7 +35,18 @@ const hash = (value: unknown) =>
 type Queryable = {
   query: (text: string, params?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>;
 };
-const opportunitySelect = `select o.*, jsonb_build_object('id',p.id,'nombre',p.nombre,'tipo_cliente_id',p.tipo_cliente_id,'contacto_nombre',p.contacto_nombre,'telefono',p.telefono,'email',p.email,'referido_por_id',p.referido_por_id,'crm_tipos_cliente',case when tc.id is null then null else jsonb_build_object('nombre',tc.nombre) end,'crm_referidores',case when r.id is null then null else jsonb_build_object('nombre',r.nombre) end) crm_prospectos, case when ts.id is null then null else jsonb_build_object('nombre',ts.nombre) end crm_tipos_servicio, case when pr.id is null then null else jsonb_build_object('nombre_completo',pr.nombre_completo) end perfiles from public.crm_oportunidades o join public.crm_prospectos p on p.id=o.prospecto_id left join public.crm_tipos_cliente tc on tc.id=p.tipo_cliente_id left join public.crm_referidores r on r.id=p.referido_por_id left join public.crm_tipos_servicio ts on ts.id=o.tipo_servicio_id left join public.perfiles pr on pr.id=o.responsable_id`;
+const opportunitySelect = `select o.*,
+jsonb_build_object('id',p.id,'nombre',p.nombre,'tipo_cliente_id',p.tipo_cliente_id,'contacto_nombre',p.contacto_nombre,
+'telefono',p.telefono,'email',p.email,'referido_por_id',p.referido_por_id,
+'crm_tipos_cliente',case when tc.id is null then null else jsonb_build_object('nombre',tc.nombre) end,
+'crm_referidores',case when r.id is null then null else jsonb_build_object('nombre',r.nombre) end) crm_prospectos,
+case when ts.id is null then null else jsonb_build_object('nombre',ts.nombre) end crm_tipos_servicio,
+case when pr.id is null then null else jsonb_build_object('nombre_completo',pr.nombre_completo) end perfiles
+from public.crm_oportunidades o join public.crm_prospectos p on p.id=o.prospecto_id
+left join public.crm_tipos_cliente tc on tc.id=p.tipo_cliente_id
+left join public.crm_referidores r on r.id=p.referido_por_id
+left join public.crm_tipos_servicio ts on ts.id=o.tipo_servicio_id
+left join public.perfiles pr on pr.id=o.responsable_id`;
 export function createCrmRepository(db: Db) {
   const list = async (q: CrmListQuery) => {
     const params: unknown[] = [];
@@ -114,7 +125,9 @@ export function createCrmRepository(db: Db) {
       [id],
     );
     const rows = await db.query(
-      `select s.*,case when p.id is null then null else jsonb_build_object('nombre_completo',p.nombre_completo) end perfiles from public.crm_seguimientos s left join public.perfiles p on p.id=s.usuario_id where s.oportunidad_id=$1 order by s.fecha_contacto desc,s.created_at desc offset $2 limit $3`,
+      `select s.*,case when p.id is null then null else jsonb_build_object('nombre_completo',p.nombre_completo) end perfiles
+from public.crm_seguimientos s left join public.perfiles p on p.id=s.usuario_id
+where s.oportunidad_id=$1 order by s.fecha_contacto desc,s.created_at desc offset $2 limit $3`,
       [id, (q.page - 1) * q.pageSize, q.pageSize],
     );
     return {
@@ -130,7 +143,10 @@ export function createCrmRepository(db: Db) {
     const [seguimientos, vistas, novedades] = await Promise.all([
       ids.length
         ? db.query(
-            `select s.oportunidad_id,s.usuario_id,s.usuario_nombre_libre,s.tipo_contacto,s.nota,s.created_at,case when p.id is null then null else jsonb_build_object('nombre_completo',p.nombre_completo) end perfiles from public.crm_seguimientos s left join public.perfiles p on p.id=s.usuario_id where s.oportunidad_id=any($1::uuid[])`,
+            `select s.oportunidad_id,s.usuario_id,s.usuario_nombre_libre,s.tipo_contacto,s.nota,s.created_at,
+case when p.id is null then null else jsonb_build_object('nombre_completo',p.nombre_completo) end perfiles
+from public.crm_seguimientos s left join public.perfiles p on p.id=s.usuario_id
+where s.oportunidad_id=any($1::uuid[])`,
             [ids],
           )
         : Promise.resolve({ rows: [] as Record<string, unknown>[] }),
@@ -141,7 +157,22 @@ export function createCrmRepository(db: Db) {
           )
         : Promise.resolve({ rows: [] as Record<string, unknown>[] }),
       db.query(
-        `with unread as (select s.oportunidad_id,s.usuario_id,s.usuario_nombre_libre,s.nota,s.created_at,case when pr.id is null then null else jsonb_build_object('nombre_completo',pr.nombre_completo) end perfiles from public.crm_seguimientos s join public.crm_oportunidades o on o.id=s.oportunidad_id join public.crm_prospectos cp on cp.id=o.prospecto_id left join public.crm_vistas v on v.oportunidad_id=s.oportunidad_id and v.usuario_id=$1 left join public.perfiles pr on pr.id=s.usuario_id where v.last_viewed_at is null or s.created_at>v.last_viewed_at), ranked as (select *,count(*) over(partition by oportunidad_id)::int cantidad,row_number() over(partition by oportunidad_id order by created_at desc) rn from unread) select r.oportunidad_id "oportunidadId",cp.nombre "prospectoNombre",r.cantidad,r.usuario_nombre_libre "usuarioNombreLibre",r.nota,r.created_at "creadoEn",r.perfiles from ranked r join public.crm_oportunidades o on o.id=r.oportunidad_id join public.crm_prospectos cp on cp.id=o.prospecto_id where r.rn=1 order by r.created_at desc`,
+        `with unread as (
+select s.oportunidad_id,s.usuario_id,s.usuario_nombre_libre,s.nota,s.created_at,
+case when pr.id is null then null else jsonb_build_object('nombre_completo',pr.nombre_completo) end perfiles
+from public.crm_seguimientos s join public.crm_oportunidades o on o.id=s.oportunidad_id
+join public.crm_prospectos cp on cp.id=o.prospecto_id
+left join public.crm_vistas v on v.oportunidad_id=s.oportunidad_id and v.usuario_id=$1
+left join public.perfiles pr on pr.id=s.usuario_id
+where v.last_viewed_at is null or s.created_at>v.last_viewed_at
+), ranked as (
+select *,count(*) over(partition by oportunidad_id)::int cantidad,
+row_number() over(partition by oportunidad_id order by created_at desc) rn from unread
+)
+select r.oportunidad_id "oportunidadId",cp.nombre "prospectoNombre",r.cantidad,r.usuario_nombre_libre "usuarioNombreLibre",
+r.nota,r.created_at "creadoEn",r.perfiles
+from ranked r join public.crm_oportunidades o on o.id=r.oportunidad_id
+join public.crm_prospectos cp on cp.id=o.prospecto_id where r.rn=1 order by r.created_at desc`,
         [actor],
       ),
     ]);
@@ -163,7 +194,9 @@ export function createCrmRepository(db: Db) {
     if (q.desde) clauses.push(`o.fecha_ingreso>=${value(q.desde)}`);
     if (q.hasta) clauses.push(`o.fecha_ingreso<=${value(q.hasta)}`);
     const where = clauses.length ? ` where ${clauses.join(" and ")}` : "";
-    const from = ` from public.crm_oportunidades o join public.crm_prospectos p on p.id=o.prospecto_id left join public.crm_tipos_cliente tc on tc.id=p.tipo_cliente_id left join public.crm_referidores r on r.id=p.referido_por_id`;
+    const from = ` from public.crm_oportunidades o join public.crm_prospectos p on p.id=o.prospecto_id
+left join public.crm_tipos_cliente tc on tc.id=p.tipo_cliente_id
+left join public.crm_referidores r on r.id=p.referido_por_id`;
     const [totals, states, types, referrers] = await Promise.all([
       db.query<{
         cantidad: string;
@@ -174,19 +207,29 @@ export function createCrmRepository(db: Db) {
         comision_total: string;
         comision_liquidada: string;
       }>(
-        `select count(*)::text cantidad,coalesce(sum(o.monto_estimado),0)::text monto,coalesce(sum(o.monto_estimado) filter(where o.estado='aceptado'),0)::text monto_aceptado,count(*) filter(where o.estado='aceptado')::text aceptadas,count(*) filter(where o.estado='rechazado')::text rechazadas,coalesce(sum(o.comision_monto) filter(where o.estado='aceptado'),0)::text comision_total,coalesce(sum(o.comision_monto) filter(where o.estado='aceptado' and o.comision_liquidada),0)::text comision_liquidada${from}${where}`,
+        `select count(*)::text cantidad,coalesce(sum(o.monto_estimado),0)::text monto,
+coalesce(sum(o.monto_estimado) filter(where o.estado='aceptado'),0)::text monto_aceptado,
+count(*) filter(where o.estado='aceptado')::text aceptadas,
+count(*) filter(where o.estado='rechazado')::text rechazadas,
+coalesce(sum(o.comision_monto) filter(where o.estado='aceptado'),0)::text comision_total,
+coalesce(sum(o.comision_monto) filter(where o.estado='aceptado' and o.comision_liquidada),0)::text comision_liquidada${from}${where}`,
         params,
       ),
       db.query<{ estado: string; cantidad: string; monto: string }>(
-        `select o.estado,count(*)::text cantidad,coalesce(sum(o.monto_estimado),0)::text monto${from}${where} group by o.estado`,
+        `select o.estado,count(*)::text cantidad,coalesce(sum(o.monto_estimado),0)::text monto${from}${where}
+group by o.estado`,
         params,
       ),
       db.query<{ nombre: string; cantidad: string; monto: string }>(
-        `select coalesce(tc.nombre,'Sin tipo de cliente') nombre,count(*)::text cantidad,coalesce(sum(o.monto_estimado),0)::text monto${from}${where} group by coalesce(tc.nombre,'Sin tipo de cliente') order by count(*) desc`,
+        `select coalesce(tc.nombre,'Sin tipo de cliente') nombre,count(*)::text cantidad,
+coalesce(sum(o.monto_estimado),0)::text monto${from}${where}
+group by coalesce(tc.nombre,'Sin tipo de cliente') order by count(*) desc`,
         params,
       ),
       db.query<{ nombre: string; cantidad: string; monto: string }>(
-        `select coalesce(r.nombre,'Sin referidor') nombre,count(*)::text cantidad,coalesce(sum(o.monto_estimado),0)::text monto${from}${where} group by coalesce(r.nombre,'Sin referidor') order by count(*) desc`,
+        `select coalesce(r.nombre,'Sin referidor') nombre,count(*)::text cantidad,
+coalesce(sum(o.monto_estimado),0)::text monto${from}${where}
+group by coalesce(r.nombre,'Sin referidor') order by count(*) desc`,
         params,
       ),
     ]);
@@ -284,7 +327,8 @@ export function createCrmRepository(db: Db) {
     first(
       (
         await c.query(
-          "insert into public.crm_seguimientos(oportunidad_id,fecha_contacto,tipo_contacto,nota,proxima_fecha_seguimiento,usuario_id) values($1,coalesce($2::date,current_date),$3,$4,$5,$6) returning *",
+          `insert into public.crm_seguimientos(oportunidad_id,fecha_contacto,tipo_contacto,nota,proxima_fecha_seguimiento,usuario_id)
+values($1,coalesce($2::date,current_date),$3,$4,$5,$6) returning *`,
           [
             id,
             v.fechaContacto ?? null,
@@ -359,7 +403,9 @@ export function createCrmRepository(db: Db) {
         const o = first(
           (
             await c.query(
-              `insert into public.crm_oportunidades(prospecto_id,numero_referencia,fecha_ingreso,tipo_servicio_id,cantidad_personal,monto_estimado,fecha_envio,comision_monto,comentarios,responsable_id) values($1,$2,coalesce($3,current_date),$4,$5,$6,$7,$8,$9,$10) returning *`,
+              `insert into public.crm_oportunidades(prospecto_id,numero_referencia,fecha_ingreso,tipo_servicio_id,cantidad_personal,
+monto_estimado,fecha_envio,comision_monto,comentarios,responsable_id)
+values($1,$2,coalesce($3,current_date),$4,$5,$6,$7,$8,$9,$10) returning *`,
               [
                 v.prospectoId,
                 v.numeroReferencia,
@@ -472,7 +518,8 @@ export function createCrmRepository(db: Db) {
       return first(
         (
           await db.query(
-            "insert into public.crm_vistas(oportunidad_id,usuario_id,last_viewed_at) values($1,$2,now()) on conflict(oportunidad_id,usuario_id) do update set last_viewed_at=excluded.last_viewed_at returning *",
+            `insert into public.crm_vistas(oportunidad_id,usuario_id,last_viewed_at) values($1,$2,now())
+on conflict(oportunidad_id,usuario_id) do update set last_viewed_at=excluded.last_viewed_at returning *`,
             [id, actor],
           )
         ).rows,

@@ -4,8 +4,26 @@ import type { Db } from "./pool.js";
 import { AppError, badRequest, notFound } from "../../http/errors/app-error.js";
 import type { ResultsImport } from "../../http/schemas/results.js";
 
-const fields =
-  "id,anio,mes,ventas_dinamic,ventas_moral,total_ventas,total_costos_directos,resultado_bruto,total_rrhh,total_estructura_servicios,total_honorarios_abonos,total_gastos_financieros,total_gastos_comerciales,total_otros_gastos,total_impuestos,resultado_periodo,created_at,updated_at";
+const fields = [
+  "id",
+  "anio",
+  "mes",
+  "ventas_dinamic",
+  "ventas_moral",
+  "total_ventas",
+  "total_costos_directos",
+  "resultado_bruto",
+  "total_rrhh",
+  "total_estructura_servicios",
+  "total_honorarios_abonos",
+  "total_gastos_financieros",
+  "total_gastos_comerciales",
+  "total_otros_gastos",
+  "total_impuestos",
+  "resultado_periodo",
+  "created_at",
+  "updated_at",
+].join(",");
 const columns = [
   "ventas_dinamic",
   "ventas_moral",
@@ -123,7 +141,8 @@ export function createResultsRepository(db: Db) {
     const hash = createHash("sha256").update(JSON.stringify(input)).digest("hex");
     return transaction(db, async (c) => {
       const claim = await c.query(
-        `insert into public.resultados_import_idempotency(actor_id,idempotency_key,payload_hash,status,response) values($1,$2,$3,'PROCESSING',null) on conflict(actor_id,idempotency_key) do nothing returning id`,
+        `insert into public.resultados_import_idempotency(actor_id,idempotency_key,payload_hash,status,response)
+values($1,$2,$3,'PROCESSING',null) on conflict(actor_id,idempotency_key) do nothing returning id`,
         [actorId, key, hash],
       );
       if (!claim.rows[0]) {
@@ -149,7 +168,8 @@ export function createResultsRepository(db: Db) {
           vals = columns.map((k) => row.values[k] ?? null);
         const h = (
           await c.query(
-            `insert into public.resultados_mensuales(anio,mes,${columns.join(",")}) values($1,$2,${columns.map((_, i) => `$${i + 3}`).join(",")}) on conflict(anio,mes) do update set ${columns.map((k) => `${k}=excluded.${k}`).join(",")} returning id,xmax`,
+            `insert into public.resultados_mensuales(anio,mes,${columns.join(",")}) values($1,$2,${columns.map((_, i) => `$${i + 3}`).join(",")})
+on conflict(anio,mes) do update set ${columns.map((k) => `${k}=excluded.${k}`).join(",")} returning id,xmax`,
             [row.anio, row.mes, ...vals],
           )
         ).rows[0];

@@ -124,11 +124,18 @@ export function createPurchasesRepository(db: Db) {
   ): Promise<Record<string, unknown> & { pedidos_compra_items: pg.QueryResultRow[] }> {
     const [header, items] = await Promise.all([
       db.query(
-        "select h.*,to_jsonb(e) empresas,jsonb_build_object('nombre',cl.nombre) clientes,case when d.id is null then null else jsonb_build_object('alias',d.alias,'direccion',d.direccion) end cliente_domicilios from public.pedidos_compra h join public.empresas e on e.id=h.empresa_id join public.clientes cl on cl.id=h.cliente_id left join public.cliente_domicilios d on d.id=h.lugar_envio_domicilio_id where h.id=$1",
+        `select h.*,to_jsonb(e) empresas,jsonb_build_object('nombre',cl.nombre) clientes,
+case when d.id is null then null else jsonb_build_object('alias',d.alias,'direccion',d.direccion) end cliente_domicilios
+from public.pedidos_compra h join public.empresas e on e.id=h.empresa_id join public.clientes cl on cl.id=h.cliente_id
+left join public.cliente_domicilios d on d.id=h.lugar_envio_domicilio_id where h.id=$1`,
         [id],
       ),
       db.query(
-        "select i.*,jsonb_build_object('id',a.id,'codigo_interno',a.codigo_interno,'nombre',a.nombre,'unidad',a.unidad,'categoria',a.categoria,'proveedor_habitual_id',a.proveedor_habitual_id) articulos,coalesce((select sum(oi.cantidad) from public.ordenes_compra_items oi where oi.pedido_compra_item_id=i.id),0)::float cantidad_asignada_oc,coalesce((select sum(di.cantidad) from public.pedidos_deposito_items di where di.pedido_compra_item_id=i.id),0)::float cantidad_asignada_deposito from public.pedidos_compra_items i join public.articulos a on a.id=i.articulo_id where i.pedido_id=$1 order by i.created_at,i.id",
+        `select i.*,jsonb_build_object('id',a.id,'codigo_interno',a.codigo_interno,'nombre',a.nombre,'unidad',a.unidad,
+'categoria',a.categoria,'proveedor_habitual_id',a.proveedor_habitual_id) articulos,
+coalesce((select sum(oi.cantidad) from public.ordenes_compra_items oi where oi.pedido_compra_item_id=i.id),0)::float cantidad_asignada_oc,
+coalesce((select sum(di.cantidad) from public.pedidos_deposito_items di where di.pedido_compra_item_id=i.id),0)::float cantidad_asignada_deposito
+from public.pedidos_compra_items i join public.articulos a on a.id=i.articulo_id where i.pedido_id=$1 order by i.created_at,i.id`,
         [id],
       ),
     ]);
@@ -151,7 +158,9 @@ export function createPurchasesRepository(db: Db) {
         saved = first(
           (
             await c.query(
-              "update public.pedidos_compra set empresa_id=$2,cliente_id=$3,observaciones_generales=$4,lugar_envio_domicilio_id=$5,lugar_envio_empresa=$6,lugar_envio_texto=$7,lugar_envio_alias=$8,estado=$9 where id=$1 returning *",
+              `update public.pedidos_compra set empresa_id=$2,cliente_id=$3,observaciones_generales=$4,
+lugar_envio_domicilio_id=$5,lugar_envio_empresa=$6,lugar_envio_texto=$7,lugar_envio_alias=$8,estado=$9
+where id=$1 returning *`,
               [
                 id,
                 input.empresaId,
@@ -172,7 +181,9 @@ export function createPurchasesRepository(db: Db) {
         saved = first(
           (
             await c.query(
-              "insert into public.pedidos_compra(empresa_id,cliente_id,observaciones_generales,lugar_envio_domicilio_id,lugar_envio_empresa,lugar_envio_texto,lugar_envio_alias,estado,creado_por) values($1,$2,$3,$4,$5,$6,$7,$8,$9) returning *",
+              `insert into public.pedidos_compra(empresa_id,cliente_id,observaciones_generales,lugar_envio_domicilio_id,
+lugar_envio_empresa,lugar_envio_texto,lugar_envio_alias,estado,creado_por)
+values($1,$2,$3,$4,$5,$6,$7,$8,$9) returning *`,
               [
                 input.empresaId,
                 input.clienteId,
@@ -206,15 +217,23 @@ export function createPurchasesRepository(db: Db) {
     const supplier = order ? ",to_jsonb(pr) proveedores" : "";
     const supplierJoin = order ? "join public.proveedores pr on pr.id=h.proveedor_id" : "";
     const extra = order
-      ? ",(select ap.codigo_proveedor from public.articulos_proveedor ap join public.ordenes_compra oc on oc.id=i.oc_id where ap.articulo_id=i.articulo_id and ap.proveedor_id=oc.proveedor_id limit 1) codigo_proveedor"
-      : ",(select ap.precio::float from public.articulos_proveedor ap where ap.articulo_id=i.articulo_id and ap.proveedor_id=a.proveedor_habitual_id and ap.activo=true limit 1) precio_referencia";
+      ? `,(select ap.codigo_proveedor from public.articulos_proveedor ap join public.ordenes_compra oc on oc.id=i.oc_id
+where ap.articulo_id=i.articulo_id and ap.proveedor_id=oc.proveedor_id limit 1) codigo_proveedor`
+      : `,(select ap.precio::float from public.articulos_proveedor ap where ap.articulo_id=i.articulo_id
+and ap.proveedor_id=a.proveedor_habitual_id and ap.activo=true limit 1) precio_referencia`;
     const [h, items] = await Promise.all([
       db.query(
-        `select h.*,to_jsonb(e) empresas,jsonb_build_object('nombre',cl.nombre) clientes${supplier},case when pc.id is null then null else jsonb_build_object('numero_pedido',pc.numero_pedido) end pedidos_compra from public.${table} h join public.empresas e on e.id=h.empresa_id join public.clientes cl on cl.id=h.cliente_id ${supplierJoin} left join public.pedidos_compra pc on pc.id=h.pedido_id where h.id=$1`,
+        `select h.*,to_jsonb(e) empresas,jsonb_build_object('nombre',cl.nombre) clientes${supplier},
+case when pc.id is null then null else jsonb_build_object('numero_pedido',pc.numero_pedido) end pedidos_compra
+from public.${table} h join public.empresas e on e.id=h.empresa_id join public.clientes cl on cl.id=h.cliente_id
+${supplierJoin} left join public.pedidos_compra pc on pc.id=h.pedido_id where h.id=$1`,
         [id],
       ),
       db.query(
-        `select i.*,jsonb_build_object('id',a.id,'codigo_interno',a.codigo_interno,'nombre',a.nombre,'unidad',a.unidad,'categoria',a.categoria,'proveedor_habitual_id',a.proveedor_habitual_id) articulos${extra} from public.${itemsTable} i join public.articulos a on a.id=i.articulo_id where i.${fk}=$1 order by i.created_at,i.id`,
+        `select i.*,jsonb_build_object('id',a.id,'codigo_interno',a.codigo_interno,'nombre',a.nombre,'unidad',a.unidad,
+'categoria',a.categoria,'proveedor_habitual_id',a.proveedor_habitual_id) articulos${extra}
+from public.${itemsTable} i join public.articulos a on a.id=i.articulo_id
+where i.${fk}=$1 order by i.created_at,i.id`,
         [id],
       ),
     ]);
@@ -254,7 +273,9 @@ export function createPurchasesRepository(db: Db) {
       const h = first(
         (
           await c.query(
-            "insert into public.ordenes_compra(empresa_id,proveedor_id,cliente_id,pedido_id,observaciones_generales,lugar_envio_texto,lugar_envio_alias,condicion_pago,horario_atencion_texto,estado,creado_por) values($1,$2,$3,null,$4,$5,$6,$7,$8,'borrador',$9) returning *",
+            `insert into public.ordenes_compra(empresa_id,proveedor_id,cliente_id,pedido_id,observaciones_generales,
+lugar_envio_texto,lugar_envio_alias,condicion_pago,horario_atencion_texto,estado,creado_por)
+values($1,$2,$3,null,$4,$5,$6,$7,$8,'borrador',$9) returning *`,
             [
               input.empresaId,
               input.proveedorId,
@@ -343,7 +364,10 @@ export function createPurchasesRepository(db: Db) {
           "Item does not belong to purchase request",
         );
       const sums = await c.query(
-        "select source_id,sum(qty)::float qty from (select pedido_compra_item_id source_id,cantidad qty from public.ordenes_compra_items where pedido_compra_item_id=any($1::uuid[]) union all select pedido_compra_item_id,cantidad from public.pedidos_deposito_items where pedido_compra_item_id=any($1::uuid[])) q group by source_id",
+        `select source_id,sum(qty)::float qty from (
+select pedido_compra_item_id source_id,cantidad qty from public.ordenes_compra_items where pedido_compra_item_id=any($1::uuid[])
+union all select pedido_compra_item_id,cantidad from public.pedidos_deposito_items where pedido_compra_item_id=any($1::uuid[])
+) q group by source_id`,
         [ids],
       );
       const used = new Map(sums.rows.map((r) => [String(r.source_id), Number(r.qty)]));
@@ -375,7 +399,8 @@ export function createPurchasesRepository(db: Db) {
         const h = first(
           (
             await c.query(
-              "insert into public.ordenes_compra(empresa_id,proveedor_id,cliente_id,pedido_id,lugar_envio_texto,lugar_envio_alias,horario_atencion_texto,condicion_pago,estado,creado_por) values($1,$2,$3,$4,$5,$6,$7,$8,'borrador',$9) returning id",
+              `insert into public.ordenes_compra(empresa_id,proveedor_id,cliente_id,pedido_id,lugar_envio_texto,lugar_envio_alias,
+horario_atencion_texto,condicion_pago,estado,creado_por) values($1,$2,$3,$4,$5,$6,$7,$8,'borrador',$9) returning id`,
               [
                 pedido.empresa_id,
                 supplierId,
@@ -394,7 +419,8 @@ export function createPurchasesRepository(db: Db) {
         orderIds.push(String(h.id));
         for (const i of items)
           await c.query(
-            "insert into public.ordenes_compra_items(oc_id,pedido_compra_item_id,articulo_id,cantidad,precio_unitario,observaciones) select $1,$2,articulo_id,$3,$4,$5 from public.pedidos_compra_items where id=$6",
+            `insert into public.ordenes_compra_items(oc_id,pedido_compra_item_id,articulo_id,cantidad,precio_unitario,observaciones)
+select $1,$2,articulo_id,$3,$4,$5 from public.pedidos_compra_items where id=$6`,
             [
               h.id,
               i.destino === "proveedor" ? i.pedidoCompraItemId : null,
@@ -427,7 +453,8 @@ export function createPurchasesRepository(db: Db) {
         warehouseId = String(h.id);
         for (const i of warehouse)
           await c.query(
-            "insert into public.pedidos_deposito_items(pedido_deposito_id,pedido_compra_item_id,articulo_id,cantidad,observaciones) select $1,$2,articulo_id,$3,$4 from public.pedidos_compra_items where id=$2",
+            `insert into public.pedidos_deposito_items(pedido_deposito_id,pedido_compra_item_id,articulo_id,cantidad,observaciones)
+select $1,$2,articulo_id,$3,$4 from public.pedidos_compra_items where id=$2`,
             [h.id, i.pedidoCompraItemId, i.cantidad, i.observaciones ?? null],
           );
       }
@@ -486,7 +513,8 @@ export function createPurchasesRepository(db: Db) {
         const h = first(
           (
             await c.query(
-              "insert into public.pedidos_compra(empresa_id,cliente_id,lugar_envio_domicilio_id,lugar_envio_texto,lugar_envio_alias,estado,creado_por) values($1,$2,$3,$4,$5,'borrador',$6) returning id",
+              `insert into public.pedidos_compra(empresa_id,cliente_id,lugar_envio_domicilio_id,lugar_envio_texto,lugar_envio_alias,estado,creado_por)
+values($1,$2,$3,$4,$5,'borrador',$6) returning id`,
               [
                 input.empresaId,
                 o.clienteId,
@@ -544,7 +572,9 @@ export function createPurchasesRepository(db: Db) {
         nh = first(
           (
             await c.query(
-              "insert into public.ordenes_compra(empresa_id,proveedor_id,cliente_id,pedido_id,observaciones_generales,lugar_envio_texto,lugar_envio_alias,condicion_pago,horario_atencion_texto,estado,creado_por) values($1,$2,$3,null,$4,$5,$6,$7,$8,'borrador',$9) returning *",
+              `insert into public.ordenes_compra(empresa_id,proveedor_id,cliente_id,pedido_id,observaciones_generales,
+lugar_envio_texto,lugar_envio_alias,condicion_pago,horario_atencion_texto,estado,creado_por)
+values($1,$2,$3,null,$4,$5,$6,$7,$8,'borrador',$9) returning *`,
               [
                 h.empresa_id,
                 h.proveedor_id,
@@ -561,14 +591,16 @@ export function createPurchasesRepository(db: Db) {
           "Create failed",
         );
         await c.query(
-          `insert into public.${items}(oc_id,articulo_id,pedido_compra_item_id,cantidad,precio_unitario,observaciones) select $1,articulo_id,null,cantidad,precio_unitario,observaciones from public.${items} where ${fk}=$2`,
+          `insert into public.${items}(oc_id,articulo_id,pedido_compra_item_id,cantidad,precio_unitario,observaciones)
+select $1,articulo_id,null,cantidad,precio_unitario,observaciones from public.${items} where ${fk}=$2`,
           [nh.id, id],
         );
       } else {
         nh = first(
           (
             await c.query(
-              "insert into public.pedidos_deposito(empresa_id,cliente_id,pedido_id,observaciones_generales,lugar_envio_texto,lugar_envio_alias,estado,creado_por) values($1,$2,null,$3,$4,$5,'borrador',$6) returning *",
+              `insert into public.pedidos_deposito(empresa_id,cliente_id,pedido_id,observaciones_generales,lugar_envio_texto,lugar_envio_alias,estado,creado_por)
+values($1,$2,null,$3,$4,$5,'borrador',$6) returning *`,
               [
                 h.empresa_id,
                 h.cliente_id,
@@ -582,7 +614,8 @@ export function createPurchasesRepository(db: Db) {
           "Create failed",
         );
         await c.query(
-          `insert into public.${items}(pedido_deposito_id,articulo_id,pedido_compra_item_id,cantidad,observaciones) select $1,articulo_id,null,cantidad,observaciones from public.${items} where ${fk}=$2`,
+          `insert into public.${items}(pedido_deposito_id,articulo_id,pedido_compra_item_id,cantidad,observaciones)
+select $1,articulo_id,null,cantidad,observaciones from public.${items} where ${fk}=$2`,
           [nh.id, id],
         );
       }
@@ -618,19 +651,34 @@ export function createPurchasesRepository(db: Db) {
   const listRequests = () =>
     db
       .query(
-        "select h.*,jsonb_build_object('nombre',e.nombre) empresas,jsonb_build_object('nombre',cl.nombre) clientes,p.nombre_completo creado_por_nombre,case when exists(select 1 from public.pedidos_compra_items i where i.pedido_id=h.id) then not exists(select 1 from public.pedidos_compra_items i where i.pedido_id=h.id and not i.descartada and i.cantidad>coalesce((select sum(x.cantidad) from (select cantidad from public.ordenes_compra_items where pedido_compra_item_id=i.id union all select cantidad from public.pedidos_deposito_items where pedido_compra_item_id=i.id)x),0)) else false end procesado from public.pedidos_compra h join public.empresas e on e.id=h.empresa_id join public.clientes cl on cl.id=h.cliente_id left join public.perfiles p on p.id=h.creado_por order by h.created_at desc",
+        `select h.*,jsonb_build_object('nombre',e.nombre) empresas,jsonb_build_object('nombre',cl.nombre) clientes,
+p.nombre_completo creado_por_nombre,
+case when exists(select 1 from public.pedidos_compra_items i where i.pedido_id=h.id) then not exists(
+select 1 from public.pedidos_compra_items i where i.pedido_id=h.id and not i.descartada and i.cantidad>coalesce((
+select sum(x.cantidad) from (
+select cantidad from public.ordenes_compra_items where pedido_compra_item_id=i.id
+union all select cantidad from public.pedidos_deposito_items where pedido_compra_item_id=i.id
+)x),0)) else false end procesado
+from public.pedidos_compra h join public.empresas e on e.id=h.empresa_id join public.clientes cl on cl.id=h.cliente_id
+left join public.perfiles p on p.id=h.creado_por order by h.created_at desc`,
       )
       .then((r) => r.rows);
   const listOrders = () =>
     db
       .query(
-        "select h.*,jsonb_build_object('nombre',e.nombre) empresas,jsonb_build_object('nombre',cl.nombre) clientes,jsonb_build_object('razon_social',p.razon_social) proveedores from public.ordenes_compra h join public.empresas e on e.id=h.empresa_id join public.clientes cl on cl.id=h.cliente_id join public.proveedores p on p.id=h.proveedor_id order by h.created_at desc",
+        `select h.*,jsonb_build_object('nombre',e.nombre) empresas,jsonb_build_object('nombre',cl.nombre) clientes,
+jsonb_build_object('razon_social',p.razon_social) proveedores
+from public.ordenes_compra h join public.empresas e on e.id=h.empresa_id join public.clientes cl on cl.id=h.cliente_id
+join public.proveedores p on p.id=h.proveedor_id order by h.created_at desc`,
       )
       .then((r) => r.rows);
   const listWarehouses = () =>
     db
       .query(
-        "select h.*,jsonb_build_object('nombre',e.nombre) empresas,jsonb_build_object('nombre',cl.nombre) clientes,p.nombre_completo creado_por_nombre from public.pedidos_deposito h join public.empresas e on e.id=h.empresa_id join public.clientes cl on cl.id=h.cliente_id left join public.perfiles p on p.id=h.creado_por order by h.created_at desc",
+        `select h.*,jsonb_build_object('nombre',e.nombre) empresas,jsonb_build_object('nombre',cl.nombre) clientes,
+p.nombre_completo creado_por_nombre
+from public.pedidos_deposito h join public.empresas e on e.id=h.empresa_id join public.clientes cl on cl.id=h.cliente_id
+left join public.perfiles p on p.id=h.creado_por order by h.created_at desc`,
       )
       .then((r) => r.rows);
   return {

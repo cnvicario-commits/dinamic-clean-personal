@@ -219,7 +219,9 @@ export function createCatalogRepository(db: Db) {
     supplierArticles: (id: string) =>
       db
         .query(
-          "select ap.codigo_proveedor,ap.nombre_proveedor,ap.precio,a.codigo_interno from public.articulos_proveedor ap join public.articulos a on a.id=ap.articulo_id where ap.proveedor_id=$1 order by ap.codigo_proveedor nulls last,ap.id",
+          `select ap.codigo_proveedor,ap.nombre_proveedor,ap.precio,a.codigo_interno
+from public.articulos_proveedor ap join public.articulos a on a.id=ap.articulo_id
+where ap.proveedor_id=$1 order by ap.codigo_proveedor nulls last,ap.id`,
           [id],
         )
         .then((r) => r.rows),
@@ -378,7 +380,10 @@ export function createCatalogRepository(db: Db) {
         if (!article) throw notFound("Article not found");
         const relation = (
           await c.query(
-            "with inserted as (insert into public.articulos_proveedor(articulo_id,proveedor_id,codigo_proveedor,nombre_proveedor,precio,activo,fecha_actualizacion) values($1,$2,$3,$4,$5,true,now()) returning *) select inserted.*,p.razon_social from inserted join public.proveedores p on p.id=inserted.proveedor_id",
+            `with inserted as (
+insert into public.articulos_proveedor(articulo_id,proveedor_id,codigo_proveedor,nombre_proveedor,precio,activo,fecha_actualizacion)
+values($1,$2,$3,$4,$5,true,now()) returning *
+) select inserted.*,p.razon_social from inserted join public.proveedores p on p.id=inserted.proveedor_id`,
             [article.id, p.proveedor_id, p.codigo_proveedor, p.nombre_proveedor, p.precio],
           )
         ).rows[0];
@@ -397,7 +402,10 @@ export function createCatalogRepository(db: Db) {
     },
     createRelation: (articleId: string, i: Record<string, unknown>) =>
       one(
-        "with inserted as (insert into public.articulos_proveedor(articulo_id,proveedor_id,codigo_proveedor,nombre_proveedor,precio,activo,fecha_actualizacion) values($1,$2,$3,$4,$5,coalesce($6,true),now()) returning *) select inserted.*,p.razon_social from inserted join public.proveedores p on p.id=inserted.proveedor_id",
+        `with inserted as (
+insert into public.articulos_proveedor(articulo_id,proveedor_id,codigo_proveedor,nombre_proveedor,precio,activo,fecha_actualizacion)
+values($1,$2,$3,$4,$5,coalesce($6,true),now()) returning *
+) select inserted.*,p.razon_social from inserted join public.proveedores p on p.id=inserted.proveedor_id`,
         [
           articleId,
           i.proveedorId,
@@ -411,7 +419,10 @@ export function createCatalogRepository(db: Db) {
     updateRelation: (articleId: string, id: string, i: Record<string, unknown>) => {
       const a = Object.entries(i).filter(([, v]) => v !== undefined);
       return one(
-        `with updated as (update public.articulos_proveedor set ${a.map(([k], n) => `${s(k)}=$${n + 3}`).join(",")},fecha_actualizacion=now() where id=$1 and articulo_id=$2 returning *) select updated.*,p.razon_social from updated join public.proveedores p on p.id=updated.proveedor_id`,
+        `with updated as (
+update public.articulos_proveedor set ${a.map(([k], n) => `${s(k)}=$${n + 3}`).join(",")},fecha_actualizacion=now()
+where id=$1 and articulo_id=$2 returning *
+) select updated.*,p.razon_social from updated join public.proveedores p on p.id=updated.proveedor_id`,
         [id, articleId, ...a.map(([, v]) => v)],
         "Supplier relation not found",
       );

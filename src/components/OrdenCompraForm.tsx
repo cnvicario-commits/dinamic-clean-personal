@@ -142,7 +142,33 @@ export default function OrdenCompraForm({
     }
     setLoading(true)
 
-    try{const nuevo=await (await createAuthenticatedBrowserApiClient()).createPurchaseOrder({empresaId,proveedorId,clienteId,observacionesGenerales:observaciones||null,lugarEnvioTexto:resolverLugarEnvioTexto(),lugarEnvioAlias:resolverLugarEnvioAlias(),horarioAtencionTexto:resolverHorarioAtencionTexto(),condicionPago:condicionPago||null,items:lineas.map(l=>({articuloId:l.articuloId,cantidad:Number(l.cantidad),precioUnitario:Number(l.precioUnitario),observaciones:l.observaciones||null}))});router.push(`/ordenes-compra/${nuevo.id}`)}catch(error){setError('Error al guardar: '+(error instanceof Error?error.message:'desconocido'))}finally{setLoading(false)}
+    try {
+      const nuevo = await (
+        await createAuthenticatedBrowserApiClient()
+      ).createPurchaseOrder({
+        empresaId,
+        proveedorId,
+        clienteId,
+        observacionesGenerales: observaciones || null,
+        lugarEnvioTexto: resolverLugarEnvioTexto(),
+        lugarEnvioAlias: resolverLugarEnvioAlias(),
+        horarioAtencionTexto: resolverHorarioAtencionTexto(),
+        condicionPago: condicionPago || null,
+        items: lineas.map((l) => ({
+          articuloId: l.articuloId,
+          cantidad: Number(l.cantidad),
+          precioUnitario: Number(l.precioUnitario),
+          observaciones: l.observaciones || null,
+        })),
+      })
+      router.push(`/ordenes-compra/${nuevo.id}`)
+    } catch (error) {
+      setError(
+        'Error al guardar: ' + (error instanceof Error ? error.message : 'desconocido'),
+      )
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
