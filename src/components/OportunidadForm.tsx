@@ -18,17 +18,23 @@ export default function OportunidadForm({
   tiposCliente,
   referidores,
   responsables,
+  responsableFijo = null,
+  prospectoInicial = null,
+  leadId = null,
 }: {
   prospectos: Prospecto[];
   tiposServicio: CatalogoItem[];
   tiposCliente: CatalogoItem[];
   referidores: CatalogoItem[];
   responsables: PerfilResumen[];
+  responsableFijo?: PerfilResumen | null;
+  prospectoInicial?: Prospecto | null;
+  leadId?: string | null;
 }) {
   // Elegir un prospecto existente o crear uno nuevo al vuelo: mismo patrón
   // de dos modos excluyentes que ya usa PendientesTabla.tsx.
   const [modoProspecto, setModoProspecto] = useState<"buscar" | "crear">("buscar");
-  const [prospecto, setProspecto] = useState<Prospecto | null>(null);
+  const [prospecto, setProspecto] = useState<Prospecto | null>(prospectoInicial);
 
   const [numeroReferencia, setNumeroReferencia] = useState("");
   const [fechaIngreso, setFechaIngreso] = useState(() => new Date().toISOString().slice(0, 10));
@@ -38,7 +44,7 @@ export default function OportunidadForm({
   const [montoEstimado, setMontoEstimado] = useState("");
   const [fechaEnvio, setFechaEnvio] = useState("");
   const [comisionMonto, setComisionMonto] = useState("");
-  const [responsableId, setResponsableId] = useState("");
+  const [responsableId, setResponsableId] = useState(responsableFijo?.id ?? "");
   const [comentarios, setComentarios] = useState("");
 
   const [error, setError] = useState("");
@@ -61,22 +67,27 @@ export default function OportunidadForm({
     let errInsert: unknown = null;
     try {
       const api = await createAuthenticatedBrowserApiClient();
-      const result = await api.createCrmOpportunity(
-        {
-          prospectoId: prospecto.id,
-          numeroReferencia: numeroReferencia || null,
-          fechaIngreso,
-          tipoServicioId: tipoServicioId || null,
-          cantidadPersonal: cantidadPersonal ? Number(cantidadPersonal) : null,
-          montoEstimado: montoEstimado ? Number(montoEstimado) : null,
-          fechaEnvio: fechaEnvio || null,
-          comisionMonto: comisionMonto ? Number(comisionMonto) : null,
-          comentarios: comentarios || null,
-          responsableId,
-        },
-        crypto.randomUUID(),
-      );
-      data = { id: result.response.id };
+      const campos = {
+        numeroReferencia: numeroReferencia || null,
+        fechaIngreso,
+        tipoServicioId: tipoServicioId || null,
+        cantidadPersonal: cantidadPersonal ? Number(cantidadPersonal) : null,
+        montoEstimado: montoEstimado ? Number(montoEstimado) : null,
+        fechaEnvio: fechaEnvio || null,
+        comisionMonto: comisionMonto ? Number(comisionMonto) : null,
+        comentarios: comentarios || null,
+        responsableId,
+      };
+      if (leadId) {
+        const result = await api.convertCrmLead(leadId, campos, crypto.randomUUID());
+        data = { id: result.response.opportunity.id };
+      } else {
+        const result = await api.createCrmOpportunity(
+          { ...campos, prospectoId: prospecto.id },
+          crypto.randomUUID(),
+        );
+        data = { id: result.response.id };
+      }
     } catch (error) {
       errInsert = error;
     }
@@ -217,19 +228,25 @@ export default function OportunidadForm({
         </div>
         <div className="flex flex-col">
           <label className="text-xs text-slate-500 mb-1">Responsable</label>
-          <select
-            value={responsableId}
-            onChange={(e) => setResponsableId(e.target.value)}
-            required
-            className={`w-48 ${inputStyle}`}
-          >
-            <option value="">Elegir responsable</option>
-            {responsables.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.nombre_completo}
-              </option>
-            ))}
-          </select>
+          {responsableFijo ? (
+            <p className={`w-48 ${inputStyle} bg-slate-50 text-slate-600 flex items-center`}>
+              {responsableFijo.nombre_completo}
+            </p>
+          ) : (
+            <select
+              value={responsableId}
+              onChange={(e) => setResponsableId(e.target.value)}
+              required
+              className={`w-48 ${inputStyle}`}
+            >
+              <option value="">Elegir responsable</option>
+              {responsables.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.nombre_completo}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 
@@ -248,7 +265,7 @@ export default function OportunidadForm({
         disabled={loading}
         className="self-start px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
       >
-        {loading ? "Guardando..." : "Crear oportunidad"}
+        {loading ? "Guardando..." : leadId ? "Convertir a oportunidad" : "Crear oportunidad"}
       </button>
     </form>
   );

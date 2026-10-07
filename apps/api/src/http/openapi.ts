@@ -58,10 +58,15 @@ import {
 import {
   crmCatalogCreate,
   crmCatalogUpdate,
+  crmConvertLead,
   crmCreateFollowUp,
+  crmCreateLead,
+  crmCreateLeadFollowUp,
   crmCreateOpportunity,
   crmCreateProspect,
+  crmLeadTransition,
   crmTransition,
+  crmUpdateLead,
   crmUpdateOpportunity,
   crmUpdateProspect,
 } from "./schemas/crm.js";
@@ -1504,6 +1509,132 @@ export const openApiDocument = {
           "200": { description: "Server-side summary aggregates" },
           "401": { description: "Unauthorized" },
           "403": { description: "Forbidden" },
+        },
+      },
+    },
+    "/v1/crm/summary/monthly": {
+      get: {
+        summary: "Monthly created-versus-accepted CRM aggregates",
+        security: bearer,
+        responses: {
+          "200": { description: "Monthly aggregates" },
+          "401": { description: "Unauthorized" },
+          "403": { description: "Forbidden" },
+        },
+      },
+    },
+    "/v1/crm/agenda": {
+      get: {
+        summary: "Unified sales agenda of active opportunities and leads",
+        security: bearer,
+        responses: {
+          "200": { description: "Paginated agenda" },
+          "401": { description: "Unauthorized" },
+          "403": { description: "Forbidden" },
+        },
+      },
+    },
+    "/v1/crm/leads": {
+      get: {
+        summary: "List CRM leads",
+        security: bearer,
+        responses: {
+          "200": { description: "Paginated leads" },
+          "401": { description: "Unauthorized" },
+          "403": { description: "Forbidden" },
+        },
+      },
+      post: {
+        summary: "Create lead and initial follow-up atomically",
+        security: bearer,
+        parameters: [
+          { name: "Idempotency-Key", in: "header", required: true, schema: { type: "string" } },
+        ],
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: zodJsonSchema(crmCreateLead) } },
+        },
+        responses: {
+          "201": { description: "Created or idempotent replay" },
+          "400": { description: "Validation" },
+          "409": { description: "Idempotency conflict" },
+        },
+      },
+    },
+    "/v1/crm/leads/{id}": {
+      get: {
+        summary: "Get CRM lead",
+        security: bearer,
+        parameters: idParameter,
+        responses: { "200": { description: "Lead" }, "404": { description: "Not found" } },
+      },
+      patch: {
+        summary: "Update lead and optional prospect atomically",
+        security: bearer,
+        parameters: idParameter,
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: zodJsonSchema(crmUpdateLead) } },
+        },
+        responses: { "200": { description: "Updated" }, "404": { description: "Not found" } },
+      },
+      delete: {
+        summary: "Delete lead and cascaded follow-ups",
+        security: bearer,
+        parameters: idParameter,
+        responses: { "204": { description: "Deleted" }, "404": { description: "Not found" } },
+      },
+    },
+    "/v1/crm/leads/{id}/state": {
+      patch: {
+        summary: "Transition lead state atomically with follow-up",
+        security: bearer,
+        parameters: idParameter,
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: zodJsonSchema(crmLeadTransition) } },
+        },
+        responses: {
+          "200": { description: "Transitioned" },
+          "400": { description: "Validation" },
+          "409": { description: "Converted lead" },
+        },
+      },
+    },
+    "/v1/crm/leads/{id}/follow-ups": {
+      get: {
+        summary: "List lead follow-ups",
+        security: bearer,
+        parameters: idParameter,
+        responses: { "200": { description: "Paginated follow-ups" }, "404": { description: "Not found" } },
+      },
+      post: {
+        summary: "Create lead follow-up",
+        security: bearer,
+        parameters: idParameter,
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: zodJsonSchema(crmCreateLeadFollowUp) } },
+        },
+        responses: { "200": { description: "Created" }, "404": { description: "Not found" } },
+      },
+    },
+    "/v1/crm/leads/{id}/convert": {
+      post: {
+        summary: "Convert a lead into an opportunity atomically",
+        security: bearer,
+        parameters: [
+          ...idParameter,
+          { name: "Idempotency-Key", in: "header", required: true, schema: { type: "string" } },
+        ],
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: zodJsonSchema(crmConvertLead) } },
+        },
+        responses: {
+          "201": { description: "Converted or idempotent replay" },
+          "404": { description: "Not found" },
+          "409": { description: "Already converted or idempotency conflict" },
         },
       },
     },

@@ -24,7 +24,7 @@ describe('openapi contract (Phase 1)', () => {
         '/v1/clients/{id}/quotes',
         '/v1/clients/{id}/quotes/{quoteId}',
         '/v1/clients/{id}/quotes/{quoteId}/download',
-        '/v1/crm/catalogs','/v1/crm/dashboard','/v1/crm/summary','/v1/crm/opportunities','/v1/crm/opportunities/{id}','/v1/crm/opportunities/{id}/follow-ups','/v1/crm/opportunities/{id}/state','/v1/crm/opportunities/{id}/view','/v1/crm/prospects','/v1/crm/prospects/{id}','/v1/crm/{resource}','/v1/crm/{resource}/{id}/status',
+        '/v1/crm/catalogs','/v1/crm/dashboard','/v1/crm/summary','/v1/crm/summary/monthly','/v1/crm/agenda','/v1/crm/leads','/v1/crm/leads/{id}','/v1/crm/leads/{id}/convert','/v1/crm/leads/{id}/follow-ups','/v1/crm/leads/{id}/state','/v1/crm/opportunities','/v1/crm/opportunities/{id}','/v1/crm/opportunities/{id}/follow-ups','/v1/crm/opportunities/{id}/state','/v1/crm/opportunities/{id}/view','/v1/crm/prospects','/v1/crm/prospects/{id}','/v1/crm/{resource}','/v1/crm/{resource}/{id}/status',
         '/v1/audits','/v1/audits/catalogs','/v1/audits/dashboard','/v1/audits/plannings','/v1/audits/plannings/{id}','/v1/audits/plannings/{id}/cancel','/v1/audits/{id}','/v1/audits/{id}/actions',
         '/v1/audit-actions','/v1/audit-actions/{id}',
         '/v1/audit-checklists','/v1/audit-checklists/active','/v1/audit-checklists/{id}','/v1/audit-checklists/{id}/activate','/v1/audit-checklists/{id}/copy',

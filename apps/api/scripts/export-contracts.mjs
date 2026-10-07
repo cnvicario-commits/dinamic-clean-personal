@@ -193,6 +193,22 @@ export type CrmFollowUp = Record<string,unknown>&{id:string;oportunidad_id:strin
 export type CrmFollowUpPage = {items:CrmFollowUp[];page:number;pageSize:number;total:number}
 export type CrmDashboard = CrmPage&{seguimientos:CrmFollowUp[];vistas:Array<{oportunidad_id:string;last_viewed_at:string}>;novedades:Array<{oportunidadId:string;prospectoNombre:string;cantidad:number;usuarioNombreLibre:string|null;nota:string|null;creadoEn:string;perfiles:{nombre_completo:string}|null}>}
 export type CrmSummary = {totalCantidad:number;totalMonto:number;porEstado:Array<{estado:string;cantidad:number;monto:number}>;porTipoCliente:Array<{nombre:string;cantidad:number;monto:number}>;porReferidor:Array<{nombre:string;cantidad:number;monto:number}>;montoAceptado:number;tasaConversion:number|null;comisionTotal:number;comisionLiquidada:number;comisionPendiente:number}
+export type CrmMonthlyPoint = {mes:string;total:number;categorias:Array<{nombre:string;cantidad:number}>}
+export type CrmMonthlySummary = {desde:string;hasta:string;categorias:string[];creadas:CrmMonthlyPoint[];aceptadas:CrmMonthlyPoint[]}
+export type CrmMonthlyQuery = {desde?:string;hasta?:string;dimension?:'tipo_servicio'|'responsable';responsableId?:string}
+export type CrmAgendaItem = {id:string;tipo:'oportunidad'|'lead';href:string;cliente:string;subtitulo:string;fecha:string|null;responsableId:string;responsableNombre:string;montoTexto:string|null}
+export type CrmAgendaPage = {items:CrmAgendaItem[];page:number;pageSize:number;total:number}
+export type CrmAgendaQuery = {page?:number;pageSize?:number;tipo?:'oportunidad'|'lead';responsableId?:string}
+export type CrmLeadState = 'por_contactar'|'en_conversacion'|'convertido'|'sin_interes'
+export type CrmLead = Record<string,unknown>&{id:string;prospecto_id:string;responsable_id:string;estado:CrmLeadState;proxima_fecha_contacto:string|null;notas:string|null;oportunidad_id:string|null;fecha_conversion:string|null;created_at:string;updated_at:string|null;crm_prospectos:{id:string;nombre:string;tipo_cliente_id:string|null;contacto_nombre:string|null;telefono:string|null;email:string|null;referido_por_id:string|null;crm_tipos_cliente:{nombre:string}|null;crm_referidores:{nombre:string}|null}|null;perfiles:{nombre_completo:string}|null}
+export type CrmLeadPage = {items:CrmLead[];page:number;pageSize:number;total:number}
+export type CrmLeadQuery = {page?:number;pageSize?:number;estado?:CrmLeadState;responsableId?:string;search?:string}
+export type CrmCreateLeadBody = {prospectoId:string;responsableId:string;proximaFechaContacto?:string|null;notas?:string|null}
+export type CrmUpdateLeadBody = {proximaFechaContacto?:string|null;notas?:string|null;prospecto?:Partial<CrmCreateProspectBody>}
+export type CrmLeadTransitionBody = {estado:Exclude<CrmLeadState,'convertido'>}
+export type CrmCreateLeadFollowUpBody = {fechaContacto?:string;tipoContacto?:string|null;nota:string;proximaFechaContacto?:string|null}
+export type CrmConvertLeadBody = {numeroReferencia?:string|null;fechaIngreso?:string;tipoServicioId?:string|null;cantidadPersonal?:number|null;montoEstimado?:number|null;fechaEnvio?:string|null;comisionMonto?:number|null;comentarios?:string|null;responsableId:string;seguimientoInicial?:boolean}
+export type CrmLeadFollowUp = Record<string,unknown>&{id:string;lead_id:string;nota:string|null;created_at:string}
 export type CrmListQuery = {page?:number;pageSize?:number;estado?:CrmOpportunity['estado'];responsableId?:string;prospectoId?:string;tipoClienteId?:string;tipoServicioId?:string;desde?:string;hasta?:string;search?:string;proximaFecha?:boolean;facturacion?:boolean;order?:'created'|'ingreso'|'agenda'|'facturacion'}
 export type CrmCreateProspectBody = {nombre:string;tipoClienteId?:string|null;contactoNombre?:string|null;telefono?:string|null;email?:string|null;referidoPorId?:string|null;notas?:string|null}
 export type CrmCreateOpportunityBody = {prospectoId:string;numeroReferencia?:string|null;fechaIngreso?:string;tipoServicioId?:string|null;cantidadPersonal?:number|null;montoEstimado?:number|null;fechaEnvio?:string|null;comisionMonto?:number|null;comentarios?:string|null;responsableId:string;seguimientoInicial?:boolean}
@@ -362,7 +378,7 @@ import type {
   UpdateClientAddressBody,
   QuoteUploadBody,
   QuoteDownload,
-  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord, ResultsImportBody, ResultRecord, CrmCatalogItem, CrmProspect, CrmOpportunity, CrmPage, CrmFollowUp, CrmFollowUpPage, CrmDashboard, CrmSummary, CrmListQuery, CrmCreateProspectBody, CrmCreateOpportunityBody, CrmUpdateOpportunityBody, CrmTransitionBody, CrmCreateFollowUpBody, CrmCatalogs, AuditPlanning, AuditPlanningPage, AuditPlanningEdit, AuditPlanningBody, AuditPlanningUpdateBody, AuditCancelPlanningBody, AuditSubmitBody, Audit, AuditPage, AuditDetail, AuditAction, AuditActionPage, AuditActionCreateBody, AuditActionUpdateBody, AuditChecklist, AuditChecklistDetail, AuditChecklistCreateBody, AuditChecklistUpdateBody, AuditChecklistCopyBody, AuditChecklistActivateBody, AuditCatalogs, AuditDashboard, AuditPageQuery, AuditActionListQuery, AuditDashboardQuery,
+  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord, ResultsImportBody, ResultRecord, CrmCatalogItem, CrmProspect, CrmOpportunity, CrmPage, CrmFollowUp, CrmFollowUpPage, CrmDashboard, CrmSummary, CrmMonthlySummary, CrmMonthlyQuery, CrmAgendaPage, CrmAgendaQuery, CrmLead, CrmLeadPage, CrmLeadQuery, CrmCreateLeadBody, CrmUpdateLeadBody, CrmLeadTransitionBody, CrmCreateLeadFollowUpBody, CrmConvertLeadBody, CrmLeadFollowUp, CrmListQuery, CrmCreateProspectBody, CrmCreateOpportunityBody, CrmUpdateOpportunityBody, CrmTransitionBody, CrmCreateFollowUpBody, CrmCatalogs, AuditPlanning, AuditPlanningPage, AuditPlanningEdit, AuditPlanningBody, AuditPlanningUpdateBody, AuditCancelPlanningBody, AuditSubmitBody, Audit, AuditPage, AuditDetail, AuditAction, AuditActionPage, AuditActionCreateBody, AuditActionUpdateBody, AuditChecklist, AuditChecklistDetail, AuditChecklistCreateBody, AuditChecklistUpdateBody, AuditChecklistCopyBody, AuditChecklistActivateBody, AuditCatalogs, AuditDashboard, AuditPageQuery, AuditActionListQuery, AuditDashboardQuery,
   UsersListResponse,
 } from './types'
 
@@ -492,6 +508,17 @@ export type DinamicApiClient = {
   listCrmOpportunities: (query?:CrmListQuery) => Promise<CrmPage>
   getCrmDashboard: (query?:CrmListQuery) => Promise<CrmDashboard>
   getCrmSummary: (query?:CrmListQuery) => Promise<CrmSummary>
+  getCrmMonthlySummary: (query?:CrmMonthlyQuery) => Promise<CrmMonthlySummary>
+  getCrmAgenda: (query?:CrmAgendaQuery) => Promise<CrmAgendaPage>
+  listCrmLeads: (query?:CrmLeadQuery) => Promise<CrmLeadPage>
+  getCrmLead: (id:string) => Promise<CrmLead>
+  createCrmLead: (body:CrmCreateLeadBody,key:string) => Promise<{replayed:boolean;response:CrmLead}>
+  updateCrmLead: (id:string,body:CrmUpdateLeadBody) => Promise<CrmLead>
+  transitionCrmLead: (id:string,body:CrmLeadTransitionBody) => Promise<CrmLead>
+  deleteCrmLead: (id:string) => Promise<void>
+  listCrmLeadFollowUps: (id:string,query?:{page?:number;pageSize?:number}) => Promise<CrmFollowUpPage>
+  createCrmLeadFollowUp: (id:string,body:CrmCreateLeadFollowUpBody) => Promise<CrmLeadFollowUp>
+  convertCrmLead: (id:string,body:CrmConvertLeadBody,key:string) => Promise<{replayed:boolean;response:{lead:CrmLead;opportunity:CrmOpportunity}}>
   getCrmOpportunity: (id:string) => Promise<CrmOpportunity>
   getCrmCatalogs: () => Promise<CrmCatalogs>
   listCrmFollowUps: (id:string,query?:{page?:number;pageSize?:number}) => Promise<CrmFollowUpPage>
@@ -692,6 +719,17 @@ export function createDinamicApiClient(options: DinamicApiClientOptions): Dinami
     listCrmOpportunities(query={}){const q:Record<string,string>={};for(const [k,v] of Object.entries(query)){if(v!==undefined)q[k]=String(v)}return requestJson<CrmPage>('/v1/crm/opportunities',{query:q})},
     getCrmDashboard(query={}){const q:Record<string,string>={};for(const [k,v] of Object.entries(query)){if(v!==undefined)q[k]=String(v)}return requestJson<CrmDashboard>('/v1/crm/dashboard',{query:q})},
     getCrmSummary(query={}){const q:Record<string,string>={};for(const [k,v] of Object.entries(query)){if(v!==undefined)q[k]=String(v)}return requestJson<CrmSummary>('/v1/crm/summary',{query:q})},
+    getCrmMonthlySummary(query={}){const q:Record<string,string>={};for(const [k,v] of Object.entries(query)){if(v!==undefined)q[k]=String(v)}return requestJson<CrmMonthlySummary>('/v1/crm/summary/monthly',{query:q})},
+    getCrmAgenda(query={}){const q:Record<string,string>={};for(const [k,v] of Object.entries(query)){if(v!==undefined)q[k]=String(v)}return requestJson<CrmAgendaPage>('/v1/crm/agenda',{query:q})},
+    listCrmLeads(query={}){const q:Record<string,string>={};for(const [k,v] of Object.entries(query)){if(v!==undefined)q[k]=String(v)}return requestJson<CrmLeadPage>('/v1/crm/leads',{query:q})},
+    getCrmLead(id){return requestJson<CrmLead>(\`/v1/crm/leads/\${id}\`)},
+    createCrmLead(body,key){return requestJson<{replayed:boolean;response:CrmLead}>('/v1/crm/leads',{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},
+    updateCrmLead(id,body){return requestJson<CrmLead>(\`/v1/crm/leads/\${id}\`,{method:'PATCH',body:JSON.stringify(body)})},
+    transitionCrmLead(id,body){return requestJson<CrmLead>(\`/v1/crm/leads/\${id}/state\`,{method:'PATCH',body:JSON.stringify(body)})},
+    deleteCrmLead(id){return requestJson<void>(\`/v1/crm/leads/\${id}\`,{method:'DELETE',emptyResponse:true})},
+    listCrmLeadFollowUps(id,query={}){const q:Record<string,string>={};for(const [k,v] of Object.entries(query)){if(v!==undefined)q[k]=String(v)}return requestJson<CrmFollowUpPage>(\`/v1/crm/leads/\${id}/follow-ups\`,{query:q})},
+    createCrmLeadFollowUp(id,body){return requestJson<CrmLeadFollowUp>(\`/v1/crm/leads/\${id}/follow-ups\`,{method:'POST',body:JSON.stringify(body)})},
+    convertCrmLead(id,body,key){return requestJson<{replayed:boolean;response:{lead:CrmLead;opportunity:CrmOpportunity}}>(\`/v1/crm/leads/\${id}/convert\`,{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},
     deleteCrmOpportunity(id){return requestJson<void>(\`/v1/crm/opportunities/\${id}\`,{method:'DELETE',emptyResponse:true})},
     getCrmOpportunity(id){return requestJson<CrmOpportunity>(\`/v1/crm/opportunities/\${id}\`)}, getCrmCatalogs(){return requestJson<CrmCatalogs>('/v1/crm/catalogs')},
     listCrmFollowUps(id,query={}){const q:Record<string,string>={};for(const [k,v] of Object.entries(query)){if(v!==undefined)q[k]=String(v)}return requestJson<CrmFollowUpPage>(\`/v1/crm/opportunities/\${id}/follow-ups\`,{query:q})},
@@ -775,7 +813,7 @@ export type {
   QuoteUploadBody,
   QuoteDownload,
   Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord,
-  CrmCatalogItem, CrmProspect, CrmOpportunity, CrmPage, CrmFollowUp, CrmFollowUpPage, CrmDashboard, CrmSummary, CrmListQuery, CrmCreateProspectBody, CrmCreateOpportunityBody, CrmUpdateOpportunityBody, CrmTransitionBody, CrmCreateFollowUpBody, CrmCatalogs, AuditPlanning, AuditPlanningPage, AuditPlanningEdit, AuditPlanningBody, AuditPlanningUpdateBody, AuditCancelPlanningBody, AuditAnswerBody, AuditSubmitBody, Audit, AuditPage, AuditDetail, AuditAction, AuditActionPage, AuditActionCreateBody, AuditActionUpdateBody, AuditChecklist, AuditChecklistItem, AuditChecklistDetail, AuditChecklistCreateBody, AuditChecklistUpdateBody, AuditChecklistCopyBody, AuditChecklistActivateBody, AuditCatalogs, AuditDashboard, AuditPageQuery, AuditActionListQuery, AuditDashboardQuery,
+  CrmCatalogItem, CrmProspect, CrmOpportunity, CrmPage, CrmFollowUp, CrmFollowUpPage, CrmDashboard, CrmSummary, CrmMonthlyPoint, CrmMonthlySummary, CrmMonthlyQuery, CrmAgendaItem, CrmAgendaPage, CrmAgendaQuery, CrmLeadState, CrmLead, CrmLeadPage, CrmLeadQuery, CrmCreateLeadBody, CrmUpdateLeadBody, CrmLeadTransitionBody, CrmCreateLeadFollowUpBody, CrmConvertLeadBody, CrmLeadFollowUp, CrmListQuery, CrmCreateProspectBody, CrmCreateOpportunityBody, CrmUpdateOpportunityBody, CrmTransitionBody, CrmCreateFollowUpBody, CrmCatalogs, AuditPlanning, AuditPlanningPage, AuditPlanningEdit, AuditPlanningBody, AuditPlanningUpdateBody, AuditCancelPlanningBody, AuditAnswerBody, AuditSubmitBody, Audit, AuditPage, AuditDetail, AuditAction, AuditActionPage, AuditActionCreateBody, AuditActionUpdateBody, AuditChecklist, AuditChecklistItem, AuditChecklistDetail, AuditChecklistCreateBody, AuditChecklistUpdateBody, AuditChecklistCopyBody, AuditChecklistActivateBody, AuditCatalogs, AuditDashboard, AuditPageQuery, AuditActionListQuery, AuditDashboardQuery,
   ProblemDetails,
 } from './types'
 export {

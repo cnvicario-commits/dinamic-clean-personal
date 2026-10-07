@@ -23,6 +23,7 @@ const grupos: Grupo[] = [
     label: 'Ventas',
     enlaces: [
       { href: '/ventas', label: 'Tablero' },
+      { href: '/ventas/leads', label: 'Leads' },
       { href: '/ventas/agenda', label: 'Agenda' },
       { href: '/ventas/nueva', label: 'Nueva oportunidad' },
       { href: '/ventas/listado', label: 'Listado' },

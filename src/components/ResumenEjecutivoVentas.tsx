@@ -1,6 +1,7 @@
 import BotonImprimir from './BotonImprimir'
+import DesgloseMensualVentas from './DesgloseMensualVentas'
 import { ESTADOS, type PerfilResumen } from '@/types/crm'
-import type { CrmSummary } from '@/lib/api/generated'
+import type { CrmMonthlySummary, CrmSummary } from '@/lib/api/generated'
 
 function formatearMonto(valor: number): string {
   return valor.toLocaleString('es-AR', { maximumFractionDigits: 0 })
@@ -13,12 +14,14 @@ function formatearPorcentaje(parte: number, total: number): string {
 
 export default function ResumenEjecutivoVentas({
   resumen,
+  mensual,
   responsables,
   query,
 }: {
   resumen: CrmSummary
+  mensual: CrmMonthlySummary
   responsables: PerfilResumen[]
-  query: { desde?: string; hasta?: string; responsableId?: string }
+  query: { desde?: string; hasta?: string; responsableId?: string; dimension?: string }
 }) {
   const selectStyle = 'border border-slate-300 rounded-md px-3 py-2 text-sm'
 
@@ -38,6 +41,10 @@ export default function ResumenEjecutivoVentas({
           {responsables.map((r) => (
             <option key={r.id} value={r.id}>{r.nombre_completo}</option>
           ))}
+        </select>
+        <select name="dimension" defaultValue={query.dimension ?? 'tipo_servicio'} className={selectStyle}>
+          <option value="tipo_servicio">Por tipo de servicio</option>
+          <option value="responsable">Por responsable</option>
         </select>
         <button type="submit" className="rounded bg-teal-600 px-3 py-2 text-sm font-medium text-white">Aplicar</button>
         <div className="flex-1" />
@@ -66,6 +73,8 @@ export default function ResumenEjecutivoVentas({
           <p className="text-xs text-slate-400 mt-0.5">aceptadas / (aceptadas + rechazadas)</p>
         </div>
       </div>
+
+      <DesgloseMensualVentas resumen={mensual} />
 
       {/* Por estado */}
       <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Por estado</h2>
