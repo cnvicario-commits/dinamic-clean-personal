@@ -1,17 +1,21 @@
 import type { Db } from "../pool.js";
-import type { CrmListQuery } from "../../../http/schemas/crm.js";
+import type { CrmScope } from "../../../domain/crm-scope.js";
+import type { CrmListQuery, CrmMonthlyQuery } from "../../../http/schemas/crm.js";
+
+export const MONTHLY_CREADAS_SQL = "o.fecha_ingreso";
+export const MONTHLY_ACEPTADAS_SQL = "o.estado='aceptado' and o.fecha_cierre";
 
 export function createCrmReadModelMethods(
   db: Db,
-  list: (q: CrmListQuery) => Promise<{
+  list: (q: CrmListQuery, scope: CrmScope) => Promise<{
     items: unknown[];
     page: number;
     pageSize: number;
     total: number;
   }>,
 ) {
-  const dashboard = async (actor: string, q: CrmListQuery) => {
-    const opportunities = await list(q);
+  const dashboard = async (actor: string, q: CrmListQuery, scope: CrmScope) => {
+    const opportunities = await list(q, scope);
     const ids = opportunities.items.map((item) => String((item as { id: string }).id));
     const [seguimientos, vistas, novedades] = await Promise.all([
       ids.length
@@ -37,7 +41,8 @@ from public.crm_seguimientos s join public.crm_oportunidades o on o.id=s.oportun
 join public.crm_prospectos cp on cp.id=o.prospecto_id
 left join public.crm_vistas v on v.oportunidad_id=s.oportunidad_id and v.usuario_id=$1
 left join public.perfiles pr on pr.id=s.usuario_id
-where v.last_viewed_at is null or s.created_at>v.last_viewed_at
+where (v.last_viewed_at is null or s.created_at>v.last_viewed_at)
+and ($2::boolean or o.responsable_id=$3)
 ), ranked as (
 select *,count(*) over(partition by oportunidad_id)::int cantidad,
 row_number() over(partition by oportunidad_id order by created_at desc) rn from unread
@@ -46,7 +51,7 @@ select r.oportunidad_id "oportunidadId",cp.nombre "prospectoNombre",r.cantidad,r
 r.nota,r.created_at "creadoEn",r.perfiles
 from ranked r join public.crm_oportunidades o on o.id=r.oportunidad_id
 join public.crm_prospectos cp on cp.id=o.prospecto_id where r.rn=1 order by r.created_at desc`,
-        [actor],
+        [actor, scope.global, scope.userId],
       ),
     ]);
     return {
@@ -56,14 +61,15 @@ join public.crm_prospectos cp on cp.id=o.prospecto_id where r.rn=1 order by r.cr
       novedades: novedades.rows,
     };
   };
-  const summary = async (q: CrmListQuery) => {
+  const summary = async (q: CrmListQuery, scope: CrmScope) => {
     const params: unknown[] = [];
     const clauses: string[] = [];
     const value = (v: unknown) => {
       params.push(v);
       return `$${params.length}`;
     };
-    if (q.responsableId) clauses.push(`o.responsable_id=${value(q.responsableId)}`);
+    if (!scope.global) clauses.push(`o.responsable_id=${value(scope.userId)}`);
+    else if (q.responsableId) clauses.push(`o.responsable_id=${value(q.responsableId)}`);
     if (q.desde) clauses.push(`o.fecha_ingreso>=${value(q.desde)}`);
     if (q.hasta) clauses.push(`o.fecha_ingreso<=${value(q.hasta)}`);
     const where = clauses.length ? ` where ${clauses.join(" and ")}` : "";
@@ -144,6 +150,39 @@ group by coalesce(r.nombre,'Sin referidor') order by count(*) desc`,
       comisionPendiente: commission - paid,
     };
   };
+  const monthly = async (q: CrmMonthlyQuery, scope: CrmScope, window: { desde: string; hasta: string }) => {
+    const params: unknown[] = [window.desde, window.hasta];
+    const clauses = ["o.fecha_ingreso>=$1", "o.fecha_ingreso<=$2"];
+    const accepted = ["o.estado='aceptado'", "o.fecha_cierre>=$1", "o.fecha_cierre<=$2"];
+    if (!scope.global) {
+      params.push(scope.userId);
+      clauses.push(`o.responsable_id=$${params.length}`);
+      accepted.push(`o.responsable_id=$${params.length}`);
+    } else if (q.responsableId) {
+      params.push(q.responsableId);
+      clauses.push(`o.responsable_id=$${params.length}`);
+      accepted.push(`o.responsable_id=$${params.length}`);
+    }
+    const categoria =
+      q.dimension === "responsable"
+        ? "coalesce(pr.nombre_completo,o.responsable_nombre_libre,'Sin responsable')"
+        : "coalesce(ts.nombre,'Sin tipo de servicio')";
+    const from = ` from public.crm_oportunidades o
+left join public.crm_tipos_servicio ts on ts.id=o.tipo_servicio_id
+left join public.perfiles pr on pr.id=o.responsable_id`;
+    const grouped = async (where: string) =>
+      db.query<{ mes: string; categoria: string; cantidad: string }>(
+        `select to_char(${where.startsWith("o.estado") ? "o.fecha_cierre" : MONTHLY_CREADAS_SQL},'YYYY-MM') mes,${categoria} categoria,count(*)::text cantidad${from} where ${where} group by 1,2`,
+        params,
+      );
+    const [creadas, aceptadas] = await Promise.all([
+      grouped(clauses.join(" and ")),
+      grouped(accepted.join(" and ")),
+    ]);
+    const map = (rows: { mes: string; categoria: string; cantidad: string }[]) =>
+      rows.map((row) => ({ mes: row.mes, categoria: row.categoria, cantidad: Number(row.cantidad) }));
+    return { creadas: map(creadas.rows), aceptadas: map(aceptadas.rows) };
+  };
 
-  return { dashboard, summary };
+  return { dashboard, summary, monthly };
 }

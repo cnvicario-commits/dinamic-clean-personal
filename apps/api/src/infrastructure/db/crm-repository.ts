@@ -1,8 +1,10 @@
 import type pg from "pg";
 import type { Db } from "./pool.js";
-import { conflict, notFound } from "../../http/errors/app-error.js";
+import { conflict, forbidden, notFound } from "../../http/errors/app-error.js";
+import type { CrmScope } from "../../domain/crm-scope.js";
 import { createCrmReadModelMethods } from "./crm/crm-read-models.js";
 import { createCrmOpportunityIdempotency } from "./crm/crm-idempotency.js";
+import { createCrmLeadMethods } from "./crm/crm-leads.js";
 import type {
   CrmCreateFollowUp,
   CrmCreateOpportunity,
@@ -31,6 +33,11 @@ const first = <T>(rows: T[], message: string) => {
   if (!rows[0]) throw notFound(message);
   return rows[0];
 };
+function ownerFilter(scope: CrmScope, column: string, params: unknown[]): string {
+  if (scope.global) return "";
+  params.push(scope.userId);
+  return ` and ${column}=$${params.length}`;
+}
 type Queryable = {
   query: (text: string, params?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>;
 };
@@ -47,7 +54,7 @@ left join public.crm_referidores r on r.id=p.referido_por_id
 left join public.crm_tipos_servicio ts on ts.id=o.tipo_servicio_id
 left join public.perfiles pr on pr.id=o.responsable_id`;
 export function createCrmRepository(db: Db) {
-  const list = async (q: CrmListQuery) => {
+  const list = async (q: CrmListQuery, scope: CrmScope) => {
     const params: unknown[] = [];
     const clauses: string[] = [];
     const value = (v: unknown) => {
@@ -55,7 +62,8 @@ export function createCrmRepository(db: Db) {
       return `$${params.length}`;
     };
     if (q.estado) clauses.push(`o.estado=${value(q.estado)}`);
-    if (q.responsableId) clauses.push(`o.responsable_id=${value(q.responsableId)}`);
+    if (!scope.global) clauses.push(`o.responsable_id=${value(scope.userId)}`);
+    else if (q.responsableId) clauses.push(`o.responsable_id=${value(q.responsableId)}`);
     if (q.prospectoId) clauses.push(`o.prospecto_id=${value(q.prospectoId)}`);
     if (q.tipoClienteId) clauses.push(`p.tipo_cliente_id=${value(q.tipoClienteId)}`);
     if (q.tipoServicioId) clauses.push(`o.tipo_servicio_id=${value(q.tipoServicioId)}`);
@@ -90,14 +98,21 @@ export function createCrmRepository(db: Db) {
       total: Number(total.rows[0]?.count ?? 0),
     };
   };
-  const { dashboard, summary } = createCrmReadModelMethods(db, list);
+  const { dashboard, summary, monthly } = createCrmReadModelMethods(db, list);
   const idempotent = createCrmOpportunityIdempotency(db, tx, first);
-  const detailWith = async (c: Queryable, id: string) =>
-    first(
-      (await c.query(`${opportunitySelect} where o.id=$1`, [id])).rows,
+  const detailWith = async (c: Queryable, id: string, scope: CrmScope) => {
+    const params: unknown[] = [id];
+    return first(
+      (
+        await c.query(
+          `${opportunitySelect} where o.id=$1${ownerFilter(scope, "o.responsable_id", params)}`,
+          params,
+        )
+      ).rows,
       "Opportunity not found",
     );
-  const detail = async (id: string) => detailWith(db, id);
+  };
+  const detail = async (id: string, scope: CrmScope) => detailWith(db, id, scope);
   const catalogs = async () => {
     const prospects = await db.query("select id,nombre from public.crm_prospectos order by nombre");
     const services = await db.query(
@@ -120,7 +135,8 @@ export function createCrmRepository(db: Db) {
       responsables: profiles.rows,
     };
   };
-  const followUps = async (id: string, q: { page: number; pageSize: number }) => {
+  const followUps = async (id: string, q: { page: number; pageSize: number }, scope: CrmScope) => {
+    await detail(id, scope);
     const total = await db.query<{ count: string }>(
       "select count(*)::text count from public.crm_seguimientos where oportunidad_id=$1",
       [id],
@@ -156,7 +172,23 @@ where s.oportunidad_id=$1 order by s.fecha_contacto desc,s.created_at desc offse
       ).rows,
       "Prospect creation failed",
     );
-  const updateProspect = async (id: string, v: CrmUpdateProspect, c: pg.PoolClient) => {
+  const updateProspect = async (id: string, v: CrmUpdateProspect, c: pg.PoolClient, scope: CrmScope) => {
+    first(
+      (await c.query("select id from public.crm_prospectos where id=$1 for update", [id])).rows,
+      "Prospect not found",
+    );
+    if (!scope.global) {
+      const refs = await c.query<{ responsable_id: string }>(
+        `select responsable_id from public.crm_oportunidades where prospecto_id=$1
+union all
+select responsable_id from public.crm_leads where prospecto_id=$1`,
+        [id],
+      );
+      const owners = refs.rows.map((row) => String(row.responsable_id));
+      if (owners.length === 0 || owners.some((owner) => owner !== scope.userId)) {
+        throw forbidden("Prospect mutation is limited to an exclusive portfolio");
+      }
+    }
     const map: Record<string, string> = {
       nombre: "nombre",
       tipoClienteId: "tipo_cliente_id",
@@ -184,6 +216,46 @@ where s.oportunidad_id=$1 order by s.fecha_contacto desc,s.created_at desc offse
       "Prospect not found",
     );
   };
+  const insertOpportunity = async (c: pg.PoolClient, v: CrmCreateOpportunity, actor: string) => {
+    first(
+      (await c.query("select id from public.crm_prospectos where id=$1 for key share", [v.prospectoId])).rows,
+      "Prospect not found",
+    );
+    first(
+      (await c.query("select id from public.perfiles where id=$1 for key share", [v.responsableId])).rows,
+      "Responsible not found",
+    );
+    const o = first(
+      (
+        await c.query(
+          `insert into public.crm_oportunidades(prospecto_id,numero_referencia,fecha_ingreso,tipo_servicio_id,cantidad_personal,
+monto_estimado,fecha_envio,comision_monto,comentarios,responsable_id)
+values($1,$2,coalesce($3,current_date),$4,$5,$6,$7,$8,$9,$10) returning *`,
+          [
+            v.prospectoId,
+            v.numeroReferencia,
+            v.fechaIngreso ?? null,
+            v.tipoServicioId,
+            v.cantidadPersonal,
+            v.montoEstimado,
+            v.fechaEnvio,
+            v.comisionMonto,
+            v.comentarios,
+            v.responsableId,
+          ],
+        )
+      ).rows,
+      "Opportunity creation failed",
+    );
+    if (v.seguimientoInicial)
+      await createFollowUp(
+        c,
+        String(o.id),
+        { nota: "Oportunidad creada.", tipoContacto: null, proximaFechaSeguimiento: null },
+        actor,
+      );
+    return o;
+  };
   const createFollowUp = async (
     c: pg.PoolClient,
     id: string,
@@ -208,72 +280,29 @@ values($1,coalesce($2::date,current_date),$3,$4,$5,$6) returning *`,
       ).rows,
       "Follow-up creation failed",
     );
+  const leads = createCrmLeadMethods(db, { tx, first, idempotent, insertOpportunity, updateProspect });
   return {
     list,
     dashboard,
     summary,
+    monthly,
     detail,
     catalogs,
     followUps,
     createProspect,
-    updateProspect: (id: string, v: CrmUpdateProspect) => tx(db, (c) => updateProspect(id, v, c)),
+    updateProspect: (id: string, v: CrmUpdateProspect, scope: CrmScope) =>
+      tx(db, (c) => updateProspect(id, v, c, scope)),
     async createOpportunity(v: CrmCreateOpportunity, actor: string, key: string) {
-      return idempotent(actor, key, v, async (c) => {
-        first(
-          (
-            await c.query("select id from public.crm_prospectos where id=$1 for key share", [
-              v.prospectoId,
-            ])
-          ).rows,
-          "Prospect not found",
-        );
-        first(
-          (
-            await c.query("select id from public.perfiles where id=$1 for key share", [
-              v.responsableId,
-            ])
-          ).rows,
-          "Responsible not found",
-        );
-        const o = first(
-          (
-            await c.query(
-              `insert into public.crm_oportunidades(prospecto_id,numero_referencia,fecha_ingreso,tipo_servicio_id,cantidad_personal,
-monto_estimado,fecha_envio,comision_monto,comentarios,responsable_id)
-values($1,$2,coalesce($3,current_date),$4,$5,$6,$7,$8,$9,$10) returning *`,
-              [
-                v.prospectoId,
-                v.numeroReferencia,
-                v.fechaIngreso ?? null,
-                v.tipoServicioId,
-                v.cantidadPersonal,
-                v.montoEstimado,
-                v.fechaEnvio,
-                v.comisionMonto,
-                v.comentarios,
-                v.responsableId,
-              ],
-            )
-          ).rows,
-          "Opportunity creation failed",
-        );
-        if (v.seguimientoInicial)
-          await createFollowUp(
-            c,
-            String(o.id),
-            { nota: "Oportunidad creada.", tipoContacto: null, proximaFechaSeguimiento: null },
-            actor,
-          );
-        return o;
-      });
+      return idempotent(actor, "opportunity_create", key, v, (c) => insertOpportunity(c, v, actor));
     },
-    async updateOpportunity(id: string, v: CrmUpdateOpportunity) {
+    async updateOpportunity(id: string, v: CrmUpdateOpportunity, scope: CrmScope) {
       return tx(db, async (c) => {
+        const params: unknown[] = [id];
         const old = first(
           (
             await c.query<{ prospecto_id: string; updated_at: string | null }>(
-              "select prospecto_id,updated_at from public.crm_oportunidades where id=$1 for update",
-              [id],
+              `select prospecto_id,updated_at from public.crm_oportunidades where id=$1${ownerFilter(scope, "responsable_id", params)} for update`,
+              params,
             )
           ).rows,
           "Opportunity not found",
@@ -297,17 +326,18 @@ values($1,$2,coalesce($3,current_date),$4,$5,$6,$7,$8,$9,$10) returning *`,
             `update public.crm_oportunidades set ${e.map(([k], i) => `${map[k]}=$${i + 2}`).join(",")} where id=$1`,
             [id, ...e.map(([, x]) => x)],
           );
-        if (v.prospecto) await updateProspect(old.prospecto_id, v.prospecto, c);
-        return detailWith(c, id);
+        if (v.prospecto) await updateProspect(old.prospecto_id, v.prospecto, c, scope);
+        return detailWith(c, id, scope);
       });
     },
-    async transition(id: string, v: CrmTransition, actor: string) {
+    async transition(id: string, v: CrmTransition, actor: string, scope: CrmScope) {
       return tx(db, async (c) => {
+        const params: unknown[] = [id];
         const old = first(
           (
             await c.query<{ estado: string; updated_at: string | null }>(
-              "select estado,updated_at from public.crm_oportunidades where id=$1 for update",
-              [id],
+              `select estado,updated_at from public.crm_oportunidades where id=$1${ownerFilter(scope, "responsable_id", params)} for update`,
+              params,
             )
           ).rows,
           "Opportunity not found",
@@ -327,29 +357,40 @@ values($1,$2,coalesce($3,current_date),$4,$5,$6,$7,$8,$9,$10) returning *`,
             `Estado cambiado de "${old.estado}" a "${v.estado}".`,
           );
         }
-        return detailWith(c, id);
+        return detailWith(c, id, scope);
       });
     },
-    async createFollowUp(id: string, v: CrmCreateFollowUp, actor: string) {
+    async createFollowUp(id: string, v: CrmCreateFollowUp, actor: string, scope: CrmScope) {
       return tx(db, async (c) => {
+        const params: unknown[] = [id];
         first(
-          (await c.query("select id from public.crm_oportunidades where id=$1 for key share", [id]))
-            .rows,
+          (
+            await c.query(
+              `select id from public.crm_oportunidades where id=$1${ownerFilter(scope, "responsable_id", params)} for key share`,
+              params,
+            )
+          ).rows,
           "Opportunity not found",
         );
         return createFollowUp(c, id, v, actor);
       });
     },
-    async deleteOpportunity(id: string) {
+    async deleteOpportunity(id: string, scope: CrmScope) {
       await tx(db, async (c) => {
+        const params: unknown[] = [id];
         first(
-          (await c.query("delete from public.crm_oportunidades where id=$1 returning id", [id]))
-            .rows,
+          (
+            await c.query(
+              `delete from public.crm_oportunidades where id=$1${ownerFilter(scope, "responsable_id", params)} returning id`,
+              params,
+            )
+          ).rows,
           "Opportunity not found",
         );
       });
     },
-    async markViewed(id: string, actor: string) {
+    async markViewed(id: string, actor: string, scope: CrmScope) {
+      await detail(id, scope);
       return first(
         (
           await db.query(
@@ -361,6 +402,7 @@ on conflict(oportunidad_id,usuario_id) do update set last_viewed_at=excluded.las
         "View mark failed",
       );
     },
+    ...leads,
     catalog(resource: "tipos-cliente" | "tipos-servicio" | "referidores") {
       const table = {
         "tipos-cliente": "crm_tipos_cliente",

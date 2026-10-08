@@ -2,17 +2,26 @@ import type { FastifyPluginAsync, FastifyRequest } from 'fastify'
 import { requirePermission } from '../../plugins/auth.js'
 import { badRequest } from '../../errors/app-error.js'
 import {
+  crmAgendaQuery,
   crmCatalogCreate,
   crmCatalogUpdate,
+  crmConvertLead,
   crmCreateFollowUp,
+  crmCreateLead,
+  crmCreateLeadFollowUp,
   crmCreateOpportunity,
   crmCreateProspect,
   crmId,
+  crmLeadListQuery,
+  crmLeadTransition,
   crmListQuery,
+  crmMonthlyQuery,
   crmTransition,
+  crmUpdateLead,
   crmUpdateOpportunity,
   crmUpdateProspect,
 } from '../../schemas/crm.js'
+import { crmScope } from '../../../domain/crm-scope.js'
 
 const id = (x: unknown) => {
   const p = crmId.safeParse(x)
@@ -48,6 +57,7 @@ const key = (r: FastifyRequest) => {
 }
 
 const actor = (r: FastifyRequest) => r.auth!.userId
+const scope = (r: FastifyRequest) => crmScope({ userId: r.auth!.userId, role: r.auth!.role })
 
 export const crmRoutes: FastifyPluginAsync = async app => {
   const read = { preHandler: [requirePermission('crm:read')] }
@@ -62,7 +72,7 @@ export const crmRoutes: FastifyPluginAsync = async app => {
       throw badRequest('Invalid CRM query')
     }
 
-    return app.crmService.list(p.data)
+    return app.crmService.list(p.data, scope(r))
   })
 
   app.get('/v1/crm/dashboard', read, r => {
@@ -72,21 +82,21 @@ export const crmRoutes: FastifyPluginAsync = async app => {
       throw badRequest('Invalid CRM query')
     }
 
-    return app.crmService.dashboard(actor(r), p.data)
+    return app.crmService.dashboard(actor(r), p.data, scope(r))
   })
 
   app.get('/v1/crm/summary', read, r => {
     const p = crmListQuery.safeParse(r.query)
     if (!p.success) throw badRequest('Invalid CRM query')
-    return app.crmService.summary(p.data)
+    return app.crmService.summary(p.data, scope(r))
   })
 
   app.get('/v1/crm/opportunities/:id', read, r =>
-    app.crmService.detail(id((r.params as { id: unknown }).id)),
+    app.crmService.detail(id((r.params as { id: unknown }).id), scope(r)),
   )
 
   app.delete('/v1/crm/opportunities/:id', del, async (r, reply) => {
-    await app.crmService.deleteOpportunity(id((r.params as { id: unknown }).id))
+    await app.crmService.deleteOpportunity(id((r.params as { id: unknown }).id), scope(r))
     return reply.code(204).send()
   })
 
@@ -94,7 +104,7 @@ export const crmRoutes: FastifyPluginAsync = async app => {
     reply.code(201).send(
       await app.crmService.createOpportunity(
         body(crmCreateOpportunity, r.body),
-        actor(r),
+        scope(r),
         key(r),
       ),
     ),
@@ -104,6 +114,7 @@ export const crmRoutes: FastifyPluginAsync = async app => {
     app.crmService.updateOpportunity(
       id((r.params as { id: unknown }).id),
       body(crmUpdateOpportunity, r.body),
+      scope(r),
     ),
   )
 
@@ -111,7 +122,7 @@ export const crmRoutes: FastifyPluginAsync = async app => {
     app.crmService.transition(
       id((r.params as { id: unknown }).id),
       body(crmTransition, r.body),
-      actor(r),
+      scope(r),
     ),
   )
 
@@ -122,19 +133,93 @@ export const crmRoutes: FastifyPluginAsync = async app => {
       throw badRequest('Invalid CRM query')
     }
 
-    return app.crmService.followUps(id((r.params as { id: unknown }).id), q.data)
+    return app.crmService.followUps(id((r.params as { id: unknown }).id), q.data, scope(r))
   })
 
   app.post('/v1/crm/opportunities/:id/follow-ups', create, r =>
     app.crmService.createFollowUp(
       id((r.params as { id: unknown }).id),
       body(crmCreateFollowUp, r.body),
-      actor(r),
+      scope(r),
     ),
   )
 
   app.put('/v1/crm/opportunities/:id/view', read, r =>
-    app.crmService.markViewed(id((r.params as { id: unknown }).id), actor(r)),
+    app.crmService.markViewed(id((r.params as { id: unknown }).id), scope(r)),
+  )
+
+  app.get('/v1/crm/summary/monthly', read, r => {
+    const p = crmMonthlyQuery.safeParse(r.query)
+    if (!p.success) throw badRequest('Invalid CRM query')
+    return app.crmService.monthly(p.data, scope(r))
+  })
+
+  app.get('/v1/crm/agenda', read, r => {
+    const p = crmAgendaQuery.safeParse(r.query)
+    if (!p.success) throw badRequest('Invalid CRM query')
+    return app.crmService.agenda(p.data, scope(r))
+  })
+
+  app.get('/v1/crm/leads', read, r => {
+    const p = crmLeadListQuery.safeParse(r.query)
+    if (!p.success) throw badRequest('Invalid CRM query')
+    return app.crmService.listLeads(p.data, scope(r))
+  })
+
+  app.post('/v1/crm/leads', create, async (r, reply) =>
+    reply.code(201).send(
+      await app.crmService.createLead(body(crmCreateLead, r.body), scope(r), key(r)),
+    ),
+  )
+
+  app.get('/v1/crm/leads/:id', read, r =>
+    app.crmService.detailLead(id((r.params as { id: unknown }).id), scope(r)),
+  )
+
+  app.patch('/v1/crm/leads/:id', update, r =>
+    app.crmService.updateLead(
+      id((r.params as { id: unknown }).id),
+      body(crmUpdateLead, r.body),
+      scope(r),
+    ),
+  )
+
+  app.delete('/v1/crm/leads/:id', del, async (r, reply) => {
+    await app.crmService.deleteLead(id((r.params as { id: unknown }).id), scope(r))
+    return reply.code(204).send()
+  })
+
+  app.patch('/v1/crm/leads/:id/state', update, r =>
+    app.crmService.transitionLead(
+      id((r.params as { id: unknown }).id),
+      body(crmLeadTransition, r.body),
+      scope(r),
+    ),
+  )
+
+  app.get('/v1/crm/leads/:id/follow-ups', read, r => {
+    const q = crmLeadListQuery.pick({ page: true, pageSize: true }).safeParse(r.query)
+    if (!q.success) throw badRequest('Invalid CRM query')
+    return app.crmService.followUpsLead(id((r.params as { id: unknown }).id), q.data, scope(r))
+  })
+
+  app.post('/v1/crm/leads/:id/follow-ups', create, r =>
+    app.crmService.createLeadFollowUp(
+      id((r.params as { id: unknown }).id),
+      body(crmCreateLeadFollowUp, r.body),
+      scope(r),
+    ),
+  )
+
+  app.post('/v1/crm/leads/:id/convert', create, async (r, reply) =>
+    reply.code(201).send(
+      await app.crmService.convertLead(
+        id((r.params as { id: unknown }).id),
+        body(crmConvertLead, r.body),
+        scope(r),
+        key(r),
+      ),
+    ),
   )
 
   app.get('/v1/crm/catalogs', read, () => app.crmService.catalogs())
@@ -147,6 +232,7 @@ export const crmRoutes: FastifyPluginAsync = async app => {
     app.crmService.updateProspect(
       id((r.params as { id: unknown }).id),
       body(crmUpdateProspect, r.body),
+      scope(r),
     ),
   )
 

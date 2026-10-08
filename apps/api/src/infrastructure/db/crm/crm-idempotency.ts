@@ -13,6 +13,7 @@ export function createCrmOpportunityIdempotency(
 ) {
   return async <T>(
     actor: string,
+    operation: "opportunity_create" | "lead_create" | "lead_convert",
     key: string,
     payload: unknown,
     run: (c: pg.PoolClient) => Promise<T>,
@@ -20,14 +21,14 @@ export function createCrmOpportunityIdempotency(
     tx(db, async (c) => {
       const h = hash(payload);
       await c.query(
-        "insert into public.crm_operation_idempotency(actor_id,operation,idempotency_key,payload_hash,status) values($1,'opportunity_create',$2,$3,'PROCESSING') on conflict do nothing",
-        [actor, key, h],
+        "insert into public.crm_operation_idempotency(actor_id,operation,idempotency_key,payload_hash,status) values($1,$2,$3,$4,'PROCESSING') on conflict do nothing",
+        [actor, operation, key, h],
       );
       const current = first(
         (
           await c.query<{ payload_hash: string; status: string; response: T | null }>(
             "select payload_hash,status,response from public.crm_operation_idempotency where actor_id=$1 and operation=$2 and idempotency_key=$3 for update",
-            [actor, "opportunity_create", key],
+            [actor, operation, key],
           )
         ).rows,
         "Idempotency unavailable",
@@ -39,7 +40,7 @@ export function createCrmOpportunityIdempotency(
       const response = await run(c);
       await c.query(
         "update public.crm_operation_idempotency set status='COMPLETED',response=$4,updated_at=now() where actor_id=$1 and operation=$2 and idempotency_key=$3",
-        [actor, "opportunity_create", key, JSON.stringify(response)],
+        [actor, operation, key, JSON.stringify(response)],
       );
       return { replayed: false, response };
     });
