@@ -22,22 +22,33 @@ function fail(reason) {
 
 if (process.env.RUN_DB_COMPATIBILITY_CHECK !== '1') fail('RUN_DB_COMPATIBILITY_CHECK=1 is required')
 const target = process.env.DB_COMPATIBILITY_TARGET
-if (!['test', 'staging', 'production'].includes(target ?? '')) fail('DB_COMPATIBILITY_TARGET must be test, staging or production')
+if (!['test', 'staging', 'production', 'simulation'].includes(target ?? '')) fail('DB_COMPATIBILITY_TARGET must be test, staging, production or simulation')
 const expected = (process.env.EXPECTED_SUPABASE_PROJECT_REF ?? '').trim().toLowerCase()
 const supabaseUrl = process.env.SUPABASE_URL ?? ''
 const databaseUrl = process.env.DATABASE_URL ?? ''
 const migrationsUrl = process.env.MIGRATIONS_DATABASE_URL ?? ''
-const supabaseRef = extractSupabaseProjectRefFromUrl(supabaseUrl)
-if (!expected) fail('EXPECTED_SUPABASE_PROJECT_REF is required')
-if (!supabaseRef) fail('SUPABASE_URL must be https://<ref>.supabase.co')
-if (supabaseRef !== expected) fail('SUPABASE_URL project ref mismatch')
+const productionRef = (process.env.EXPECTED_SUPABASE_PRODUCTION_PROJECT_REF ?? '').trim().toLowerCase()
+const testRef = (process.env.EXPECTED_SUPABASE_TEST_PROJECT_REF ?? '').trim().toLowerCase()
 if (!databaseUrl) fail('DATABASE_URL is required')
 const dbRef = (process.env.DATABASE_PROJECT_REF ?? extractProjectRefFromDatabaseUrl(databaseUrl) ?? '').toLowerCase()
-if (!dbRef) fail('DATABASE_URL project ref could not be parsed; set DATABASE_PROJECT_REF explicitly')
-if (dbRef !== expected) fail('DATABASE_URL project ref mismatch')
-if (migrationsUrl) {
-  const migrationsRef = extractProjectRefFromDatabaseUrl(migrationsUrl)
-  if (migrationsRef && migrationsRef !== expected) fail('MIGRATIONS_DATABASE_URL project ref mismatch')
+if (target === 'simulation') {
+  if (dbRef && (dbRef === productionRef || dbRef === testRef)) fail('simulation database matches test or production')
+  if (!dbRef) {
+    let host = ''
+    try { host = new URL(databaseUrl).hostname.toLowerCase() } catch { fail('DATABASE_URL is invalid') }
+    if (!['localhost', '127.0.0.1', '::1'].includes(host)) fail('non-local simulation database needs a distinct project ref')
+  }
+} else {
+  const supabaseRef = extractSupabaseProjectRefFromUrl(supabaseUrl)
+  if (!expected) fail('EXPECTED_SUPABASE_PROJECT_REF is required')
+  if (!supabaseRef) fail('SUPABASE_URL must be https://<ref>.supabase.co')
+  if (supabaseRef !== expected) fail('SUPABASE_URL project ref mismatch')
+  if (!dbRef) fail('DATABASE_URL project ref could not be parsed; set DATABASE_PROJECT_REF explicitly')
+  if (dbRef !== expected) fail('DATABASE_URL project ref mismatch')
+  if (migrationsUrl) {
+    const migrationsRef = extractProjectRefFromDatabaseUrl(migrationsUrl)
+    if (migrationsRef && migrationsRef !== expected) fail('MIGRATIONS_DATABASE_URL project ref mismatch')
+  }
 }
 if (process.exitCode) process.exit()
 
@@ -55,10 +66,11 @@ try {
     console.error(JSON.stringify({ event: 'db_schema_incompatible', target, reason: result.reason }))
     process.exitCode = 3
   } else {
-    console.log(JSON.stringify({ event: 'db_schema_compatible', target, projectRef: expected, currentUser: result.currentUser }))
+    console.log(JSON.stringify({ event: 'db_schema_compatible', target, projectRef: dbRef || 'local-simulation', currentUser: result.currentUser }))
   }
 } catch (error) {
-  console.error(JSON.stringify({ event: 'db_schema_incompatible', target, reason: error instanceof Error ? error.message : 'probe_failed' }))
+  const reason = String(error instanceof Error ? error.message : 'probe_failed').replace(/postgres(?:ql)?:\/\/\S+/gi, 'postgresql://[redacted]')
+  console.error(JSON.stringify({ event: 'db_schema_incompatible', target, reason }))
   process.exitCode = 3
 } finally {
   await pool.end()

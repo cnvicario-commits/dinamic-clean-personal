@@ -43,12 +43,50 @@ export function assertDinamicCleanTestTarget(opts: TestTargetAssertOptions = {})
     throw new Error('Integration requires NODE_ENV=test')
   }
 
-  const expected = (process.env.EXPECTED_SUPABASE_TEST_PROJECT_REF ?? '').trim().toLowerCase()
+  const compatibilityTarget = (process.env.DB_COMPATIBILITY_TARGET ?? '').trim().toLowerCase()
+  if (compatibilityTarget === 'production' || compatibilityTarget === 'staging') {
+    throw new Error('Refusing integration writes when DB_COMPATIBILITY_TARGET is not test')
+  }
+
+  const productionRef = (process.env.EXPECTED_SUPABASE_PRODUCTION_PROJECT_REF ?? '').trim().toLowerCase()
+  const testRef = (process.env.EXPECTED_SUPABASE_TEST_PROJECT_REF ?? '').trim().toLowerCase()
+  const supabaseUrl = process.env.SUPABASE_URL ?? ''
+  const databaseUrl = process.env.DATABASE_URL ?? ''
+  if (/prod/i.test(supabaseUrl) && !/test/i.test(supabaseUrl)) {
+    throw new Error('Refusing Supabase URL that looks like production')
+  }
+  if (compatibilityTarget === 'simulation') {
+    const localHost = (value: string) => {
+      try {
+        return ['localhost', '127.0.0.1', '::1'].includes(new URL(value).hostname.toLowerCase())
+      } catch {
+        return false
+      }
+    }
+    if (!localHost(supabaseUrl) || !localHost(databaseUrl)) {
+      throw new Error('Simulation integration writes require a local Supabase URL and database')
+    }
+    const blob = `${supabaseUrl}\n${databaseUrl}`.toLowerCase()
+    if (productionRef && blob.includes(productionRef)) {
+      throw new Error('Refusing simulation integration against the production project')
+    }
+    if (testRef && blob.includes(testRef)) {
+      throw new Error('Refusing simulation integration against the test project')
+    }
+    if (opts.requireJwt && !(process.env.POSTGREST_TEST_USER_JWT ?? '').trim()) {
+      throw new Error('POSTGREST_TEST_USER_JWT is required for PostgREST negative tests')
+    }
+    return
+  }
+
+  const expected = testRef
   if (!expected) {
     throw new Error('EXPECTED_SUPABASE_TEST_PROJECT_REF is required for integration writes')
   }
+  if (productionRef && productionRef === expected) {
+    throw new Error('EXPECTED_SUPABASE_TEST_PROJECT_REF must not equal EXPECTED_SUPABASE_PRODUCTION_PROJECT_REF')
+  }
 
-  const supabaseUrl = process.env.SUPABASE_URL ?? ''
   const actualFromUrl = extractSupabaseProjectRefFromUrl(supabaseUrl)
   if (!actualFromUrl) {
     throw new Error('Could not parse project ref from SUPABASE_URL')
@@ -57,13 +95,21 @@ export function assertDinamicCleanTestTarget(opts: TestTargetAssertOptions = {})
     throw new Error('SUPABASE_URL project ref does not match EXPECTED_SUPABASE_TEST_PROJECT_REF')
   }
 
-  const databaseUrl = process.env.DATABASE_URL ?? ''
   if (!databaseUrl) {
     throw new Error('DATABASE_URL is required')
   }
   const dbRef = extractProjectRefFromDatabaseUrl(databaseUrl)
+  if (productionRef && dbRef === productionRef) {
+    throw new Error('Refusing integration writes against EXPECTED_SUPABASE_PRODUCTION_PROJECT_REF')
+  }
   if (dbRef && dbRef !== expected) {
     throw new Error('DATABASE_URL project ref does not match EXPECTED_SUPABASE_TEST_PROJECT_REF')
+  }
+  if (compatibilityTarget === 'test') {
+    const declared = (process.env.EXPECTED_SUPABASE_PROJECT_REF ?? '').trim().toLowerCase()
+    if (declared && declared !== expected) {
+      throw new Error('DB_COMPATIBILITY_TARGET=test but EXPECTED_SUPABASE_PROJECT_REF does not match the test project ref')
+    }
   }
 
   if (opts.requireJwt && !(process.env.POSTGREST_TEST_USER_JWT ?? '').trim()) {
