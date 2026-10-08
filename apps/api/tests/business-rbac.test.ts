@@ -1,0 +1,228 @@
+import { describe, expect, it } from 'vitest'
+import {
+  PERMISSIONS,
+  ROLES,
+  assertPermissionCatalogInvariants,
+  authorize,
+  isPermission,
+  permissionsFor,
+  type Permission,
+  type Role,
+} from '../src/domain/rbac.js'
+
+/**
+ * Productive ROLE_PERMISSIONS allowlist — must match evidence
+ * `phase2c-rbac-grant-traceability.csv` CONFIRMED_ALLOW / BACKEND_ENFORCED rows.
+ * Adding a sensitive business ALLOW without updating this + evidence MUST fail CI.
+ */
+const CONFIRMED_PRODUCTIVE_GRANTS: Readonly<Record<Role, readonly Permission[]>> = {
+  admin: [
+    'profile:read_self',
+    'profile:update_self',
+    'profiles:read_any',
+    'users:create',
+    'users:change_role',
+    'users:set_password',
+    'users:disable',
+    'users:enable',
+    'employees:read',
+    'employees:create',
+    'employees:update',
+    'assignments:read',
+    'assignments:create',
+    'assignments:update',
+    'attendance:read', 'attendance:update',
+    'attendance:export',
+    'clients:read', 'clients:create', 'clients:update',
+    'client_addresses:read', 'client_addresses:update',
+    'client_quotes:read', 'client_quotes:create', 'client_quotes:delete',
+    'suppliers:read','suppliers:update','articles:read','articles:update','articles:import',
+    'purchase_requests:read','purchase_requests:create','purchase_requests:update','purchase_orders:read','purchase_orders:create','purchase_orders:update','warehouse_requests:read','warehouse_requests:create','warehouse_requests:update','economic_results:read','economic_results:import',
+    'crm:read','crm:create','crm:update','crm:delete',
+    'audits:read','audits:create','audits:update','audit_checklists:manage',
+  ],
+  gerente: [
+    'profile:read_self', 'profile:update_self', 'employees:read',
+    'employees:create', 'employees:update', 'assignments:read',
+    'assignments:create', 'assignments:update',
+    'attendance:read', 'attendance:update',
+    'attendance:export',
+    'clients:read', 'clients:create', 'clients:update',
+    'client_addresses:read', 'client_addresses:update',
+    'client_quotes:read', 'client_quotes:create', 'client_quotes:delete',
+    'suppliers:read','suppliers:update','articles:read','articles:update','articles:import',
+    'purchase_requests:read','purchase_requests:create','purchase_requests:update','purchase_orders:read','purchase_orders:create','purchase_orders:update','warehouse_requests:read','warehouse_requests:create','warehouse_requests:update',
+    'crm:read','crm:create','crm:update','crm:delete',
+    'audits:read','audits:create','audits:update','audit_checklists:manage',
+  ],
+  compras: ['profile:read_self', 'profile:update_self',
+    'clients:read', 'clients:create', 'clients:update',
+    'client_addresses:read', 'client_addresses:update',
+    'client_quotes:read', 'client_quotes:create', 'client_quotes:delete',
+    'suppliers:read','suppliers:update','articles:read','articles:update','articles:import',
+    'purchase_requests:read','purchase_requests:create','purchase_requests:update','purchase_orders:read','purchase_orders:create','purchase_orders:update','warehouse_requests:read','warehouse_requests:create','warehouse_requests:update'],
+  supervisor: ['profile:read_self', 'profile:update_self', 'audits:read','audits:create','audits:update'],
+  auditoria: ['profile:read_self', 'profile:update_self', 'audits:read','audits:create','audits:update','audit_checklists:manage'],
+  ventas: ['profile:read_self', 'profile:update_self', 'crm:read', 'crm:create', 'crm:update'],
+}
+
+/** Catalog capabilities that must remain DENY for all roles until Phase 3+ confirms grants. */
+const CATALOG_DENY_UNTIL_CONFIRMED: readonly Permission[] = [
+  'companies:read',
+  'companies:create',
+  'companies:update',
+]
+
+describe('business RBAC catalog (Phase 2C corrections)', () => {
+  it('catalog invariants: unique, naming, no wildcards, grants ⊆ PERMISSIONS', () => {
+    expect(() => assertPermissionCatalogInvariants()).not.toThrow()
+    expect(new Set(PERMISSIONS).size).toBe(PERMISSIONS.length)
+    for (const p of PERMISSIONS) {
+      expect(p).toMatch(/^[a-z][a-z0-9_]*:[a-z][a-z0-9_]*$/)
+      expect(p.includes('*')).toBe(false)
+    }
+  })
+
+  it('productive ROLE_PERMISSIONS match confirmed allowlist only (no UI-inferred grants)', () => {
+    for (const role of ROLES) {
+      expect([...permissionsFor(role)].sort()).toEqual(
+        [...CONFIRMED_PRODUCTIVE_GRANTS[role]].sort(),
+      )
+    }
+  })
+
+  it('unknown permission → DENY for every role', () => {
+    for (const role of ROLES) {
+      expect(authorize({ role }, 'hr:manage_everything')).toBe(false)
+      expect(authorize({ role }, 'employees:*')).toBe(false)
+      expect(authorize({ role }, '*')).toBe(false)
+    }
+  })
+
+  it('admin has no wildcard / no implicit all-catalog access', () => {
+    expect(authorize({ role: 'admin' }, 'users:disable')).toBe(true)
+    expect(authorize({ role: 'admin' }, 'users:enable')).toBe(true)
+    expect(authorize({ role: 'admin' }, 'users:reset_mfa')).toBe(false)
+    expect(permissionsFor('admin').some((p) => p.includes('*'))).toBe(false)
+    expect(permissionsFor('admin').length).toBeLessThan(PERMISSIONS.length)
+    for (const p of CATALOG_DENY_UNTIL_CONFIRMED) {
+      expect(authorize({ role: 'admin' }, p), `admin must DENY unconfirmed ${p}`).toBe(false)
+    }
+  })
+
+  it('Phase 5B grants only the confirmed audit capabilities to auditoria', () => {
+    expect(authorize({ role: 'auditoria' }, 'employees:read')).toBe(false)
+    expect(authorize({ role: 'auditoria' }, 'economic_results:read')).toBe(false)
+    expect(authorize({ role: 'auditoria' }, 'crm:read')).toBe(false)
+    expect(authorize({ role: 'auditoria' }, 'purchase_orders:read')).toBe(false)
+    expect(authorize({ role: 'auditoria' }, 'audits:read')).toBe(true)
+    expect(authorize({ role: 'auditoria' }, 'audits:create')).toBe(true)
+    expect(authorize({ role: 'auditoria' }, 'audits:update')).toBe(true)
+    expect(authorize({ role: 'auditoria' }, 'audit_checklists:manage')).toBe(true)
+  })
+
+  it('main-sync grants least-privilege CRM to ventas (no delete)', () => {
+    for (const permission of ['crm:read', 'crm:create', 'crm:update'] as const) {
+      expect(authorize({ role: 'ventas' }, permission)).toBe(true)
+    }
+    expect(authorize({ role: 'ventas' }, 'crm:delete')).toBe(false)
+    expect(authorize({ role: 'ventas' }, 'audits:read')).toBe(false)
+    expect(authorize({ role: 'ventas' }, 'audits:create')).toBe(false)
+    expect(authorize({ role: 'ventas' }, 'users:change_role')).toBe(false)
+    expect(authorize({ role: 'ventas' }, 'purchase_orders:read')).toBe(false)
+    expect(authorize({ role: 'ventas' }, 'clients:read')).toBe(false)
+    expect(authorize({ role: 'ventas' }, 'employees:read')).toBe(false)
+  })
+
+  it('finance permissions stay in catalog but DENY all roles (UI/RLS alone insufficient)', () => {
+    expect(isPermission('economic_results:read')).toBe(true)
+    expect(isPermission('economic_results:import')).toBe(true)
+    expect(authorize({ role: 'admin' }, 'economic_results:read')).toBe(true)
+    expect(authorize({ role: 'admin' }, 'economic_results:import')).toBe(true)
+    for (const role of ROLES.filter((r) => r !== 'admin')) {
+      expect(authorize({ role }, 'economic_results:read')).toBe(false)
+      expect(authorize({ role }, 'economic_results:import')).toBe(false)
+    }
+  })
+
+  it('Phase 4B grants catalog operations only to admin, gerente and compras', () => {
+    const phase4b: Permission[] = [
+      'suppliers:read',
+      'suppliers:update',
+      'articles:read',
+      'articles:update',
+      'articles:import',
+    ]
+    for (const permission of phase4b) {
+      expect(isPermission(permission)).toBe(true)
+      for (const role of ['admin','gerente','compras'] as Role[]) {
+        expect(authorize({ role }, permission)).toBe(true)
+      }
+      for (const role of ['supervisor','auditoria'] as Role[]) {
+        expect(authorize({ role }, permission)).toBe(false)
+      }
+    }
+  })
+
+  it('Phase 5B operational and checklist grants follow the approved matrix', () => {
+    for (const role of ['admin', 'gerente', 'supervisor', 'auditoria'] as Role[]) {
+      expect(authorize({ role }, 'audits:read')).toBe(true)
+      expect(authorize({ role }, 'audits:create')).toBe(true)
+      expect(authorize({ role }, 'audits:update')).toBe(true)
+    }
+    expect(authorize({ role: 'compras' }, 'audits:read')).toBe(false)
+    for (const role of ['admin', 'gerente', 'auditoria'] as Role[]) expect(authorize({ role }, 'audit_checklists:manage')).toBe(true)
+    for (const role of ['supervisor', 'compras'] as Role[]) expect(authorize({ role }, 'audit_checklists:manage')).toBe(false)
+  })
+
+  const roleDiffCases: Array<{
+    role: Role
+    permission: Permission
+    expected: boolean
+  }> = [
+    { role: 'admin', permission: 'employees:read', expected: true },
+    { role: 'gerente', permission: 'employees:read', expected: true },
+    { role: 'compras', permission: 'employees:read', expected: false },
+    { role: 'admin', permission: 'users:change_role', expected: true },
+    { role: 'gerente', permission: 'users:create', expected: false },
+    { role: 'compras', permission: 'purchase_orders:read', expected: true },
+    { role: 'supervisor', permission: 'purchase_requests:read', expected: false },
+    { role: 'supervisor', permission: 'audits:read', expected: true },
+    { role: 'gerente', permission: 'employees:create', expected: true },
+    { role: 'admin', permission: 'clients:read', expected: true },
+  ]
+
+  it.each(roleDiffCases)(
+    '$role × $permission → $expected',
+    ({ role, permission, expected }) => {
+      expect(authorize({ role }, permission)).toBe(expected)
+    },
+  )
+
+  it('identity permissions unchanged for non-admin roles', () => {
+    for (const role of ['gerente', 'compras', 'supervisor', 'auditoria'] as Role[]) {
+      expect(authorize({ role }, 'profiles:read_any')).toBe(false)
+      expect(authorize({ role }, 'users:create')).toBe(false)
+      expect(authorize({ role }, 'users:change_role')).toBe(false)
+      expect(authorize({ role }, 'users:set_password')).toBe(false)
+    }
+  })
+
+  it('Phase 4C grants purchases only to admin, gerente and compras',()=>{const permissions:Permission[]=['purchase_requests:read','purchase_requests:create','purchase_requests:update','purchase_orders:read','purchase_orders:create','purchase_orders:update','warehouse_requests:read','warehouse_requests:create','warehouse_requests:update'];for(const permission of permissions){for(const role of ['admin','gerente','compras'] as Role[])expect(authorize({role},permission)).toBe(true);for(const role of ['supervisor','auditoria'] as Role[])expect(authorize({role},permission)).toBe(false)}})
+
+  it('Phase 5A grants CRM only to admin and gerente', () => {
+    const permissions: Permission[] = ['crm:read', 'crm:create', 'crm:update', 'crm:delete']
+    for (const permission of permissions) {
+      for (const role of ['admin', 'gerente'] as Role[]) expect(authorize({ role }, permission)).toBe(true)
+      for (const role of ['compras', 'supervisor', 'auditoria'] as Role[]) expect(authorize({ role }, permission)).toBe(false)
+    }
+  })
+
+  it('still-unconfirmed catalog-only business permissions → DENY for every role', () => {
+    for (const permission of CATALOG_DENY_UNTIL_CONFIRMED) {
+      for (const role of ROLES) {
+        expect(authorize({ role }, permission)).toBe(false)
+      }
+    }
+  })
+})

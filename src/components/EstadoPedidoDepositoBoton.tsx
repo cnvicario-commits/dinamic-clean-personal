@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 import type { EstadoPedidoDeposito } from '@/types/compras'
 
 const SIGUIENTE: Partial<Record<EstadoPedidoDeposito, { estado: EstadoPedidoDeposito; etiqueta: string }>> = {
@@ -13,16 +13,22 @@ const SIGUIENTE: Partial<Record<EstadoPedidoDeposito, { estado: EstadoPedidoDepo
 export default function EstadoPedidoDepositoBoton({ id, estado }: { id: string; estado: EstadoPedidoDeposito }) {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   const siguiente = SIGUIENTE[estado]
   if (!siguiente) return null
 
   const handleClick = async () => {
     setLoading(true)
-    await supabase.from('pedidos_deposito').update({ estado: siguiente.estado }).eq('id', id)
-    setLoading(false)
-    router.refresh()
+    try {
+      await (
+        await createAuthenticatedBrowserApiClient()
+      ).transitionWarehouseRequest(id, siguiente.estado as 'enviada' | 'recepcionada')
+      router.refresh()
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Error al cambiar estado')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

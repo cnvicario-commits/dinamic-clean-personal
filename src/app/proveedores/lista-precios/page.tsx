@@ -1,14 +1,9 @@
-import { createClient } from '@/utils/supabase/server'
+import { createAuthenticatedServerApiClient } from '@/lib/api/server'
 import CargaListaPrecios from '@/components/CargaListaPrecios'
 import Link from 'next/link'
 
 export default async function ListaPreciosPage() {
-  const supabase = await createClient()
-  const { data: proveedores } = await supabase
-    .from('proveedores')
-    .select('id, razon_social')
-    .eq('activo', true)
-    .order('razon_social')
+  const proveedores=(await (await createAuthenticatedServerApiClient()).listSuppliers()).filter(p=>p.activo)
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-10">
@@ -16,7 +11,7 @@ export default async function ListaPreciosPage() {
         ← Volver a proveedores
       </Link>
       <h1 className="text-2xl font-bold text-slate-900 mb-6">Cargar lista de precios</h1>
-      <CargaListaPrecios proveedores={proveedores ?? []} />
+      <CargaListaPrecios proveedores={proveedores} />
     </div>
   )
 }

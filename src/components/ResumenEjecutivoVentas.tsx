@@ -1,7 +1,7 @@
-'use client'
-import { useState, useMemo } from 'react'
 import BotonImprimir from './BotonImprimir'
-import { ESTADOS, type OportunidadResumen, type PerfilResumen, type CatalogoItem } from '@/types/crm'
+import DesgloseMensualVentas from './DesgloseMensualVentas'
+import { ESTADOS, type PerfilResumen } from '@/types/crm'
+import type { CrmMonthlySummary, CrmSummary } from '@/lib/api/generated'
 
 function formatearMonto(valor: number): string {
   return valor.toLocaleString('es-AR', { maximumFractionDigits: 0 })
@@ -13,107 +13,43 @@ function formatearPorcentaje(parte: number, total: number): string {
 }
 
 export default function ResumenEjecutivoVentas({
-  oportunidades,
+  resumen,
+  mensual,
   responsables,
-  tiposCliente,
+  query,
 }: {
-  oportunidades: OportunidadResumen[]
+  resumen: CrmSummary
+  mensual: CrmMonthlySummary
   responsables: PerfilResumen[]
-  tiposCliente: CatalogoItem[]
+  query: { desde?: string; hasta?: string; responsableId?: string; dimension?: string }
 }) {
-  const [fechaDesde, setFechaDesde] = useState('')
-  const [fechaHasta, setFechaHasta] = useState('')
-  const [filtroResponsable, setFiltroResponsable] = useState('')
-
-  const filtradas = useMemo(() => {
-    let base = oportunidades
-    if (fechaDesde) base = base.filter((o) => o.fecha_ingreso >= fechaDesde)
-    if (fechaHasta) base = base.filter((o) => o.fecha_ingreso <= fechaHasta)
-    if (filtroResponsable) base = base.filter((o) => o.responsable_id === filtroResponsable)
-    return base
-  }, [oportunidades, fechaDesde, fechaHasta, filtroResponsable])
-
-  const resumen = useMemo(() => {
-    const totalCantidad = filtradas.length
-    const totalMonto = filtradas.reduce((acc, o) => acc + (o.monto_estimado ?? 0), 0)
-
-    const porEstado = ESTADOS.map(({ valor, etiqueta }) => {
-      const del = filtradas.filter((o) => o.estado === valor)
-      const monto = del.reduce((acc, o) => acc + (o.monto_estimado ?? 0), 0)
-      return { etiqueta, cantidad: del.length, monto }
-    })
-
-    const nombresTipoCliente = new Map(tiposCliente.map((t) => [t.id, t.nombre]))
-    const gruposTipoCliente = new Map<string, { cantidad: number; monto: number }>()
-    for (const o of filtradas) {
-      const id = o.crm_prospectos?.tipo_cliente_id
-      const nombre = id ? nombresTipoCliente.get(id) ?? 'Otro' : 'Sin tipo de cliente'
-      const actual = gruposTipoCliente.get(nombre) ?? { cantidad: 0, monto: 0 }
-      actual.cantidad += 1
-      actual.monto += o.monto_estimado ?? 0
-      gruposTipoCliente.set(nombre, actual)
-    }
-    const porTipoCliente = Array.from(gruposTipoCliente.entries())
-      .map(([nombre, v]) => ({ nombre, ...v }))
-      .sort((a, b) => b.cantidad - a.cantidad)
-
-    const gruposReferidor = new Map<string, { cantidad: number; monto: number }>()
-    for (const o of filtradas) {
-      const nombre = o.crm_prospectos?.crm_referidores?.nombre ?? 'Sin referidor'
-      const actual = gruposReferidor.get(nombre) ?? { cantidad: 0, monto: 0 }
-      actual.cantidad += 1
-      actual.monto += o.monto_estimado ?? 0
-      gruposReferidor.set(nombre, actual)
-    }
-    const porReferidor = Array.from(gruposReferidor.entries())
-      .map(([nombre, v]) => ({ nombre, ...v }))
-      .sort((a, b) => b.cantidad - a.cantidad)
-
-    const aceptadas = filtradas.filter((o) => o.estado === 'aceptado')
-    const rechazadas = filtradas.filter((o) => o.estado === 'rechazado')
-    const denomConversion = aceptadas.length + rechazadas.length
-    const tasaConversion = denomConversion > 0 ? aceptadas.length / denomConversion : null
-
-    const comisionTotal = aceptadas.reduce((acc, o) => acc + (o.comision_monto ?? 0), 0)
-    const comisionLiquidada = aceptadas.filter((o) => o.comision_liquidada).reduce((acc, o) => acc + (o.comision_monto ?? 0), 0)
-    const comisionPendiente = comisionTotal - comisionLiquidada
-
-    return {
-      totalCantidad,
-      totalMonto,
-      porEstado,
-      porTipoCliente,
-      porReferidor,
-      montoAceptado: aceptadas.reduce((acc, o) => acc + (o.monto_estimado ?? 0), 0),
-      tasaConversion,
-      comisionTotal,
-      comisionLiquidada,
-      comisionPendiente,
-    }
-  }, [filtradas, tiposCliente])
-
   const selectStyle = 'border border-slate-300 rounded-md px-3 py-2 text-sm'
 
   return (
     <div>
-      <div className="print:hidden flex flex-wrap items-end gap-3 mb-6">
+      <form className="print:hidden flex flex-wrap items-end gap-3 mb-6" action="/ventas/resumen">
         <div className="flex flex-col">
           <label className="text-xs text-slate-500 mb-1">Desde (fecha de ingreso)</label>
-          <input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} className={selectStyle} />
+          <input name="desde" type="date" defaultValue={query.desde} className={selectStyle} />
         </div>
         <div className="flex flex-col">
           <label className="text-xs text-slate-500 mb-1">Hasta</label>
-          <input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} className={selectStyle} />
+          <input name="hasta" type="date" defaultValue={query.hasta} className={selectStyle} />
         </div>
-        <select value={filtroResponsable} onChange={(e) => setFiltroResponsable(e.target.value)} className={selectStyle}>
+        <select name="responsableId" defaultValue={query.responsableId ?? ''} className={selectStyle}>
           <option value="">Todos los responsables</option>
           {responsables.map((r) => (
             <option key={r.id} value={r.id}>{r.nombre_completo}</option>
           ))}
         </select>
+        <select name="dimension" defaultValue={query.dimension ?? 'tipo_servicio'} className={selectStyle}>
+          <option value="tipo_servicio">Por tipo de servicio</option>
+          <option value="responsable">Por responsable</option>
+        </select>
+        <button type="submit" className="rounded bg-teal-600 px-3 py-2 text-sm font-medium text-white">Aplicar</button>
         <div className="flex-1" />
         <BotonImprimir nombreArchivo="Resumen ejecutivo de ventas" />
-      </div>
+      </form>
 
       {/* Totales generales */}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3 mb-8">
@@ -138,6 +74,8 @@ export default function ResumenEjecutivoVentas({
         </div>
       </div>
 
+      <DesgloseMensualVentas resumen={mensual} />
+
       {/* Por estado */}
       <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Por estado</h2>
       <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto mb-8">
@@ -152,15 +90,18 @@ export default function ResumenEjecutivoVentas({
             </tr>
           </thead>
           <tbody>
-            {resumen.porEstado.map((fila) => (
-              <tr key={fila.etiqueta} className="border-b border-slate-100 last:border-0">
-                <td className="px-4 py-3 text-slate-800">{fila.etiqueta}</td>
+            {ESTADOS.map(({ valor, etiqueta }) => {
+              const fila = resumen.porEstado.find(item => item.estado === valor) ?? { cantidad: 0, monto: 0 }
+              return (
+              <tr key={valor} className="border-b border-slate-100 last:border-0">
+                <td className="px-4 py-3 text-slate-800">{etiqueta}</td>
                 <td className="px-4 py-3 text-slate-600">{fila.cantidad}</td>
                 <td className="px-4 py-3 text-slate-600">{formatearPorcentaje(fila.cantidad, resumen.totalCantidad)}</td>
                 <td className="px-4 py-3 text-slate-600">$ {formatearMonto(fila.monto)}</td>
                 <td className="px-4 py-3 text-slate-600">{formatearPorcentaje(fila.monto, resumen.totalMonto)}</td>
               </tr>
-            ))}
+              )
+            })}
           </tbody>
         </table>
       </div>

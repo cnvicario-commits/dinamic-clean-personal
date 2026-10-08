@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
+import { ApiClientError } from '@/lib/api/generated'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 
 type Empleado = { id: string; nombre_apellido: string }
 type Cliente = { id: string; nombre: string }
@@ -20,25 +21,21 @@ export default function AsignacionForm({
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setLoading(true)
 
-    const { error } = await supabase.from('asignaciones').insert({
-      empleado_id: empleadoId,
-      cliente_id: clienteId,
-      fecha_desde: fechaDesde,
-    })
-
-    setLoading(false)
-
-    if (error) {
-      setError('Error al guardar: ' + error.message)
+    try {
+      const api = await createAuthenticatedBrowserApiClient()
+      await api.createAssignment({ empleadoId, clienteId, fechaDesde })
+    } catch (cause) {
+      setError(cause instanceof ApiClientError ? cause.message : 'No se pudo guardar la asignación.')
+      setLoading(false)
       return
     }
+    setLoading(false)
 
     setEmpleadoId('')
     setClienteId('')

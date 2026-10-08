@@ -1,20 +1,33 @@
 import Link from 'next/link'
-import { createClient } from '@/utils/supabase/server'
+import { createAuthenticatedServerApiClient } from '@/lib/api/server'
 import PlanificacionesTabla from '@/components/PlanificacionesTabla'
-import type { PlanificacionListado } from '@/types/auditoria'
+import CrmPagination from '@/components/CrmPagination'
+import type { AuditPlanning } from '@/lib/api/generated'
 
-export default async function PlanificacionAuditoriasPage() {
-  const supabase = await createClient()
+export default async function PlanificacionAuditoriasPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    page?: string
+    estado?: string
+    supervisorId?: string
+  }>
+}) {
+  const sp = await searchParams
+  const requestedPage = Number(sp.page ?? '1')
+  const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
+  const estado = (sp.estado || undefined) as AuditPlanning['estado'] | undefined
+  const supervisorId = sp.supervisorId || undefined
 
-  const [{ data: planificaciones }, { data: supervisores }] = await Promise.all([
-    supabase
-      .from('auditoria_planificaciones')
-      .select('*, cliente_domicilios(alias, direccion, clientes(nombre)), perfiles(nombre_completo)')
-      // '*' ya trae horario_desde, horario_hasta y observaciones (columnas
-      // agregadas en 0032_auditoria_planificacion_horario_observaciones.sql
-      // y 0033_auditoria_planificacion_horario_rango.sql).
-      .order('fecha_propuesta', { ascending: true }),
-    supabase.from('perfiles').select('id, nombre_completo').order('nombre_completo'),
+  const api = await createAuthenticatedServerApiClient()
+  const [result, catalogs] = await Promise.all([
+    api.listAuditPlannings({
+      page,
+      pageSize: 50,
+      ...(estado ? { estado } : {}),
+      ...(supervisorId ? { supervisorId } : {}),
+    }),
+    api.getAuditCatalogs(),
   ])
 
   return (
@@ -29,8 +42,20 @@ export default async function PlanificacionAuditoriasPage() {
         </Link>
       </div>
       <PlanificacionesTabla
-        planificaciones={(planificaciones ?? []) as unknown as PlanificacionListado[]}
-        supervisores={supervisores ?? []}
+        planificaciones={result.items}
+        supervisores={catalogs.supervisores}
+        total={result.total}
+        filters={{
+          estado: estado ?? '',
+          supervisorId: supervisorId ?? '',
+        }}
+      />
+      <CrmPagination
+        path="/auditorias/planificacion"
+        page={result.page}
+        pageSize={result.pageSize}
+        total={result.total}
+        query={{ estado, supervisorId }}
       />
     </div>
   )

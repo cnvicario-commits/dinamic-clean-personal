@@ -2,31 +2,40 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 
 export default function ProveedorEstadoBoton({ id, activo }: { id: string; activo: boolean }) {
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const router = useRouter()
-  const supabase = createClient()
 
   const handleClick = async () => {
     setLoading(true)
-    await supabase.from('proveedores').update({ activo: !activo }).eq('id', id)
-    setLoading(false)
-    router.refresh()
+    setError('')
+    try {
+      await (await createAuthenticatedBrowserApiClient()).updateSupplierStatus(id, !activo)
+      router.refresh()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'No se pudo actualizar el estado')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
-    <button
-      onClick={handleClick}
-      disabled={loading}
-      className={`px-3 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-50 ${
-        activo
-          ? 'bg-rose-100 text-rose-700 hover:bg-rose-200'
-          : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-      }`}
-    >
-      {loading ? '...' : activo ? 'Dar de baja' : 'Reactivar'}
-    </button>
+    <div>
+      <button
+        onClick={handleClick}
+        disabled={loading}
+        className={`px-3 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-50 ${
+          activo
+            ? 'bg-rose-100 text-rose-700 hover:bg-rose-200'
+            : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+        }`}
+      >
+        {loading ? '...' : activo ? 'Dar de baja' : 'Reactivar'}
+      </button>
+      {error && <p className="mt-1 text-xs text-rose-600">{error}</p>}
+    </div>
   )
 }

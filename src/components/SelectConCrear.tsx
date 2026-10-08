@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { createClient } from '@/utils/supabase/client'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 import type { CatalogoItem } from '@/types/crm'
 
 const VALOR_NUEVO = '__nuevo__'
@@ -11,14 +11,14 @@ const VALOR_NUEVO = '__nuevo__'
 // catálogos son listas chicas, por eso alcanza un <select> en vez de un
 // combobox de búsqueda (ver BuscadorProspecto.tsx para listas más grandes).
 export default function SelectConCrear({
-  tabla,
+  recurso,
   items,
   value,
   onChange,
   placeholder,
   className,
 }: {
-  tabla: 'crm_tipos_cliente' | 'crm_tipos_servicio' | 'crm_referidores'
+  recurso: 'tipos-cliente' | 'tipos-servicio' | 'referidores'
   items: CatalogoItem[]
   value: string
   onChange: (id: string, itemsActualizados: CatalogoItem[]) => void
@@ -29,27 +29,24 @@ export default function SelectConCrear({
   const [nuevoNombre, setNuevoNombre] = useState('')
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
-  const supabase = createClient()
 
   async function crear() {
     const nombre = nuevoNombre.trim()
     if (!nombre) return
     setGuardando(true)
     setError('')
-    const { data, error: errInsert } = await supabase
-      .from(tabla)
-      .insert({ nombre })
-      .select('id, nombre')
-      .single()
-    setGuardando(false)
-    if (errInsert || !data) {
-      setError('Error al crear: ' + (errInsert?.message ?? 'desconocido'))
-      return
+    try {
+      const api = await createAuthenticatedBrowserApiClient()
+      const data = await api.createCrmCatalog(recurso, nombre)
+      const itemsActualizados = [...items, data].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }))
+      onChange(data.id, itemsActualizados)
+      setNuevoNombre('')
+      setCreando(false)
+    } catch (err) {
+      setError(`Error al crear: ${err instanceof Error ? err.message : 'desconocido'}`)
+    } finally {
+      setGuardando(false)
     }
-    const itemsActualizados = [...items, data].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }))
-    onChange(data.id, itemsActualizados)
-    setNuevoNombre('')
-    setCreando(false)
   }
 
   const inputStyle = 'px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500'

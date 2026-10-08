@@ -1,0 +1,21 @@
+{
+  "braces-dev-chain": {
+    "enabled": true,
+    "packages": [
+      "braces",
+      "eslint-config-next",
+      "@next/eslint-plugin-next",
+      "fast-glob",
+      "micromatch"
+    ],
+    "description": "Phase 1 dev-only eslint-config-next / braces chain (non-production runtime)"
+  },
+  "vitest-dev-toolchain": {
+    "enabled": true,
+    "owner_explicit_acceptance": true,
+    "owner_acceptance_recorded": "2026-10-06 — Owner explicit acceptance (Phase 4 close): dev/test-only tooling; not production runtime; advisories remain visible in npm audit; severity not downgraded; vitest@3.2.7 attempted; vitest@5.0.3 blocked by @types/node@20 peer; tests pass. Does not auto-accept future packages.",
+    "packages": ["vitest", "tinypool", "@vitest/mocker"],
+    "max_severity": "critical",
+    "description": "Vitest/tinypool/@vitest/mocker npm audit advisories (max CRITICAL). Dev/test toolchain only. Separate from braces-dev-chain."
+  }
+}

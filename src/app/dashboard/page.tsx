@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import ClientesComparacion from '@/components/ClientesComparacion'
 import RankingCompras from '@/components/RankingCompras'
+import { type RelOne, relOne } from '@/lib/supabase-rel'
 
 export default async function DashboardPage({
   searchParams,
@@ -37,23 +38,41 @@ export default async function DashboardPage({
     .in('estado', ['enviada', 'recepcionada']) // los borradores todavía no son una compra confirmada
 
   type AcumuladoCompras = { nombre: string; total: number; cantidadOc: number }
+  type OrdenPeriodo = {
+    id: string
+    cliente_id: string
+    proveedor_id: string
+    clientes: RelOne<{ nombre: string }>
+    proveedores: RelOne<{ razon_social: string }>
+    ordenes_compra_items: { cantidad: number; precio_unitario: number }[] | null
+  }
+  type AsignacionActiva = {
+    cliente_id: string
+    empleados: RelOne<{ horas_contrato: number | null }>
+  }
+  type AusenciaMes = {
+    empleado_id: string
+    codigo: string
+    fecha: string
+    empleados: RelOne<{ nombre_apellido: string }>
+  }
   const porCliente: Record<string, AcumuladoCompras> = {}
   const porProveedor: Record<string, AcumuladoCompras> = {}
   let totalComprado = 0
 
-  ;(ordenesPeriodo ?? []).forEach((o: any) => {
+  ;((ordenesPeriodo ?? []) as OrdenPeriodo[]).forEach((o) => {
     const totalOc = (o.ordenes_compra_items ?? []).reduce(
-      (acc: number, i: any) => acc + i.cantidad * i.precio_unitario,
+      (acc, i) => acc + i.cantidad * i.precio_unitario,
       0
     )
     totalComprado += totalOc
 
-    const nombreCliente = o.clientes?.nombre ?? 'Sin cliente'
+    const nombreCliente = relOne(o.clientes)?.nombre ?? 'Sin cliente'
     if (!porCliente[o.cliente_id]) porCliente[o.cliente_id] = { nombre: nombreCliente, total: 0, cantidadOc: 0 }
     porCliente[o.cliente_id].total += totalOc
     porCliente[o.cliente_id].cantidadOc += 1
 
-    const nombreProveedor = o.proveedores?.razon_social ?? 'Sin proveedor'
+    const nombreProveedor = relOne(o.proveedores)?.razon_social ?? 'Sin proveedor'
     if (!porProveedor[o.proveedor_id]) porProveedor[o.proveedor_id] = { nombre: nombreProveedor, total: 0, cantidadOc: 0 }
     porProveedor[o.proveedor_id].total += totalOc
     porProveedor[o.proveedor_id].cantidadOc += 1
@@ -75,13 +94,14 @@ export default async function DashboardPage({
     .is('fecha_hasta', null)
 
   const realPorCliente: Record<string, { real4: number; real8: number }> = {}
-  asignacionesActivas?.forEach((a: any) => {
+  ;(asignacionesActivas as AsignacionActiva[] | null)?.forEach((a) => {
     if (!realPorCliente[a.cliente_id]) {
       realPorCliente[a.cliente_id] = { real4: 0, real8: 0 }
     }
-    if (a.empleados?.horas_contrato === 4) {
+    const horas = relOne(a.empleados)?.horas_contrato
+    if (horas === 4) {
       realPorCliente[a.cliente_id].real4++
-    } else if (a.empleados?.horas_contrato === 8 || a.empleados?.horas_contrato === 1) {
+    } else if (horas === 8 || horas === 1) {
       realPorCliente[a.cliente_id].real8++
     }
   })
@@ -112,8 +132,8 @@ export default async function DashboardPage({
   const totalJustificadas = totalAusencias - totalInjustificadas
 
   const rankingMap: Record<string, { nombre: string; cantidad: number }> = {}
-  ausenciasMes.forEach((a: any) => {
-    const nombre = a.empleados?.nombre_apellido || 'Sin nombre'
+  ;(ausenciasMes as AusenciaMes[]).forEach((a) => {
+    const nombre = relOne(a.empleados)?.nombre_apellido || 'Sin nombre'
     if (!rankingMap[a.empleado_id]) {
       rankingMap[a.empleado_id] = { nombre, cantidad: 0 }
     }

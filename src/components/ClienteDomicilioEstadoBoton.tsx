@@ -2,18 +2,23 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 
-export default function ClienteDomicilioEstadoBoton({ id, activo }: { id: string; activo: boolean }) {
+export default function ClienteDomicilioEstadoBoton({ id, clienteId, activo }: { id: string; clienteId:string; activo: boolean }) {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   const handleClick = async () => {
     setLoading(true)
-    await supabase.from('cliente_domicilios').update({ activo: !activo }).eq('id', id)
-    setLoading(false)
-    router.refresh()
+    try {
+      const api=await createAuthenticatedBrowserApiClient()
+      await api.updateClientAddressStatus(clienteId,id,!activo)
+      router.refresh()
+    } catch (cause) {
+      alert('Error al actualizar el domicilio: '+(cause instanceof Error?cause.message:'desconocido'))
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

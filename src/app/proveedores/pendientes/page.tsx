@@ -1,20 +1,11 @@
-import { createClient } from '@/utils/supabase/server'
+import type { ComponentProps } from 'react'
+import { createAuthenticatedServerApiClient } from '@/lib/api/server'
 import PendientesTabla from '@/components/PendientesTabla'
 import Link from 'next/link'
 
 export default async function PendientesPage() {
-  const supabase = await createClient()
-
-  const { data: pendientes, error: errorPendientes } = await supabase
-    .from('articulos_proveedor_pendientes')
-    .select('id, codigo_proveedor, nombre_proveedor, precio, archivo_origen, motivo, sugerencias, created_at, proveedores(id, razon_social)')
-    .eq('resuelto', false)
-    .order('created_at', { ascending: false })
-
-  const { data: articulos } = await supabase
-    .from('articulos')
-    .select('id, codigo_interno, nombre')
-    .order('nombre')
+  const api=await createAuthenticatedServerApiClient()
+  const [pendientes,articulos]=await Promise.all([api.listSupplierArticlePending(),api.listArticles()])
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-10">
@@ -22,12 +13,10 @@ export default async function PendientesPage() {
         ← Volver a proveedores
       </Link>
       <h1 className="text-2xl font-bold text-slate-900 mb-6">Pendientes por resolver</h1>
-      {errorPendientes && (
-        <p className="text-rose-600 text-sm mb-4">
-          Error al cargar los pendientes: {errorPendientes.message}
-        </p>
-      )}
-      <PendientesTabla pendientes={(pendientes ?? []) as any} articulos={articulos ?? []} />
+      <PendientesTabla
+        pendientes={pendientes as ComponentProps<typeof PendientesTabla>['pendientes']}
+        articulos={articulos}
+      />
     </div>
   )
 }

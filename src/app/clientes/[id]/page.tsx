@@ -1,4 +1,5 @@
 import { createClient } from '@/utils/supabase/server'
+import { createDinamicApiClient } from '@/lib/api/generated'
 import Link from 'next/link'
 import ClienteDomiciliosPanel from '@/components/ClienteDomiciliosPanel'
 import ClientePresupuestosPanel, { type ClientePresupuesto } from '@/components/ClientePresupuestosPanel'
@@ -11,11 +12,10 @@ export default async function ClienteDetallePage({
   const { id } = await params
   const supabase = await createClient()
 
-  const { data: cliente } = await supabase
-    .from('clientes')
-    .select('*')
-    .eq('id', id)
-    .single()
+  const {data:{session}}=await supabase.auth.getSession()
+  const baseUrl=process.env.API_URL??process.env.NEXT_PUBLIC_API_URL
+  const detail=session?.access_token&&baseUrl?await createDinamicApiClient({baseUrl,accessToken:session.access_token}).getClient(id).catch(()=>null):null
+  const cliente=detail?.client
 
   if (!cliente) {
     return (
@@ -28,18 +28,8 @@ export default async function ClienteDetallePage({
     )
   }
 
-  const { data: domicilios } = await supabase
-    .from('cliente_domicilios')
-    .select('*')
-    .eq('cliente_id', id)
-    .order('es_principal', { ascending: false })
-    .order('alias')
-
-  const { data: presupuestos } = await supabase
-    .from('cliente_presupuestos')
-    .select('id, nombre_archivo, storage_path, created_at, perfiles(nombre_completo)')
-    .eq('cliente_id', id)
-    .order('created_at', { ascending: false })
+  const domicilios=detail.addresses
+  const presupuestos=detail.quotes
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-10">
@@ -63,7 +53,7 @@ export default async function ClienteDetallePage({
       </h2>
       <ClientePresupuestosPanel
         clienteId={cliente.id}
-        presupuestos={(presupuestos ?? []) as unknown as ClientePresupuesto[]}
+        presupuestos={presupuestos as ClientePresupuesto[]}
       />
     </div>
   )

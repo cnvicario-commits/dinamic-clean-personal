@@ -1,9 +1,10 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import LogoutButton from './LogoutButton'
-import { puedeAcceder, type Rol } from '@/utils/permisos'
+import type { Role } from '@/lib/api/generated/types'
+import { puedeAcceder } from '@/utils/permisos'
 
 type Enlace = { href: string; label: string }
 type Grupo = { id: string; label: string; enlaces: Enlace[] }
@@ -22,6 +23,7 @@ const grupos: Grupo[] = [
     label: 'Ventas',
     enlaces: [
       { href: '/ventas', label: 'Tablero' },
+      { href: '/ventas/leads', label: 'Leads' },
       { href: '/ventas/agenda', label: 'Agenda' },
       { href: '/ventas/nueva', label: 'Nueva oportunidad' },
       { href: '/ventas/listado', label: 'Listado' },
@@ -68,6 +70,10 @@ function esActivo(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`)
 }
 
+function grupoActivoIdPara(pathname: string) {
+  return grupos.find((g) => g.enlaces.some((e) => esActivo(pathname, e.href)))?.id ?? null
+}
+
 function ChevronAbajo({ className = '' }: { className?: string }) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" className={`h-3 w-3 ${className}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -76,10 +82,14 @@ function ChevronAbajo({ className = '' }: { className?: string }) {
   )
 }
 
-export default function NavBar({ rol }: { rol: Rol | null }) {
+export default function NavBar({ rol }: { rol: Role | null }) {
   const [abierto, setAbierto] = useState(false) // menú mobile (hamburguesa)
-  const [gruposAbiertos, setGruposAbiertos] = useState<Set<string>>(new Set())
   const pathname = usePathname()
+  const [gruposAbiertos, setGruposAbiertos] = useState<Set<string>>(() => {
+    const id = grupoActivoIdPara(pathname)
+    return id ? new Set([id]) : new Set()
+  })
+  const [pathnameSincronizado, setPathnameSincronizado] = useState(pathname)
 
   // Mismo criterio que src/proxy.ts (que es quien realmente bloquea la
   // navegación): acá solo se ocultan los links que el rol no puede usar. Un
@@ -90,15 +100,15 @@ export default function NavBar({ rol }: { rol: Rol | null }) {
     .filter((grupo) => grupo.enlaces.length > 0)
 
   // Si la pantalla activa pertenece a un grupo, ese grupo arranca expandido
-  // en el sidebar, para que el link activo sea visible sin tener que
-  // desplegarlo a mano.
-  useEffect(() => {
-    const grupoActivo = gruposVisibles.find((g) => g.enlaces.some((e) => esActivo(pathname, e.href)))
-    if (grupoActivo) {
-      setGruposAbiertos((prev) => (prev.has(grupoActivo.id) ? prev : new Set(prev).add(grupoActivo.id)))
+  // en el sidebar (ajustando estado durante el render al cambiar pathname,
+  // sin setState síncrono en un effect).
+  if (pathname !== pathnameSincronizado) {
+    setPathnameSincronizado(pathname)
+    const grupoActivoId = grupoActivoIdPara(pathname)
+    if (grupoActivoId && !gruposAbiertos.has(grupoActivoId)) {
+      setGruposAbiertos(new Set(gruposAbiertos).add(grupoActivoId))
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname])
+  }
 
   function toggleGrupo(id: string) {
     setGruposAbiertos((prev) => {
