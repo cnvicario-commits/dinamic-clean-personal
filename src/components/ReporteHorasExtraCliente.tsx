@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import * as XLSX from 'xlsx'
-import { createClient } from '@/utils/supabase/client'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 
 function formatoFecha(d: Date) {
   const anio = d.getFullYear()
@@ -16,7 +16,6 @@ export default function ReporteHorasExtraCliente() {
   const [mes, setMes] = useState(mesDefault)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const supabase = createClient()
 
   const handleGenerar = async () => {
     setError('')
@@ -28,19 +27,8 @@ export default function ReporteHorasExtraCliente() {
       const desdeStr = formatoFecha(desde)
       const hastaStr = formatoFecha(hasta)
 
-      const { data: asistencias } = await supabase
-        .from('asistencias')
-        .select('empleado_id, horas_extras, cliente_destino_id, cliente_horas_extra_id, empleados(nombre_apellido)')
-        .gt('horas_extras', 0)
-        .gte('fecha', desdeStr)
-        .lte('fecha', hastaStr)
-
-      const { data: asignaciones } = await supabase
-        .from('asignaciones')
-        .select('empleado_id, cliente_id')
-        .is('fecha_hasta', null)
-
-      const { data: clientes } = await supabase.from('clientes').select('id, nombre')
+      const api = await createAuthenticatedBrowserApiClient()
+      const { attendance: asistencias, assignments: asignaciones, clients: clientes } = await api.getOvertimeReport(desdeStr, hastaStr)
 
       if (!asistencias || asistencias.length === 0) {
         setError('No hay horas extra cargadas en ese período.')
@@ -48,9 +36,9 @@ export default function ReporteHorasExtraCliente() {
         return
       }
 
-      const clientesPorId = new Map((clientes || []).map((c) => [c.id, c]))
+      const clientesPorId = new Map(clientes.map((c) => [c.id, c]))
       const asignacionesPorEmpleado = new Map<string, string[]>()
-      ;(asignaciones || []).forEach((a) => {
+      ;asignaciones.forEach((a) => {
         const lista = asignacionesPorEmpleado.get(a.empleado_id) || []
         lista.push(a.cliente_id)
         asignacionesPorEmpleado.set(a.empleado_id, lista)
@@ -70,11 +58,11 @@ export default function ReporteHorasExtraCliente() {
       const clientesConHoras = new Map<string, string>()
       let hayHorasSinDefinir = false
 
-      asistencias.forEach((a: any) => {
+      asistencias.forEach((a) => {
         const clienteId = resolverClienteId(a)
         const claveCliente = clienteId || SIN_DEFINIR
         const clienteNombre = clienteId ? clientesPorId.get(clienteId)?.nombre || 'Sin definir' : 'Sin definir'
-        const empleadoNombre = a.empleados?.nombre_apellido || 'Sin nombre'
+        const empleadoNombre = a.nombre_apellido || 'Sin nombre'
 
         if (claveCliente === SIN_DEFINIR) {
           hayHorasSinDefinir = true
@@ -132,8 +120,8 @@ export default function ReporteHorasExtraCliente() {
       const libro = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(libro, hoja, 'Horas extra por cliente')
       XLSX.writeFile(libro, `horas_extra_por_cliente_${desdeStr}_a_${hastaStr}.xlsx`)
-    } catch (e: any) {
-      setError('Error al generar el reporte: ' + e.message)
+    } catch (e: unknown) {
+      setError('Error al generar el reporte: ' + (e instanceof Error ? e.message : String(e)))
     }
     setLoading(false)
   }

@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { puedeAcceder, type Rol } from '@/utils/permisos'
+import type { Role } from '@/lib/api/generated/types'
+import { puedeAcceder } from '@/utils/permisos'
 
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -55,7 +56,7 @@ export async function proxy(request: NextRequest) {
       .eq('id', session.user.id)
       .single()
 
-    if (!puedeAcceder((perfil?.rol as Rol) ?? null, request.nextUrl.pathname)) {
+    if (!puedeAcceder((perfil?.rol as Role) ?? null, request.nextUrl.pathname)) {
       const url = request.nextUrl.clone()
       url.pathname = '/sin-acceso'
       return NextResponse.redirect(url)

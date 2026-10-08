@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 import GrillaLineasPedido from './GrillaLineasPedido'
 import type {
   EmpresaConDomicilio,
@@ -71,7 +71,6 @@ export default function PedidoCompraForm({
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -116,67 +115,28 @@ export default function PedidoCompraForm({
     }
     setLoading(true)
 
-    const cabecera = {
-      empresa_id: empresaId,
-      cliente_id: clienteId,
-      observaciones_generales: observaciones || null,
-      lugar_envio_empresa: lugarEnvio === 'empresa',
-      lugar_envio_domicilio_id: lugarEnvio.startsWith('domicilio:') ? lugarEnvio.slice('domicilio:'.length) : null,
-      lugar_envio_texto: resolverLugarEnvioTexto(),
-      lugar_envio_alias: resolverLugarEnvioAlias(),
+    const payload = {
+      empresaId,
+      clienteId,
+      observacionesGenerales: observaciones || null,
+      lugarEnvioEmpresa: lugarEnvio === 'empresa',
+      lugarEnvioDomicilioId: lugarEnvio.startsWith('domicilio:') ? lugarEnvio.slice('domicilio:'.length) : null,
+      lugarEnvioTexto: resolverLugarEnvioTexto(),
+      lugarEnvioAlias: resolverLugarEnvioAlias(),
       estado: estadoDeseado,
+      items:lineasFinales.map(l=>({articuloId:l.articulo_id,cantidad:l.cantidad,observaciones:l.observaciones})),
     }
-
-    let pedidoId = pedido?.id
-
-    if (pedido) {
-      const { error: errUpdate } = await supabase.from('pedidos_compra').update(cabecera).eq('id', pedido.id)
-      if (errUpdate) {
-        setLoading(false)
-        setError('Error al guardar: ' + errUpdate.message)
-        return
-      }
-      // Se reemplazan todas las líneas: más simple que diffear altas/bajas/cambios,
-      // y seguro porque solo se puede editar mientras el pedido sigue en borrador.
-      const { error: errDelete } = await supabase.from('pedidos_compra_items').delete().eq('pedido_id', pedido.id)
-      if (errDelete) {
-        setLoading(false)
-        setError('Error al guardar las líneas: ' + errDelete.message)
-        return
-      }
-    } else {
-      const { data: userData } = await supabase.auth.getUser()
-      const { data, error: errInsert } = await supabase
-        .from('pedidos_compra')
-        .insert({ ...cabecera, creado_por: userData.user?.id })
-        .select('id')
-        .single()
-      if (errInsert || !data) {
-        setLoading(false)
-        setError('Error al guardar: ' + (errInsert?.message ?? 'desconocido'))
-        return
-      }
-      pedidoId = data.id
-    }
-
-    const { error: errItems } = await supabase.from('pedidos_compra_items').insert(
-      lineasFinales.map((l) => ({
-        pedido_id: pedidoId,
-        articulo_id: l.articulo_id,
-        cantidad: l.cantidad,
-        observaciones: l.observaciones,
-      }))
-    )
-    setLoading(false)
-    if (errItems) {
-      setError('Error al guardar las líneas: ' + errItems.message)
-      return
-    }
-
-    if (pedido) {
-      router.refresh()
-    } else {
-      router.push(`/pedidos-compra/${pedidoId}`)
+    try {
+      const api = await createAuthenticatedBrowserApiClient()
+      const saved = pedido
+        ? await api.updatePurchaseRequest(pedido.id, payload)
+        : await api.createPurchaseRequest(payload)
+      if (pedido) router.refresh()
+      else router.push(`/pedidos-compra/${saved.id}`)
+    } catch (error) {
+      setError('Error al guardar: ' + (error instanceof Error ? error.message : 'desconocido'))
+    } finally {
+      setLoading(false)
     }
   }
 

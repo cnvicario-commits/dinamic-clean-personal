@@ -1,13 +1,9 @@
-import { createClient } from '@/utils/supabase/server'
+import { createAuthenticatedServerApiClient } from '@/lib/api/server'
 import ProveedoresPanel from '@/components/ProveedoresPanel'
 import Link from 'next/link'
 
 export default async function ProveedoresPage() {
-  const supabase = await createClient()
-  const { data: proveedores } = await supabase
-    .from('proveedores')
-    .select('*')
-    .order('razon_social')
+  const proveedores=await (await createAuthenticatedServerApiClient()).listSuppliers()
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-10">
@@ -23,7 +19,7 @@ export default async function ProveedoresPage() {
         </div>
       </div>
 
-      <ProveedoresPanel proveedores={proveedores ?? []} />
+      <ProveedoresPanel proveedores={proveedores} />
     </div>
   )
 }

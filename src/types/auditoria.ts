@@ -14,6 +14,7 @@ export type ChecklistPlantilla = {
   vigencia_desde: string
   activa: boolean
   created_at: string
+  updated_at: string
 }
 
 export type ChecklistItem = {
@@ -37,6 +38,7 @@ export type PlanificacionListado = {
   // permite acá para que el mismo tipo sirva antes y después de calcularlo.
   estado: EstadoPlanificacion
   supervisor_id: string
+  updated_at: string
   cliente_domicilios: { alias: string; direccion: string | null; clientes: { nombre: string } | null } | null
   perfiles: { nombre_completo: string } | null
 }
@@ -53,6 +55,7 @@ export type PlanificacionEdicion = {
   observaciones: string | null
   supervisor_id: string
   estado: EstadoPlanificacion
+  updated_at: string
   cliente_domicilios: { cliente_id: string; clientes: { id: string; nombre: string } | null } | null
 }
 
@@ -75,6 +78,7 @@ export type PlanAccionItem = {
   estado: EstadoPlanAccion
   fecha_resolucion: string | null
   created_at: string
+  updated_at: string
   respuesta_id: string | null
   perfiles: { nombre_completo: string } | null
   auditoria_respuestas: { auditoria_checklist_items: { texto: string } | null } | null
@@ -105,6 +109,8 @@ export type AuditoriaListado = {
   id: string
   fecha_realizada: string
   evaluacion_general: string | null
+  supervisor_id: string
+  no_conformidades: number
   cliente_domicilios: { alias: string; direccion: string | null; clientes: { nombre: string } | null } | null
   perfiles: { nombre_completo: string } | null
 }
@@ -121,6 +127,7 @@ export type PlanAccionSeguimiento = {
   fecha_limite: string | null
   fecha_resolucion: string | null
   auditoria_id: string
+  updated_at: string
   perfiles: { nombre_completo: string } | null
   auditorias: {
     fecha_realizada: string

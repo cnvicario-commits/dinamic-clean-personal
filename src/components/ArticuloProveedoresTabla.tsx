@@ -5,7 +5,7 @@ type Vinculo = {
   precio: number
   fecha_actualizacion: string
   activo: boolean
-  proveedores: { id: string; razon_social: string } | null
+  razon_social: string
 }
 
 export default function ArticuloProveedoresTabla({ vinculos }: { vinculos: Vinculo[] }) {
@@ -27,7 +27,7 @@ export default function ArticuloProveedoresTabla({ vinculos }: { vinculos: Vincu
         <tbody>
           {vinculos.map((v) => (
             <tr key={v.id} className={`border-b border-slate-100 last:border-0 ${!v.activo ? 'opacity-50' : ''}`}>
-              <td className="px-4 py-3 text-slate-800">{v.proveedores?.razon_social ?? '-'}</td>
+              <td className="px-4 py-3 text-slate-800">{v.razon_social}</td>
               <td className="px-4 py-3 text-slate-600">{v.codigo_proveedor || '-'}</td>
               <td className="px-4 py-3 text-slate-600">{v.nombre_proveedor ?? '-'}</td>
               <td className="px-4 py-3">

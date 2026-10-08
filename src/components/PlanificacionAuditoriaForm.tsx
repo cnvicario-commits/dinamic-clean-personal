@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 import BuscadorCliente from './BuscadorCliente'
 import type { PlanificacionEdicion } from '@/types/auditoria'
 
@@ -36,7 +36,6 @@ export default function PlanificacionAuditoriaForm({
   const [loading, setLoading] = useState(false)
 
   const router = useRouter()
-  const supabase = createClient()
 
   const sitiosDelCliente = cliente ? domicilios.filter((d) => d.cliente_id === cliente.id && d.activo) : []
 
@@ -60,19 +59,23 @@ export default function PlanificacionAuditoriaForm({
     }
     setLoading(true)
     const datos = {
-      alias_id: aliasId,
-      fecha_propuesta: fechaPropuesta,
-      horario_desde: horarioDesde || null,
-      horario_hasta: horarioHasta || null,
-      supervisor_id: supervisorId,
+      aliasId,
+      fechaPropuesta,
+      horarioDesde: horarioDesde || null,
+      horarioHasta: horarioHasta || null,
+      supervisorId,
       observaciones: observaciones.trim() || null,
     }
-    const { error: errGuardar } = planificacion
-      ? await supabase.from('auditoria_planificaciones').update(datos).eq('id', planificacion.id)
-      : await supabase.from('auditoria_planificaciones').insert(datos)
-    if (errGuardar) {
+    try {
+      const api = await createAuthenticatedBrowserApiClient()
+      if (planificacion) {
+        await api.updateAuditPlanning(planificacion.id, { ...datos, updatedAt: planificacion.updated_at })
+      } else {
+        await api.createAuditPlanning(datos)
+      }
+    } catch (err) {
       setLoading(false)
-      setError('Error al guardar: ' + errGuardar.message)
+      setError('Error al guardar: ' + (err instanceof Error ? err.message : 'No se pudo completar la operación'))
       return
     }
     router.push('/auditorias/planificacion')

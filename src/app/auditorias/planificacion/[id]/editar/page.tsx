@@ -1,7 +1,7 @@
 import Link from 'next/link'
-import { createClient } from '@/utils/supabase/server'
+import { createAuthenticatedServerApiClient } from '@/lib/api/server'
+import { ApiClientError } from '@/lib/api/generated'
 import PlanificacionAuditoriaForm from '@/components/PlanificacionAuditoriaForm'
-import type { PlanificacionEdicion } from '@/types/auditoria'
 
 export default async function EditarPlanificacionPage({
   params,
@@ -9,24 +9,23 @@ export default async function EditarPlanificacionPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const supabase = await createClient()
+  const api = await createAuthenticatedServerApiClient()
 
-  const { data: planificacionRaw } = await supabase
-    .from('auditoria_planificaciones')
-    .select('*, cliente_domicilios(cliente_id, clientes(id, nombre))')
-    .eq('id', id)
-    .maybeSingle()
-  const planificacion = planificacionRaw as unknown as PlanificacionEdicion | null
-
-  if (!planificacion) {
-    return (
-      <div className="max-w-2xl mx-auto px-6 py-10">
-        <p className="text-slate-500 mb-4">Planificación no encontrada.</p>
-        <Link href="/auditorias/planificacion" className="text-teal-600 hover:underline text-sm">
-          ← Volver a Planificación
-        </Link>
-      </div>
-    )
+  let planificacion
+  try {
+    planificacion = await api.getAuditPlanning(id)
+  } catch (err) {
+    if (err instanceof ApiClientError && err.status === 404) {
+      return (
+        <div className="max-w-2xl mx-auto px-6 py-10">
+          <p className="text-slate-500 mb-4">Planificación no encontrada.</p>
+          <Link href="/auditorias/planificacion" className="text-teal-600 hover:underline text-sm">
+            ← Volver a Planificación
+          </Link>
+        </div>
+      )
+    }
+    throw err
   }
 
   // Solo se puede editar mientras siga en 'planificada' — una vez cargada la
@@ -46,19 +45,15 @@ export default async function EditarPlanificacionPage({
     )
   }
 
-  const [{ data: clientes }, { data: domicilios }, { data: supervisores }] = await Promise.all([
-    supabase.from('clientes').select('id, nombre').eq('activo', true).order('nombre'),
-    supabase.from('cliente_domicilios').select('id, cliente_id, alias, direccion, activo'),
-    supabase.from('perfiles').select('id, nombre_completo').order('nombre_completo'),
-  ])
+  const catalogs = await api.getAuditCatalogs()
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-10">
       <h1 className="text-2xl font-bold text-slate-900 mb-6">Editar planificación</h1>
       <PlanificacionAuditoriaForm
-        clientes={clientes ?? []}
-        domicilios={domicilios ?? []}
-        supervisores={supervisores ?? []}
+        clientes={catalogs.clientes}
+        domicilios={catalogs.domicilios}
+        supervisores={catalogs.supervisores}
         planificacion={planificacion}
       />
     </div>

@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { createClient } from '@/utils/supabase/client'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 import SelectConCrear from './SelectConCrear'
 import type { CatalogoItem } from '@/types/crm'
 
@@ -28,7 +28,6 @@ export default function ProspectoForm({
   const [referidoresState, setReferidoresState] = useState(referidores)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const supabase = createClient()
 
   async function crear() {
     setError('')
@@ -37,21 +36,23 @@ export default function ProspectoForm({
       return
     }
     setLoading(true)
-    const { data, error: errInsert } = await supabase
-      .from('crm_prospectos')
-      .insert({
+    let data: {id:string;nombre:string}|null=null; let errInsert:unknown=null
+    try {
+      const api = await createAuthenticatedBrowserApiClient()
+      data = await api.createCrmProspect({
         nombre: nombre.trim(),
-        tipo_cliente_id: tipoClienteId || null,
-        contacto_nombre: contactoNombre || null,
+        tipoClienteId: tipoClienteId || null,
+        contactoNombre: contactoNombre || null,
         telefono: telefono || null,
         email: email || null,
-        referido_por_id: referidoPorId || null,
+        referidoPorId: referidoPorId || null,
       })
-      .select('id, nombre')
-      .single()
+    } catch (error) {
+      errInsert = error
+    }
     setLoading(false)
     if (errInsert || !data) {
-      setError('Error al crear el prospecto: ' + (errInsert?.message ?? 'desconocido'))
+      setError('Error al crear el prospecto: ' + (errInsert instanceof Error ? errInsert.message : 'desconocido'))
       return
     }
     onCreated(data)
@@ -74,7 +75,7 @@ export default function ProspectoForm({
         className={`flex-1 min-w-[200px] ${inputStyle}`}
       />
       <SelectConCrear
-        tabla="crm_tipos_cliente"
+        recurso="tipos-cliente"
         items={tiposClienteState}
         value={tipoClienteId}
         onChange={(id, items) => {
@@ -106,7 +107,7 @@ export default function ProspectoForm({
         className={`w-52 ${inputStyle}`}
       />
       <SelectConCrear
-        tabla="crm_referidores"
+        recurso="referidores"
         items={referidoresState}
         value={referidoPorId}
         onChange={(id, items) => {

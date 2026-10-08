@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 
 const TIPOS_CONTACTO = ['Llamada', 'Email', 'WhatsApp', 'Reunión', 'Otro']
 
@@ -14,7 +14,6 @@ export default function RegistrarSeguimientoForm({ oportunidadId }: { oportunida
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -24,20 +23,21 @@ export default function RegistrarSeguimientoForm({ oportunidadId }: { oportunida
       return
     }
     setLoading(true)
-    const { data: userData } = await supabase.auth.getUser()
-    // proxima_fecha_seguimiento, si se completa, actualiza sola el campo
-    // homónimo en crm_oportunidades (trigger de la migración 0018).
-    const { error: errInsert } = await supabase.from('crm_seguimientos').insert({
-      oportunidad_id: oportunidadId,
-      fecha_contacto: fechaContacto,
-      tipo_contacto: tipoContacto,
-      nota: nota.trim(),
-      proxima_fecha_seguimiento: proximaFecha || null,
-      usuario_id: userData.user?.id,
-    })
+    let errInsert: unknown = null
+    try {
+      const api = await createAuthenticatedBrowserApiClient()
+      await api.createCrmFollowUp(oportunidadId, {
+        fechaContacto,
+        tipoContacto,
+        nota: nota.trim(),
+        proximaFechaSeguimiento: proximaFecha || null,
+      })
+    } catch (error) {
+      errInsert = error
+    }
     setLoading(false)
     if (errInsert) {
-      setError('Error al guardar: ' + errInsert.message)
+      setError('Error al guardar: ' + (errInsert instanceof Error?errInsert.message:'desconocido'))
       return
     }
     setNota('')

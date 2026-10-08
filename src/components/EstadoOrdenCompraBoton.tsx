@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 import type { EstadoOrdenCompra } from '@/types/compras'
 
 const SIGUIENTE: Partial<Record<EstadoOrdenCompra, { estado: EstadoOrdenCompra; etiqueta: string }>> = {
@@ -13,16 +13,22 @@ const SIGUIENTE: Partial<Record<EstadoOrdenCompra, { estado: EstadoOrdenCompra; 
 export default function EstadoOrdenCompraBoton({ id, estado }: { id: string; estado: EstadoOrdenCompra }) {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   const siguiente = SIGUIENTE[estado]
   if (!siguiente) return null
 
   const handleClick = async () => {
     setLoading(true)
-    await supabase.from('ordenes_compra').update({ estado: siguiente.estado }).eq('id', id)
-    setLoading(false)
-    router.refresh()
+    try {
+      await (
+        await createAuthenticatedBrowserApiClient()
+      ).transitionPurchaseOrder(id, siguiente.estado as 'enviada' | 'recepcionada')
+      router.refresh()
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Error al cambiar estado')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
