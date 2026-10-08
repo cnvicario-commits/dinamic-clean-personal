@@ -94,22 +94,16 @@ export type OportunidadResumen = {
   id: string
   estado: EstadoOportunidad
   fecha_ingreso: string
-  // Se completa sola al pasar a aceptado/rechazado/en_espera (migración
-  // 0018) — es la fecha que usa el desglose mensual para "aceptadas en el
-  // mes" (no fecha_ingreso, que es cuando se cargó, no cuando se cerró).
-  fecha_cierre: string | null
   monto_estimado: number | null
   comision_monto: number | null
   comision_liquidada: boolean
   responsable_id: string | null
   responsable_nombre_libre: string | null
-  tipo_servicio_id: string | null
   crm_prospectos: {
     tipo_cliente_id: string | null
     crm_tipos_cliente: { nombre: string } | null
     crm_referidores: { nombre: string } | null
   } | null
-  crm_tipos_servicio: { nombre: string } | null
   perfiles: { nombre_completo: string } | null
 }
 
@@ -130,96 +124,4 @@ export type OportunidadListado = CrmOportunidad & {
   } | null
   crm_tipos_servicio: { nombre: string } | null
   perfiles: { nombre_completo: string } | null
-}
-
-// =========================================================
-// Leads: seguimiento comercial previo a que exista una Oportunidad concreta
-// (ver supabase/migrations/0036_crm_leads.sql). A diferencia de las
-// oportunidades, un lead siempre tiene responsable_id con cuenta en la app
-// (no hay historial importado sin usuario acá), así que no hace falta un
-// equivalente a responsable_nombre_libre.
-// =========================================================
-
-export type EstadoLead = 'por_contactar' | 'en_conversacion' | 'convertido' | 'sin_interes'
-
-export const ESTADOS_LEAD: { valor: EstadoLead; etiqueta: string }[] = [
-  { valor: 'por_contactar', etiqueta: 'Por contactar' },
-  { valor: 'en_conversacion', etiqueta: 'En conversación' },
-  { valor: 'convertido', etiqueta: 'Convertido a oportunidad' },
-  { valor: 'sin_interes', etiqueta: 'Sin interés' },
-]
-
-export type CrmLead = {
-  id: string
-  prospecto_id: string
-  responsable_id: string
-  estado: EstadoLead
-  proxima_fecha_contacto: string | null
-  notas: string | null
-  oportunidad_id: string | null
-  fecha_conversion: string | null
-  created_at: string
-  updated_at: string | null
-}
-
-// Vista con los joins ya resueltos, tal como la trae el Tablero de Leads.
-export type LeadVista = CrmLead & {
-  crm_prospectos: {
-    id: string
-    nombre: string
-    tipo_cliente_id: string | null
-    contacto_nombre: string | null
-    telefono: string | null
-  } | null
-  perfiles: { nombre_completo: string } | null
-}
-
-// Vista más completa para el Listado y la ficha: incluye datos de contacto
-// del prospecto y el nombre del referidor.
-export type LeadListado = CrmLead & {
-  crm_prospectos: {
-    id: string
-    nombre: string
-    tipo_cliente_id: string | null
-    contacto_nombre: string | null
-    telefono: string | null
-    email: string | null
-    referido_por_id: string | null
-    crm_tipos_cliente: { nombre: string } | null
-    crm_referidores: { nombre: string } | null
-  } | null
-  perfiles: { nombre_completo: string } | null
-}
-
-export type SeguimientoLead = {
-  id: string
-  lead_id: string
-  fecha_contacto: string
-  tipo_contacto: string | null
-  nota: string | null
-  proxima_fecha_contacto: string | null
-  usuario_id: string
-  created_at: string
-  perfiles: { nombre_completo: string } | null
-}
-
-// =========================================================
-// Agenda unificada: combina vencimientos de Oportunidades (próximo
-// seguimiento) y de Leads (próximo contacto) en una sola lista para que el
-// vendedor tenga un solo lugar donde mirar qué le vence. Se arma en el
-// server component (src/app/ventas/agenda/page.tsx) a partir de las dos
-// consultas, normalizando cada una a esta forma común.
-// =========================================================
-export type TipoItemAgenda = 'oportunidad' | 'lead'
-
-export type ItemAgenda = {
-  id: string
-  tipo: TipoItemAgenda
-  href: string
-  cliente: string
-  subtitulo: string
-  fecha: string | null
-  responsableId: string | null
-  responsableNombre: string
-  montoTexto: string | null
 }
