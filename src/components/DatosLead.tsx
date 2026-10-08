@@ -3,6 +3,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
+import { ApiClientError } from '@/lib/api/generated'
 import BotonWhatsApp from './BotonWhatsApp'
 import { ESTADOS_LEAD } from './TableroLeads'
 import type { CatalogoItem } from '@/types/crm'
@@ -51,11 +52,16 @@ export default function DatosLead({
   }
 
   async function guardar() {
+    if (!lead.updated_at) {
+      setError('Este lead no tiene versión de concurrencia. Recargá la ficha antes de guardar.')
+      return
+    }
     setLoading(true)
     setError('')
     try {
       const api = await createAuthenticatedBrowserApiClient()
       await api.updateCrmLead(lead.id, {
+        updatedAt: lead.updated_at,
         proximaFechaContacto: proximaFecha || null,
         notas: notas.trim() || null,
         prospecto: prospecto
@@ -71,7 +77,13 @@ export default function DatosLead({
       setEditando(false)
       router.refresh()
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'No se pudo guardar')
+      if (cause instanceof ApiClientError && cause.status === 409) {
+        setError('Otra persona guardó este lead. Recargá la ficha y volvé a intentar. Los cambios de esta pantalla no se aplicaron.')
+      } else if (cause instanceof ApiClientError && cause.status === 403) {
+        setError('No podés modificar este prospecto porque también está en la cartera de otro responsable.')
+      } else {
+        setError(cause instanceof Error ? cause.message : 'No se pudo guardar')
+      }
     } finally {
       setLoading(false)
     }

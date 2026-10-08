@@ -110,9 +110,10 @@ export const crmUpdateLead = z
     proximaFechaContacto: date.nullable().optional(),
     notas: optionalText,
     prospecto: crmUpdateProspect.optional(),
+    updatedAt: z.string().datetime(),
   })
   .strict()
-  .refine((x) => Object.keys(x).length > 0);
+  .refine((x) => Object.keys(x).some((k) => k !== "updatedAt"));
 export const crmLeadTransition = z.object({ estado: crmLeadMutableState }).strict();
 export const crmCreateLeadFollowUp = z
   .object({

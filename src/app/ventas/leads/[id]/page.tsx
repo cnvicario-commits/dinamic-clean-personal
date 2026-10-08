@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { createAuthenticatedServerApiClient } from '@/lib/api/server'
 import DatosLead from '@/components/DatosLead'
 import RegistrarSeguimientoLeadForm from '@/components/RegistrarSeguimientoLeadForm'
+import type { CrmLeadFollowUp } from '@/lib/api/generated'
 
 function formatearFecha(fecha: string | null) {
   if (!fecha) return '-'
@@ -30,13 +31,7 @@ export default async function FichaLeadPage({ params }: { params: Promise<{ id: 
     api.getCrmCatalogs(),
     api.getMe(),
   ])
-  const items = seguimientos.items as unknown as Array<{
-    id: string
-    tipo_contacto: string | null
-    fecha_contacto: string | null
-    nota: string | null
-    perfiles: { nombre_completo: string } | null
-  }>
+  const items: CrmLeadFollowUp[] = seguimientos.items
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-10">

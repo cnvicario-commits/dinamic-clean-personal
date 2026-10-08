@@ -26,6 +26,12 @@ type Idempotent = <T>(
   run: (c: pg.PoolClient) => Promise<T>,
 ) => Promise<{ replayed: boolean; response: T }>;
 
+function sameVersion(stored: unknown, requested: string): boolean {
+  const left = stored instanceof Date ? stored.getTime() : Date.parse(String(stored));
+  const right = Date.parse(requested);
+  return Number.isFinite(left) && left === right;
+}
+
 const leadSelect = `select l.*,
 jsonb_build_object('id',p.id,'nombre',p.nombre,'tipo_cliente_id',p.tipo_cliente_id,'contacto_nombre',p.contacto_nombre,
 'telefono',p.telefono,'email',p.email,'referido_por_id',p.referido_por_id,
@@ -54,7 +60,7 @@ export function createCrmLeadMethods(
       v: CrmCreateOpportunity,
       actor: string,
     ) => Promise<Record<string, unknown>>;
-    updateProspect: (id: string, v: CrmUpdateProspect, c: pg.PoolClient) => Promise<unknown>;
+    updateProspect: (id: string, v: CrmUpdateProspect, c: pg.PoolClient, scope: CrmScope) => Promise<unknown>;
   },
 ) {
   const { tx, first, idempotent, insertOpportunity, updateProspect } = deps;
@@ -72,7 +78,7 @@ export function createCrmLeadMethods(
     const row = first(
       (
         await c.query(
-          `select id,estado,prospecto_id from public.crm_leads where id=$1${filter} for ${lock === "update" ? "update" : "key share"}`,
+          `select id,estado,prospecto_id,updated_at from public.crm_leads where id=$1${filter} for ${lock === "update" ? "update" : "key share"}`,
           params,
         )
       ).rows,
@@ -82,6 +88,7 @@ export function createCrmLeadMethods(
       id: String(row.id),
       estado: String(row.estado),
       prospecto_id: String(row.prospecto_id),
+      updated_at: row.updated_at,
     };
   };
   const list = async (q: CrmLeadListQuery, scope: CrmScope) => {
@@ -187,6 +194,9 @@ values($1,$2,$3,$4) returning id`,
     async updateLead(id: string, v: CrmUpdateLead, scope: CrmScope) {
       return tx(db, async (c) => {
         const current = await assertOwned(c, id, scope, "update");
+        if (!sameVersion(current.updated_at, v.updatedAt)) {
+          throw conflict("Lead was modified by another user");
+        }
         const sets: string[] = [];
         const params: unknown[] = [id];
         if (v.proximaFechaContacto !== undefined) {
@@ -198,7 +208,7 @@ values($1,$2,$3,$4) returning id`,
           sets.push(`notas=$${params.length}`);
         }
         if (sets.length) await c.query(`update public.crm_leads set ${sets.join(",")} where id=$1`, params);
-        if (v.prospecto) await updateProspect(current.prospecto_id, v.prospecto, c);
+        if (v.prospecto) await updateProspect(current.prospecto_id, v.prospecto, c, scope);
         return detailWith(c, id, scope);
       });
     },

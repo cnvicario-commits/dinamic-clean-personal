@@ -65,6 +65,9 @@ describe.skipIf(!enabled)('ventas role smoke (Supabase Auth + API + DB)', () => 
     config({ path: path.join(apiRoot, '.env') })
     config({ path: path.join(apiRoot, '.env.local') })
     config({ path: path.join(apiRoot, '../../.env.local') })
+    if (!process.env.EXPECTED_SUPABASE_TEST_PROJECT_REF && process.env.DB_COMPATIBILITY_TARGET === 'test') {
+      process.env.EXPECTED_SUPABASE_TEST_PROJECT_REF = process.env.EXPECTED_SUPABASE_PROJECT_REF
+    }
 
     assertDinamicCleanTestTarget({ requireJwt: false })
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) {
@@ -124,6 +127,17 @@ describe.skipIf(!enabled)('ventas role smoke (Supabase Auth + API + DB)', () => 
       await app?.close()
       return
     }
+    if (createdProspectId && app) {
+      await app.db.query(
+        `delete from public.crm_seguimientos where oportunidad_id in (
+select id from public.crm_oportunidades where prospecto_id=$1)`,
+        [createdProspectId],
+      )
+      await app.db.query('delete from public.crm_leads where prospecto_id=$1', [createdProspectId])
+      await app.db.query('delete from public.crm_oportunidades where prospecto_id=$1', [createdProspectId])
+      await app.db.query('delete from public.crm_prospectos where id=$1', [createdProspectId])
+      await app.db.query('delete from public.crm_operation_idempotency where actor_id=$1', [ventasAuthId])
+    }
     const service = process.env.SUPABASE_SERVICE_ROLE_KEY!
     const admin = createClient(supabaseUrl(), service, { auth: { persistSession: false } })
     await admin.auth.admin.deleteUser(ventasAuthId)
@@ -136,26 +150,97 @@ describe.skipIf(!enabled)('ventas role smoke (Supabase Auth + API + DB)', () => 
     expect(res.json()).toMatchObject({ role: 'ventas' })
   })
 
-  it('CRM allow read/create/update; delete → 403', async () => {
+  it('authenticates a ventas user through the lead flow and keeps prospect ownership', async () => {
     const headers = authHeaders(ventasToken)
     expect((await app.inject({ method: 'GET', url: '/v1/crm/opportunities', headers })).statusCode).toBe(200)
 
+    const nombre = `Smoke lead ${Date.now()}`
     const prospect = await app.inject({
       method: 'POST',
       url: '/v1/crm/prospects',
       headers,
-      payload: { nombre: `Smoke prospect ${Date.now()}` },
+      payload: { nombre },
     })
     expect(prospect.statusCode, prospect.body).toBe(201)
     createdProspectId = (prospect.json() as { id: string }).id
 
-    const patched = await app.inject({
+    const unowned = await app.inject({
       method: 'PATCH',
       url: `/v1/crm/prospects/${createdProspectId}`,
       headers,
-      payload: { nombre: `Smoke prospect updated ${Date.now()}` },
+      payload: { telefono: 'no' },
     })
-    expect(patched.statusCode, patched.body).toBe(200)
+    expect(unowned.statusCode, unowned.body).toBe(403)
+
+    const created = await app.inject({
+      method: 'POST',
+      url: '/v1/crm/leads',
+      headers: { ...headers, 'idempotency-key': `smoke-lead-${Date.now()}` },
+      payload: { prospectoId: createdProspectId, responsableId: ventasAuthId, notas: 'smoke' },
+    })
+    expect(created.statusCode, created.body).toBe(201)
+    const leadId = (created.json() as { response: { id: string } }).response.id
+
+    const ficha = await app.inject({ method: 'GET', url: `/v1/crm/leads/${leadId}`, headers })
+    expect(ficha.statusCode, ficha.body).toBe(200)
+
+    const follow = await app.inject({
+      method: 'POST',
+      url: `/v1/crm/leads/${leadId}/follow-ups`,
+      headers,
+      payload: { nota: 'contacto smoke', proximaFechaContacto: '1990-01-01' },
+    })
+    expect(follow.statusCode, follow.body).toBe(200)
+
+    const state = await app.inject({
+      method: 'PATCH',
+      url: `/v1/crm/leads/${leadId}/state`,
+      headers,
+      payload: { estado: 'en_conversacion' },
+    })
+    expect(state.statusCode, state.body).toBe(200)
+
+    const current = await app.inject({ method: 'GET', url: `/v1/crm/leads/${leadId}`, headers })
+    expect(current.statusCode, current.body).toBe(200)
+    const version = (current.json() as { updated_at: string }).updated_at
+    expect(version).toBeTruthy()
+
+    const edited = await app.inject({
+      method: 'PATCH',
+      url: `/v1/crm/leads/${leadId}`,
+      headers,
+      payload: { updatedAt: version, notas: 'editado', prospecto: { telefono: '111' } },
+    })
+    expect(edited.statusCode, edited.body).toBe(200)
+
+    const agenda = await app.inject({
+      method: 'GET',
+      url: '/v1/crm/agenda?tipo=lead&page=1&pageSize=100',
+      headers,
+    })
+    expect(agenda.statusCode, agenda.body).toBe(200)
+    expect((agenda.json() as { items: { id: string }[] }).items.some((item) => item.id === leadId)).toBe(true)
+
+    const listed = await app.inject({
+      method: 'GET',
+      url: `/v1/crm/leads?search=${encodeURIComponent(nombre)}&page=1&pageSize=50`,
+      headers,
+    })
+    expect(listed.statusCode, listed.body).toBe(200)
+    expect((listed.json() as { items: { id: string }[] }).items.some((item) => item.id === leadId)).toBe(true)
+
+    const converted = await app.inject({
+      method: 'POST',
+      url: `/v1/crm/leads/${leadId}/convert`,
+      headers: { ...headers, 'idempotency-key': `smoke-convert-${Date.now()}` },
+      payload: { responsableId: ventasAuthId, seguimientoInicial: false, comentarios: 'smoke' },
+    })
+    expect(converted.statusCode, converted.body).toBe(201)
+    const opportunityId = (converted.json() as { response: { opportunity: { id: string } } }).response.opportunity.id
+
+    const linked = await app.inject({ method: 'GET', url: `/v1/crm/leads/${leadId}`, headers })
+    expect(linked.statusCode, linked.body).toBe(200)
+    expect(linked.json()).toMatchObject({ estado: 'convertido', oportunidad_id: opportunityId })
 
     expect(
       (await app.inject({
@@ -164,7 +249,7 @@ describe.skipIf(!enabled)('ventas role smoke (Supabase Auth + API + DB)', () => 
         headers,
       })).statusCode,
     ).toBe(403)
-  })
+  }, 30_000)
 
   it('denies non-CRM domains with 403', async () => {
     const headers = authHeaders(ventasToken)

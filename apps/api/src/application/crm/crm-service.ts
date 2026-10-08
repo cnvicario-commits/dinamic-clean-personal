@@ -36,7 +36,8 @@ export function createCrmService(
     followUps: (id: string, q: { page: number; pageSize: number }, scope: CrmScope) =>
       repo.followUps(id, q, scope),
     createProspect: (v: CrmCreateProspect) => repo.createProspect(v),
-    updateProspect: (id: string, v: CrmUpdateProspect) => repo.updateProspect(id, v),
+    updateProspect: (id: string, v: CrmUpdateProspect, scope: CrmScope) =>
+      repo.updateProspect(id, v, scope),
     createOpportunity: (v: CrmCreateOpportunity, scope: CrmScope, k: string) =>
       repo.createOpportunity(
         { ...v, responsableId: forcedResponsableId(scope, v.responsableId) },

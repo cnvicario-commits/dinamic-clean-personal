@@ -1576,7 +1576,11 @@ export const openApiDocument = {
           required: true,
           content: { "application/json": { schema: zodJsonSchema(crmUpdateLead) } },
         },
-        responses: { "200": { description: "Updated" }, "404": { description: "Not found" } },
+        responses: {
+          "200": { description: "Updated" },
+          "404": { description: "Not found" },
+          "409": { description: "Stale updatedAt" },
+        },
       },
       delete: {
         summary: "Delete lead and cascaded follow-ups",
@@ -1742,6 +1746,7 @@ export const openApiDocument = {
         responses: {
           "200": { description: "Updated" },
           "400": { description: "Validation" },
+          "403": { description: "Prospect is outside the actor portfolio" },
           "404": { description: "Not found" },
         },
       },

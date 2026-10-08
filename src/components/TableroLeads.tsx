@@ -1,12 +1,11 @@
 'use client'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { DndContext, useDraggable, useDroppable, type DragEndEvent } from '@dnd-kit/core'
 import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 import BotonWhatsApp from './BotonWhatsApp'
 import type { CrmLead, CrmLeadState } from '@/lib/api/generated'
-import type { PerfilResumen } from '@/types/crm'
 
 export const ESTADOS_LEAD: { valor: Exclude<CrmLeadState, 'convertido'> | CrmLeadState; etiqueta: string }[] = [
   { valor: 'por_contactar', etiqueta: 'Por contactar' },
@@ -51,15 +50,10 @@ function Columna({ estado, etiqueta, leads }: { estado: CrmLeadState; etiqueta: 
   )
 }
 
-export default function TableroLeads({ leads: iniciales, responsables }: { leads: CrmLead[]; responsables: PerfilResumen[] }) {
+export default function TableroLeads({ leads: iniciales }: { leads: CrmLead[] }) {
   const [leads, setLeads] = useState(iniciales)
-  const [filtroResponsable, setFiltroResponsable] = useState('')
   const [error, setError] = useState('')
   const router = useRouter()
-  const filtrados = useMemo(
-    () => (filtroResponsable ? leads.filter((lead) => lead.responsable_id === filtroResponsable) : leads),
-    [leads, filtroResponsable],
-  )
 
   async function handleDragEnd(event: DragEndEvent) {
     const nuevoEstado = event.over?.id
@@ -83,11 +77,7 @@ export default function TableroLeads({ leads: iniciales, responsables }: { leads
   return (
     <div>
       {error && <p className="text-rose-600 text-sm mb-3">{error}</p>}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-        <select value={filtroResponsable} onChange={(e) => setFiltroResponsable(e.target.value)} className="border border-slate-300 rounded-md px-3 py-2 text-sm">
-          <option value="">Todos los responsables</option>
-          {responsables.map((responsable) => <option key={responsable.id} value={responsable.id}>{responsable.nombre_completo}</option>)}
-        </select>
+      <div className="flex flex-wrap items-center justify-end gap-3 mb-5">
         <div className="flex gap-2">
           <Link href="/ventas/leads/listado" className="px-4 py-2 bg-slate-100 text-slate-700 text-sm font-medium rounded-lg">Ver listado</Link>
           <Link href="/ventas/leads/nuevo" className="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg">+ Nuevo lead</Link>
@@ -96,7 +86,7 @@ export default function TableroLeads({ leads: iniciales, responsables }: { leads
       <DndContext onDragEnd={handleDragEnd}>
         <div className="flex gap-4 overflow-x-auto pb-2">
           {ESTADOS_LEAD.map(({ valor, etiqueta }) => (
-            <Columna key={valor} estado={valor} etiqueta={etiqueta} leads={filtrados.filter((lead) => lead.estado === valor)} />
+            <Columna key={valor} estado={valor} etiqueta={etiqueta} leads={leads.filter((lead) => lead.estado === valor)} />
           ))}
         </div>
       </DndContext>

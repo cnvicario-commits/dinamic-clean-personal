@@ -96,7 +96,7 @@ function memoryDb(options: { failFollow?: boolean; failConvert?: boolean } = {})
       view().follows.push(row)
       return { rows: [row] }
     }
-    if (text.startsWith('select id,estado,prospecto_id from public.crm_leads')) {
+    if (text.startsWith('select id,estado,prospecto_id,updated_at from public.crm_leads')) {
       const owner = text.includes('responsable_id') ? params[1] : undefined
       const row = view().leads.find((lead) => lead.id === params[0] && (owner === undefined || lead.responsable_id === owner))
       return { rows: row ? [{ id: row.id, estado: row.estado, prospecto_id: row.prospecto_id }] : [] }

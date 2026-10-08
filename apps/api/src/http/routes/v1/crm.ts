@@ -232,6 +232,7 @@ export const crmRoutes: FastifyPluginAsync = async app => {
     app.crmService.updateProspect(
       id((r.params as { id: unknown }).id),
       body(crmUpdateProspect, r.body),
+      scope(r),
     ),
   )
 

@@ -83,6 +83,241 @@ function writeStable(path, contents) {
   console.info(`Wrote ${path}`)
 }
 
+const TYPE_LINE_WIDTH = 100
+
+function matchingCloser(src, openIndex, open, close) {
+  let depth = 0
+  let quote = false
+  for (let i = openIndex; i < src.length; i++) {
+    const c = src[i]
+    if (quote) {
+      if (c === '\\') {
+        i += 1
+        continue
+      }
+      if (c === "'") quote = false
+      continue
+    }
+    if (c === "'") {
+      quote = true
+      continue
+    }
+    if (c === open) depth += 1
+    else if (c === close) {
+      depth -= 1
+      if (depth === 0) return i
+    }
+  }
+  return -1
+}
+
+function splitTopLevel(src, separator) {
+  const parts = []
+  let start = 0
+  let braces = 0
+  let angles = 0
+  let parens = 0
+  let quote = false
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i]
+    if (quote) {
+      if (c === '\\') {
+        i += 1
+        continue
+      }
+      if (c === "'") quote = false
+      continue
+    }
+    if (c === "'") {
+      quote = true
+      continue
+    }
+    if (c === '{') braces += 1
+    else if (c === '}') braces -= 1
+    else if (c === '<') angles += 1
+    else if (c === '>') angles -= 1
+    else if (c === '(') parens += 1
+    else if (c === ')') parens -= 1
+    else if (c === separator && braces === 0 && angles === 0 && parens === 0) {
+      parts.push(src.slice(start, i))
+      start = i + 1
+    }
+  }
+  parts.push(src.slice(start))
+  return parts
+}
+
+function prettifyInline(src) {
+  let out = ''
+  let quote = false
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i]
+    if (quote) {
+      out += c
+      if (c === '\\') {
+        out += src[i + 1] ?? ''
+        i += 1
+        continue
+      }
+      if (c === "'") quote = false
+      continue
+    }
+    if (c === "'") {
+      quote = true
+      out += c
+      continue
+    }
+    if (c === '|' || c === '&') {
+      if (!out.endsWith(' ')) out += ' '
+      out += `${c} `
+      continue
+    }
+    if (c === ':') {
+      out += ': '
+      continue
+    }
+    if (c === ',') {
+      out += ', '
+      continue
+    }
+    if (c === ';') {
+      out += '; '
+      continue
+    }
+    if (c === '{') {
+      out += '{ '
+      continue
+    }
+    if (c === '}') {
+      if (out.endsWith(' ')) out = out.slice(0, -1)
+      out += ' }'
+      continue
+    }
+    if (c === ' ' && out.endsWith(' ')) continue
+    out += c
+  }
+  return out.replace(/ +/g, ' ').replace(/\{ \}/g, '{}').trim()
+}
+
+function formatPropInline(prop) {
+  const colon = topLevelColon(prop)
+  if (colon < 0) return prettifyInline(prop)
+  const key = prop.slice(0, colon).trim()
+  const type = prop.slice(colon + 1).trim()
+  return `${key}: ${prettifyInline(type)}`
+}
+
+function topLevelColon(prop) {
+  const parts = splitTopLevel(prop, ':')
+  if (parts.length < 2) return -1
+  return parts[0].length
+}
+
+function formatObject(inner, indent, prefixWidth) {
+  const props = splitTopLevel(inner, ';').map((part) => part.trim()).filter(Boolean)
+  if (props.length === 0) return '{}'
+  const inline = `{ ${props.map((prop) => formatPropInline(prop)).join('; ')} }`
+  if (prefixWidth + inline.length <= TYPE_LINE_WIDTH) return inline
+  const pad = '  '.repeat(indent)
+  const innerPad = '  '.repeat(indent + 1)
+  const lines = props.map((prop) => `${innerPad}${formatProp(prop, indent + 1)}`)
+  return `{\n${lines.join('\n')}\n${pad}}`
+}
+
+function formatProp(prop, indent) {
+  const colon = topLevelColon(prop)
+  if (colon < 0) return formatExpr(prop, indent, indent * 2)
+  const key = prop.slice(0, colon).trim()
+  const type = prop.slice(colon + 1).trim()
+  const head = `${key}: `
+  return head + formatExpr(type, indent, indent * 2 + head.length)
+}
+
+function formatExpr(src, indent, initialWidth) {
+  let out = ''
+  let quote = false
+  const widthBefore = () => {
+    const nl = out.lastIndexOf('\n')
+    if (nl >= 0) return out.length - nl - 1
+    return initialWidth + out.length
+  }
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i]
+    if (quote) {
+      out += c
+      if (c === '\\') {
+        out += src[i + 1] ?? ''
+        i += 1
+        continue
+      }
+      if (c === "'") quote = false
+      continue
+    }
+    if (c === "'") {
+      quote = true
+      out += c
+      continue
+    }
+    if (c === '{') {
+      const end = matchingCloser(src, i, '{', '}')
+      if (end < 0) {
+        out += c
+        continue
+      }
+      let extra = 0
+      let j = end + 1
+      while (src[j] === '[' || src[j] === ']') {
+        extra += 1
+        j += 1
+      }
+      out += formatObject(src.slice(i + 1, end), indent, widthBefore() + extra)
+      i = end
+      continue
+    }
+    if (c === '|' || c === '&') {
+      if (!out.endsWith(' ') && !out.endsWith('\n')) out += ' '
+      out += `${c} `
+      continue
+    }
+    if (c === ',') {
+      out += ', '
+      continue
+    }
+    if (c === ' ' && (out.endsWith(' ') || out.endsWith('\n'))) continue
+    out += c
+  }
+  return out.trim()
+}
+
+function wrapLongTypeLines(source) {
+  const out = []
+  for (const line of source.split('\n')) {
+    if (line.length <= TYPE_LINE_WIDTH) {
+      out.push(line)
+      continue
+    }
+    const indent = line.match(/^\s*/)[0]
+    const trimmed = line.trim()
+    if (trimmed.startsWith('export type ') && trimmed.includes(' = ')) {
+      const eq = trimmed.indexOf(' = ')
+      const name = trimmed.slice('export type '.length, eq)
+      const body = trimmed.slice(eq + 3)
+      const prefix = `export type ${name} = `
+      out.push(...(prefix + formatExpr(body, 0, prefix.length)).split('\n'))
+      continue
+    }
+    if (trimmed.includes('{')) {
+      const level = Math.floor(indent.length / 2)
+      const parts = formatProp(trimmed, level).split('\n')
+      out.push(indent + parts[0])
+      out.push(...parts.slice(1))
+      continue
+    }
+    out.push(line)
+  }
+  return out.join('\n')
+}
+
 function runExport() {
   const { roles, permissions } = loadRbacCatalogs()
 
@@ -204,11 +439,12 @@ export type CrmLead = Record<string,unknown>&{id:string;prospecto_id:string;resp
 export type CrmLeadPage = {items:CrmLead[];page:number;pageSize:number;total:number}
 export type CrmLeadQuery = {page?:number;pageSize?:number;estado?:CrmLeadState;responsableId?:string;search?:string}
 export type CrmCreateLeadBody = {prospectoId:string;responsableId:string;proximaFechaContacto?:string|null;notas?:string|null}
-export type CrmUpdateLeadBody = {proximaFechaContacto?:string|null;notas?:string|null;prospecto?:Partial<CrmCreateProspectBody>}
+export type CrmUpdateLeadBody = {proximaFechaContacto?:string|null;notas?:string|null;prospecto?:Partial<CrmCreateProspectBody>;updatedAt:string}
 export type CrmLeadTransitionBody = {estado:Exclude<CrmLeadState,'convertido'>}
 export type CrmCreateLeadFollowUpBody = {fechaContacto?:string;tipoContacto?:string|null;nota:string;proximaFechaContacto?:string|null}
 export type CrmConvertLeadBody = {numeroReferencia?:string|null;fechaIngreso?:string;tipoServicioId?:string|null;cantidadPersonal?:number|null;montoEstimado?:number|null;fechaEnvio?:string|null;comisionMonto?:number|null;comentarios?:string|null;responsableId:string;seguimientoInicial?:boolean}
-export type CrmLeadFollowUp = Record<string,unknown>&{id:string;lead_id:string;nota:string|null;created_at:string}
+export type CrmLeadFollowUp = {id:string;lead_id:string;fecha_contacto:string|null;tipo_contacto:string|null;nota:string|null;proxima_fecha_contacto:string|null;usuario_id:string;created_at:string;perfiles:{nombre_completo:string}|null}
+export type CrmLeadFollowUpPage = {items:CrmLeadFollowUp[];page:number;pageSize:number;total:number}
 export type CrmListQuery = {page?:number;pageSize?:number;estado?:CrmOpportunity['estado'];responsableId?:string;prospectoId?:string;tipoClienteId?:string;tipoServicioId?:string;desde?:string;hasta?:string;search?:string;proximaFecha?:boolean;facturacion?:boolean;order?:'created'|'ingreso'|'agenda'|'facturacion'}
 export type CrmCreateProspectBody = {nombre:string;tipoClienteId?:string|null;contactoNombre?:string|null;telefono?:string|null;email?:string|null;referidoPorId?:string|null;notas?:string|null}
 export type CrmCreateOpportunityBody = {prospectoId:string;numeroReferencia?:string|null;fechaIngreso?:string;tipoServicioId?:string|null;cantidadPersonal?:number|null;montoEstimado?:number|null;fechaEnvio?:string|null;comisionMonto?:number|null;comentarios?:string|null;responsableId:string;seguimientoInicial?:boolean}
@@ -378,7 +614,7 @@ import type {
   UpdateClientAddressBody,
   QuoteUploadBody,
   QuoteDownload,
-  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord, ResultsImportBody, ResultRecord, CrmCatalogItem, CrmProspect, CrmOpportunity, CrmPage, CrmFollowUp, CrmFollowUpPage, CrmDashboard, CrmSummary, CrmMonthlySummary, CrmMonthlyQuery, CrmAgendaPage, CrmAgendaQuery, CrmLead, CrmLeadPage, CrmLeadQuery, CrmCreateLeadBody, CrmUpdateLeadBody, CrmLeadTransitionBody, CrmCreateLeadFollowUpBody, CrmConvertLeadBody, CrmLeadFollowUp, CrmListQuery, CrmCreateProspectBody, CrmCreateOpportunityBody, CrmUpdateOpportunityBody, CrmTransitionBody, CrmCreateFollowUpBody, CrmCatalogs, AuditPlanning, AuditPlanningPage, AuditPlanningEdit, AuditPlanningBody, AuditPlanningUpdateBody, AuditCancelPlanningBody, AuditSubmitBody, Audit, AuditPage, AuditDetail, AuditAction, AuditActionPage, AuditActionCreateBody, AuditActionUpdateBody, AuditChecklist, AuditChecklistDetail, AuditChecklistCreateBody, AuditChecklistUpdateBody, AuditChecklistCopyBody, AuditChecklistActivateBody, AuditCatalogs, AuditDashboard, AuditPageQuery, AuditActionListQuery, AuditDashboardQuery,
+  Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord, ResultsImportBody, ResultRecord, CrmCatalogItem, CrmProspect, CrmOpportunity, CrmPage, CrmFollowUp, CrmFollowUpPage, CrmDashboard, CrmSummary, CrmMonthlySummary, CrmMonthlyQuery, CrmAgendaPage, CrmAgendaQuery, CrmLead, CrmLeadPage, CrmLeadQuery, CrmCreateLeadBody, CrmUpdateLeadBody, CrmLeadTransitionBody, CrmCreateLeadFollowUpBody, CrmConvertLeadBody, CrmLeadFollowUp, CrmLeadFollowUpPage, CrmListQuery, CrmCreateProspectBody, CrmCreateOpportunityBody, CrmUpdateOpportunityBody, CrmTransitionBody, CrmCreateFollowUpBody, CrmCatalogs, AuditPlanning, AuditPlanningPage, AuditPlanningEdit, AuditPlanningBody, AuditPlanningUpdateBody, AuditCancelPlanningBody, AuditSubmitBody, Audit, AuditPage, AuditDetail, AuditAction, AuditActionPage, AuditActionCreateBody, AuditActionUpdateBody, AuditChecklist, AuditChecklistDetail, AuditChecklistCreateBody, AuditChecklistUpdateBody, AuditChecklistCopyBody, AuditChecklistActivateBody, AuditCatalogs, AuditDashboard, AuditPageQuery, AuditActionListQuery, AuditDashboardQuery,
   UsersListResponse,
 } from './types'
 
@@ -516,7 +752,7 @@ export type DinamicApiClient = {
   updateCrmLead: (id:string,body:CrmUpdateLeadBody) => Promise<CrmLead>
   transitionCrmLead: (id:string,body:CrmLeadTransitionBody) => Promise<CrmLead>
   deleteCrmLead: (id:string) => Promise<void>
-  listCrmLeadFollowUps: (id:string,query?:{page?:number;pageSize?:number}) => Promise<CrmFollowUpPage>
+  listCrmLeadFollowUps: (id:string,query?:{page?:number;pageSize?:number}) => Promise<CrmLeadFollowUpPage>
   createCrmLeadFollowUp: (id:string,body:CrmCreateLeadFollowUpBody) => Promise<CrmLeadFollowUp>
   convertCrmLead: (id:string,body:CrmConvertLeadBody,key:string) => Promise<{replayed:boolean;response:{lead:CrmLead;opportunity:CrmOpportunity}}>
   getCrmOpportunity: (id:string) => Promise<CrmOpportunity>
@@ -727,7 +963,7 @@ export function createDinamicApiClient(options: DinamicApiClientOptions): Dinami
     updateCrmLead(id,body){return requestJson<CrmLead>(\`/v1/crm/leads/\${id}\`,{method:'PATCH',body:JSON.stringify(body)})},
     transitionCrmLead(id,body){return requestJson<CrmLead>(\`/v1/crm/leads/\${id}/state\`,{method:'PATCH',body:JSON.stringify(body)})},
     deleteCrmLead(id){return requestJson<void>(\`/v1/crm/leads/\${id}\`,{method:'DELETE',emptyResponse:true})},
-    listCrmLeadFollowUps(id,query={}){const q:Record<string,string>={};for(const [k,v] of Object.entries(query)){if(v!==undefined)q[k]=String(v)}return requestJson<CrmFollowUpPage>(\`/v1/crm/leads/\${id}/follow-ups\`,{query:q})},
+    listCrmLeadFollowUps(id,query={}){const q:Record<string,string>={};for(const [k,v] of Object.entries(query)){if(v!==undefined)q[k]=String(v)}return requestJson<CrmLeadFollowUpPage>(\`/v1/crm/leads/\${id}/follow-ups\`,{query:q})},
     createCrmLeadFollowUp(id,body){return requestJson<CrmLeadFollowUp>(\`/v1/crm/leads/\${id}/follow-ups\`,{method:'POST',body:JSON.stringify(body)})},
     convertCrmLead(id,body,key){return requestJson<{replayed:boolean;response:{lead:CrmLead;opportunity:CrmOpportunity}}>(\`/v1/crm/leads/\${id}/convert\`,{method:'POST',body:JSON.stringify(body),headers:{'Idempotency-Key':key}})},
     deleteCrmOpportunity(id){return requestJson<void>(\`/v1/crm/opportunities/\${id}\`,{method:'DELETE',emptyResponse:true})},
@@ -813,7 +1049,7 @@ export type {
   QuoteUploadBody,
   QuoteDownload,
   Supplier, Article, SupplierArticle, CreateSupplierBody, CreateArticleBody, CreateSupplierArticleBody, ArticleImportBody, PriceListBody, ArticleImportPreview, PriceListPreview, PriceListApplyResult, SupplierArticlePending, SupplierCatalogRow, PurchaseRequestBody, PurchaseOrderBody, PurchaseAssignmentBody, PurchaseImportBody, PurchaseCatalogs, PurchaseRecord,
-  CrmCatalogItem, CrmProspect, CrmOpportunity, CrmPage, CrmFollowUp, CrmFollowUpPage, CrmDashboard, CrmSummary, CrmMonthlyPoint, CrmMonthlySummary, CrmMonthlyQuery, CrmAgendaItem, CrmAgendaPage, CrmAgendaQuery, CrmLeadState, CrmLead, CrmLeadPage, CrmLeadQuery, CrmCreateLeadBody, CrmUpdateLeadBody, CrmLeadTransitionBody, CrmCreateLeadFollowUpBody, CrmConvertLeadBody, CrmLeadFollowUp, CrmListQuery, CrmCreateProspectBody, CrmCreateOpportunityBody, CrmUpdateOpportunityBody, CrmTransitionBody, CrmCreateFollowUpBody, CrmCatalogs, AuditPlanning, AuditPlanningPage, AuditPlanningEdit, AuditPlanningBody, AuditPlanningUpdateBody, AuditCancelPlanningBody, AuditAnswerBody, AuditSubmitBody, Audit, AuditPage, AuditDetail, AuditAction, AuditActionPage, AuditActionCreateBody, AuditActionUpdateBody, AuditChecklist, AuditChecklistItem, AuditChecklistDetail, AuditChecklistCreateBody, AuditChecklistUpdateBody, AuditChecklistCopyBody, AuditChecklistActivateBody, AuditCatalogs, AuditDashboard, AuditPageQuery, AuditActionListQuery, AuditDashboardQuery,
+  CrmCatalogItem, CrmProspect, CrmOpportunity, CrmPage, CrmFollowUp, CrmFollowUpPage, CrmDashboard, CrmSummary, CrmMonthlyPoint, CrmMonthlySummary, CrmMonthlyQuery, CrmAgendaItem, CrmAgendaPage, CrmAgendaQuery, CrmLeadState, CrmLead, CrmLeadPage, CrmLeadQuery, CrmCreateLeadBody, CrmUpdateLeadBody, CrmLeadTransitionBody, CrmCreateLeadFollowUpBody, CrmConvertLeadBody, CrmLeadFollowUp, CrmLeadFollowUpPage, CrmListQuery, CrmCreateProspectBody, CrmCreateOpportunityBody, CrmUpdateOpportunityBody, CrmTransitionBody, CrmCreateFollowUpBody, CrmCatalogs, AuditPlanning, AuditPlanningPage, AuditPlanningEdit, AuditPlanningBody, AuditPlanningUpdateBody, AuditCancelPlanningBody, AuditAnswerBody, AuditSubmitBody, Audit, AuditPage, AuditDetail, AuditAction, AuditActionPage, AuditActionCreateBody, AuditActionUpdateBody, AuditChecklist, AuditChecklistItem, AuditChecklistDetail, AuditChecklistCreateBody, AuditChecklistUpdateBody, AuditChecklistCopyBody, AuditChecklistActivateBody, AuditCatalogs, AuditDashboard, AuditPageQuery, AuditActionListQuery, AuditDashboardQuery,
   ProblemDetails,
 } from './types'
 export {
@@ -837,7 +1073,7 @@ export type {
 } from '../generated/types'
 `
 
-  writeStable(join(generatedDir, 'types.ts'), typesTs)
+  writeStable(join(generatedDir, 'types.ts'), wrapLongTypeLines(typesTs))
   writeStable(join(generatedDir, 'client.ts'), clientTs)
   writeStable(join(generatedDir, 'index.ts'), indexTs)
   writeStable(contractsPath, contractsCompat)

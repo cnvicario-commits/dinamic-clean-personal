@@ -1,6 +1,6 @@
 import type pg from "pg";
 import type { Db } from "./pool.js";
-import { conflict, notFound } from "../../http/errors/app-error.js";
+import { conflict, forbidden, notFound } from "../../http/errors/app-error.js";
 import type { CrmScope } from "../../domain/crm-scope.js";
 import { createCrmReadModelMethods } from "./crm/crm-read-models.js";
 import { createCrmOpportunityIdempotency } from "./crm/crm-idempotency.js";
@@ -172,7 +172,23 @@ where s.oportunidad_id=$1 order by s.fecha_contacto desc,s.created_at desc offse
       ).rows,
       "Prospect creation failed",
     );
-  const updateProspect = async (id: string, v: CrmUpdateProspect, c: pg.PoolClient) => {
+  const updateProspect = async (id: string, v: CrmUpdateProspect, c: pg.PoolClient, scope: CrmScope) => {
+    first(
+      (await c.query("select id from public.crm_prospectos where id=$1 for update", [id])).rows,
+      "Prospect not found",
+    );
+    if (!scope.global) {
+      const refs = await c.query<{ responsable_id: string }>(
+        `select responsable_id from public.crm_oportunidades where prospecto_id=$1
+union all
+select responsable_id from public.crm_leads where prospecto_id=$1`,
+        [id],
+      );
+      const owners = refs.rows.map((row) => String(row.responsable_id));
+      if (owners.length === 0 || owners.some((owner) => owner !== scope.userId)) {
+        throw forbidden("Prospect mutation is limited to an exclusive portfolio");
+      }
+    }
     const map: Record<string, string> = {
       nombre: "nombre",
       tipoClienteId: "tipo_cliente_id",
@@ -274,7 +290,8 @@ values($1,coalesce($2::date,current_date),$3,$4,$5,$6) returning *`,
     catalogs,
     followUps,
     createProspect,
-    updateProspect: (id: string, v: CrmUpdateProspect) => tx(db, (c) => updateProspect(id, v, c)),
+    updateProspect: (id: string, v: CrmUpdateProspect, scope: CrmScope) =>
+      tx(db, (c) => updateProspect(id, v, c, scope)),
     async createOpportunity(v: CrmCreateOpportunity, actor: string, key: string) {
       return idempotent(actor, "opportunity_create", key, v, (c) => insertOpportunity(c, v, actor));
     },
@@ -309,7 +326,7 @@ values($1,coalesce($2::date,current_date),$3,$4,$5,$6) returning *`,
             `update public.crm_oportunidades set ${e.map(([k], i) => `${map[k]}=$${i + 2}`).join(",")} where id=$1`,
             [id, ...e.map(([, x]) => x)],
           );
-        if (v.prospecto) await updateProspect(old.prospecto_id, v.prospecto, c);
+        if (v.prospecto) await updateProspect(old.prospecto_id, v.prospecto, c, scope);
         return detailWith(c, id, scope);
       });
     },
