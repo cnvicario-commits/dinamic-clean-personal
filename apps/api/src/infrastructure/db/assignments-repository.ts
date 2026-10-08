@@ -88,9 +88,9 @@ export function createAssignmentsRepository(db: Db) {
            where id = $1 and fecha_hasta is null
            returning id, empleado_id, cliente_id, fecha_desde, fecha_hasta
          ), selected as (
-           select u.*, 'closed'::text as outcome from updated u
+           select u.id, u.empleado_id, u.cliente_id, u.fecha_desde, u.fecha_hasta, 'closed'::text as outcome from updated u
            union all
-           select a.*, 'already_closed'::text as outcome
+           select a.id, a.empleado_id, a.cliente_id, a.fecha_desde, a.fecha_hasta, 'already_closed'::text as outcome
            from public.asignaciones a
            where a.id = $1 and not exists (select 1 from updated)
          )

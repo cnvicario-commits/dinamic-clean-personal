@@ -1,4 +1,4 @@
-import { describe, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 /**
  * Phase 3A browser-DML closure proof. The migration preserves SELECT for Phase 3B

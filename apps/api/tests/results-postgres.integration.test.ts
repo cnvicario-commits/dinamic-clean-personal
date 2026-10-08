@@ -18,7 +18,7 @@ describe.skipIf(!enabled)('Phase 4D PostgreSQL real integration',()=>{
   const afterPreview=await db!.query('select count(*)::int as n from public.resultados_mensuales where anio=2199 and mes=12');expect(afterPreview.rows[0].n).toBe(before.rows[0].n)
   const baseKey=randomUUID();const first=await repo!.apply({rows},baseKey,actor);const replay=await repo!.apply({rows},baseKey,actor);expect(replay).toEqual(first);expect(first.createdPeriods).toEqual(['2199-12']);expect(first.updatedPeriods).toEqual([])
   const mixed=await repo!.apply({rows:[row(2199,'Ajuste'),row(2198,'Nuevo')]},randomUUID(),actor);expect(mixed.createdPeriods).toEqual(['2198-12']);expect(mixed.updatedPeriods).toEqual(['2199-12'])
-  await expect(repo!.apply({rows:[{...rows[0],values:{total_ventas:9}}]},'results-4d-integration-key',actor)).rejects.toMatchObject({statusCode:409})
+  const mismatchKey=randomUUID();await repo!.apply({rows},mismatchKey,actor);await expect(repo!.apply({rows:[{...rows[0],values:{total_ventas:9}}]},mismatchKey,actor)).rejects.toMatchObject({statusCode:409})
   const detail=await repo!.detail(first.resultIds[0]);expect(detail.details).toHaveLength(1);expect(detail.resultado_periodo).toBe('-2.5')
  },30_000)
  it('rejects duplicate periods and rolls back after a detail constraint failure',async()=>{

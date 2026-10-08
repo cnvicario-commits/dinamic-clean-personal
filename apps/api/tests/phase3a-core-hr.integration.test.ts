@@ -1,6 +1,6 @@
 /** Opt-in real-DB Phase 3A repository test. All writes run inside one rollback transaction. */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import type pg from 'pg'
+import pg from 'pg'
 import { loadEnv } from '../src/config/env.js'
 import { createDb, type Db } from '../src/infrastructure/db/pool.js'
 import { createEmployeesRepository } from '../src/infrastructure/db/employees-repository.js'
@@ -120,8 +120,19 @@ describe.skipIf(!canRun)('Phase 3A Core HR real DB (rollback)', () => {
       )
       expect(persisted.rows[0]?.fecha_hasta).not.toBeNull()
     } finally {
-      await db.query('delete from public.asignaciones where id = $1', [assignmentId])
-      await db.query('delete from public.empleados where id = $1', [employeeId])
+      const ownerUrl = process.env.MIGRATIONS_DATABASE_URL
+      if (!ownerUrl) throw new Error('MIGRATIONS_DATABASE_URL is required to clean the concurrency fixture')
+      const owner = new pg.Pool({
+        connectionString: ownerUrl,
+        max: 1,
+        ssl: /supabase\.co|pooler\.supabase/i.test(ownerUrl) ? { rejectUnauthorized: false } : undefined,
+      })
+      try {
+        await owner.query('delete from public.asignaciones where id = $1', [assignmentId])
+        await owner.query('delete from public.empleados where id = $1', [employeeId])
+      } finally {
+        await owner.end()
+      }
     }
   })
 })
