@@ -109,6 +109,8 @@ describe.skipIf(!canRun)('Phase 3A Core HR real DB (rollback)', () => {
        values ($1, $2, current_date) returning id`, [employeeId, clientId],
     )
     const assignmentId = setupAssignment.rows[0]!.id
+    const ownerUrl = process.env.MIGRATIONS_DATABASE_URL
+    if (!ownerUrl) throw new Error('MIGRATIONS_DATABASE_URL is required to clean the concurrency fixture')
     try {
       const repo = createAssignmentsRepository(db)
       const outcomes = await Promise.allSettled([repo.close(assignmentId), repo.close(assignmentId)])
@@ -120,8 +122,6 @@ describe.skipIf(!canRun)('Phase 3A Core HR real DB (rollback)', () => {
       )
       expect(persisted.rows[0]?.fecha_hasta).not.toBeNull()
     } finally {
-      const ownerUrl = process.env.MIGRATIONS_DATABASE_URL
-      if (!ownerUrl) throw new Error('MIGRATIONS_DATABASE_URL is required to clean the concurrency fixture')
       const owner = new pg.Pool({
         connectionString: ownerUrl,
         max: 1,
