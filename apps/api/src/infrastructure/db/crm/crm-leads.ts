@@ -13,6 +13,7 @@ import type {
   CrmUpdateLead,
   CrmUpdateProspect,
 } from "../../../http/schemas/crm.js";
+import { sameVersion } from "./crm-version.js";
 
 type Queryable = {
   query: (text: string, params?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>;
@@ -25,12 +26,6 @@ type Idempotent = <T>(
   payload: unknown,
   run: (c: pg.PoolClient) => Promise<T>,
 ) => Promise<{ replayed: boolean; response: T }>;
-
-function sameVersion(stored: unknown, requested: string): boolean {
-  const left = stored instanceof Date ? stored.getTime() : Date.parse(String(stored));
-  const right = Date.parse(requested);
-  return Number.isFinite(left) && left === right;
-}
 
 const leadSelect = `select l.*,
 jsonb_build_object('id',p.id,'nombre',p.nombre,'tipo_cliente_id',p.tipo_cliente_id,'contacto_nombre',p.contacto_nombre,

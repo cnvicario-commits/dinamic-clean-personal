@@ -5,6 +5,8 @@ import type { CrmScope } from "../../domain/crm-scope.js";
 import { createCrmReadModelMethods } from "./crm/crm-read-models.js";
 import { createCrmOpportunityIdempotency } from "./crm/crm-idempotency.js";
 import { createCrmLeadMethods } from "./crm/crm-leads.js";
+import { withCrmCalendarDates } from "./crm/crm-dates.js";
+import { sameVersion } from "./crm/crm-version.js";
 import type {
   CrmCreateFollowUp,
   CrmCreateOpportunity,
@@ -54,6 +56,7 @@ left join public.crm_referidores r on r.id=p.referido_por_id
 left join public.crm_tipos_servicio ts on ts.id=o.tipo_servicio_id
 left join public.perfiles pr on pr.id=o.responsable_id`;
 export function createCrmRepository(db: Db) {
+  db = withCrmCalendarDates(db);
   const list = async (q: CrmListQuery, scope: CrmScope) => {
     const params: unknown[] = [];
     const clauses: string[] = [];
@@ -307,7 +310,7 @@ values($1,coalesce($2::date,current_date),$3,$4,$5,$6) returning *`,
           ).rows,
           "Opportunity not found",
         );
-        if (old.updated_at !== v.updatedAt)
+        if (!sameVersion(old.updated_at, v.updatedAt))
           throw conflict("Opportunity was modified by another user");
         const map: Record<string, string> = {
           numeroReferencia: "numero_referencia",
@@ -342,7 +345,7 @@ values($1,coalesce($2::date,current_date),$3,$4,$5,$6) returning *`,
           ).rows,
           "Opportunity not found",
         );
-        if (old.updated_at !== v.updatedAt)
+        if (!sameVersion(old.updated_at, v.updatedAt))
           throw conflict("Opportunity was modified by another user");
         if (old.estado !== v.estado) {
           await c.query("update public.crm_oportunidades set estado=$2 where id=$1", [
