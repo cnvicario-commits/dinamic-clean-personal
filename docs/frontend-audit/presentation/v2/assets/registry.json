@@ -1,0 +1,146 @@
+{
+ "ventas": {
+  "file": "/Users/nasserelbacha/Documents/Dinamic sistems/dinamic-clean-personal/docs/frontend-audit/presentation/v2/assets/ventas.png",
+  "w": 1440,
+  "h": 900,
+  "ox": 0,
+  "oy": 0
+ },
+ "clientes": {
+  "file": "/Users/nasserelbacha/Documents/Dinamic sistems/dinamic-clean-personal/docs/frontend-audit/presentation/v2/assets/clientes.png",
+  "w": 1440,
+  "h": 900,
+  "ox": 0,
+  "oy": 0
+ },
+ "empleados": {
+  "file": "/Users/nasserelbacha/Documents/Dinamic sistems/dinamic-clean-personal/docs/frontend-audit/presentation/v2/assets/empleados.png",
+  "w": 1440,
+  "h": 1000,
+  "ox": 0,
+  "oy": 0
+ },
+ "pedido": {
+  "file": "/Users/nasserelbacha/Documents/Dinamic sistems/dinamic-clean-personal/docs/frontend-audit/presentation/v2/assets/pedido.png",
+  "w": 1184,
+  "h": 900,
+  "ox": 256,
+  "oy": 0
+ },
+ "novedades": {
+  "file": "/Users/nasserelbacha/Documents/Dinamic sistems/dinamic-clean-personal/docs/frontend-audit/presentation/v2/assets/novedades.png",
+  "w": 1184,
+  "h": 1250,
+  "ox": 256,
+  "oy": 0
+ },
+ "dash": {
+  "file": "/Users/nasserelbacha/Documents/Dinamic sistems/dinamic-clean-personal/docs/frontend-audit/presentation/v2/assets/dash.png",
+  "w": 1440,
+  "h": 1100,
+  "ox": 0,
+  "oy": 0
+ },
+ "plan": {
+  "file": "/Users/nasserelbacha/Documents/Dinamic sistems/dinamic-clean-personal/docs/frontend-audit/presentation/v2/assets/plan.png",
+  "w": 1440,
+  "h": 1000,
+  "ox": 0,
+  "oy": 0
+ },
+ "login": {
+  "file": "/Users/nasserelbacha/Documents/Dinamic sistems/dinamic-clean-personal/docs/frontend-audit/presentation/v2/assets/login.png",
+  "w": 1440,
+  "h": 900,
+  "ox": 0,
+  "oy": 0
+ },
+ "zoom-plan": {
+  "file": "/Users/nasserelbacha/Documents/Dinamic sistems/dinamic-clean-personal/docs/frontend-audit/presentation/v2/assets/zoom-plan.png",
+  "w": 175,
+  "h": 255,
+  "ox": 725,
+  "oy": 290
+ },
+ "zoom-dash": {
+  "file": "/Users/nasserelbacha/Documents/Dinamic sistems/dinamic-clean-personal/docs/frontend-audit/presentation/v2/assets/zoom-dash.png",
+  "w": 200,
+  "h": 225,
+  "ox": 288,
+  "oy": 535
+ },
+ "tablero": {
+  "file": "/Users/nasserelbacha/Documents/Dinamic sistems/dinamic-clean-personal/docs/frontend-audit/presentation/v2/assets/tablero.png",
+  "w": 1184,
+  "h": 1230,
+  "ox": 0,
+  "oy": 0
+ },
+ "mk-cli-lista": {
+  "file": "/Users/nasserelbacha/Documents/Dinamic sistems/dinamic-clean-personal/docs/frontend-audit/presentation/v2/assets/mk-cli-lista.png",
+  "w": 1024,
+  "h": 602,
+  "ox": 0,
+  "oy": 0
+ },
+ "mk-cli-ficha": {
+  "file": "/Users/nasserelbacha/Documents/Dinamic sistems/dinamic-clean-personal/docs/frontend-audit/presentation/v2/assets/mk-cli-ficha.png",
+  "w": 1024,
+  "h": 720,
+  "ox": 0,
+  "oy": 0
+ },
+ "mk-cli-edit": {
+  "file": "/Users/nasserelbacha/Documents/Dinamic sistems/dinamic-clean-personal/docs/frontend-audit/presentation/v2/assets/mk-cli-edit.png",
+  "w": 1024,
+  "h": 720,
+  "ox": 0,
+  "oy": 0
+ },
+ "mk-ventas": {
+  "file": "/Users/nasserelbacha/Documents/Dinamic sistems/dinamic-clean-personal/docs/frontend-audit/presentation/v2/assets/mk-ventas.png",
+  "w": 1060,
+  "h": 720,
+  "ox": 0,
+  "oy": 0
+ },
+ "mk-pedido": {
+  "file": "/Users/nasserelbacha/Documents/Dinamic sistems/dinamic-clean-personal/docs/frontend-audit/presentation/v2/assets/mk-pedido.png",
+  "w": 1024,
+  "h": 720,
+  "ox": 0,
+  "oy": 0
+ },
+ "mk-panel": {
+  "file": "/Users/nasserelbacha/Documents/Dinamic sistems/dinamic-clean-personal/docs/frontend-audit/presentation/v2/assets/mk-panel.png",
+  "w": 1024,
+  "h": 720,
+  "ox": 0,
+  "oy": 0
+ },
+ "clip-01-ventas": {
+  "video": "/Users/nasserelbacha/Documents/Dinamic sistems/dinamic-clean-personal/docs/frontend-audit/presentation/v2/videos/clip-01-ventas.mp4",
+  "poster": "/Users/nasserelbacha/Documents/Dinamic sistems/dinamic-clean-personal/docs/frontend-audit/presentation/v2/videos/clip-01-ventas-poster.jpg",
+  "frame": "/Users/nasserelbacha/Documents/Dinamic sistems/dinamic-clean-personal/docs/frontend-audit/presentation/v2/assets/clip-01-ventas-frame.png"
+ },
+ "clip-02-pantallas-mezcladas": {
+  "video": "/Users/nasserelbacha/Documents/Dinamic sistems/dinamic-clean-personal/docs/frontend-audit/presentation/v2/videos/clip-02-pantallas-mezcladas.mp4",
+  "poster": "/Users/nasserelbacha/Documents/Dinamic sistems/dinamic-clean-personal/docs/frontend-audit/presentation/v2/videos/clip-02-pantallas-mezcladas-poster.jpg",
+  "frame": "/Users/nasserelbacha/Documents/Dinamic sistems/dinamic-clean-personal/docs/frontend-audit/presentation/v2/assets/clip-02-pantallas-mezcladas-frame.png"
+ },
+ "clip-03-pedido": {
+  "video": "/Users/nasserelbacha/Documents/Dinamic sistems/dinamic-clean-personal/docs/frontend-audit/presentation/v2/videos/clip-03-pedido.mp4",
+  "poster": "/Users/nasserelbacha/Documents/Dinamic sistems/dinamic-clean-personal/docs/frontend-audit/presentation/v2/videos/clip-03-pedido-poster.jpg",
+  "frame": "/Users/nasserelbacha/Documents/Dinamic sistems/dinamic-clean-personal/docs/frontend-audit/presentation/v2/assets/clip-03-pedido-frame.png"
+ },
+ "clip-04-novedades": {
+  "video": "/Users/nasserelbacha/Documents/Dinamic sistems/dinamic-clean-personal/docs/frontend-audit/presentation/v2/videos/clip-04-novedades.mp4",
+  "poster": "/Users/nasserelbacha/Documents/Dinamic sistems/dinamic-clean-personal/docs/frontend-audit/presentation/v2/videos/clip-04-novedades-poster.jpg",
+  "frame": "/Users/nasserelbacha/Documents/Dinamic sistems/dinamic-clean-personal/docs/frontend-audit/presentation/v2/assets/clip-04-novedades-frame.png"
+ },
+ "clip-05-login": {
+  "video": "/Users/nasserelbacha/Documents/Dinamic sistems/dinamic-clean-personal/docs/frontend-audit/presentation/v2/videos/clip-05-login.mp4",
+  "poster": "/Users/nasserelbacha/Documents/Dinamic sistems/dinamic-clean-personal/docs/frontend-audit/presentation/v2/videos/clip-05-login-poster.jpg",
+  "frame": "/Users/nasserelbacha/Documents/Dinamic sistems/dinamic-clean-personal/docs/frontend-audit/presentation/v2/assets/clip-05-login-frame.png"
+ }
+}
