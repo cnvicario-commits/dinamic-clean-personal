@@ -2,6 +2,7 @@ import { badRequest } from '../../http/errors/app-error.js'
 import {
   companyBodySchema,
   companyIdParamsSchema,
+  updateCompanyBodySchema,
   updateCompanyStatusBodySchema,
 } from '../../http/schemas/companies.js'
 import type { CompaniesRepository } from '../../infrastructure/db/companies-repository.js'
@@ -14,7 +15,7 @@ export function createCompany(repo: CompaniesRepository, body: unknown) {
 
 export function updateCompany(repo: CompaniesRepository, id: unknown, body: unknown) {
   const params = companyIdParamsSchema.safeParse({ id })
-  const parsed = companyBodySchema.safeParse(body)
+  const parsed = updateCompanyBodySchema.safeParse(body)
   if (!params.success) throw badRequest('Invalid company id', params.error.flatten())
   if (!parsed.success) throw badRequest('Invalid company payload', parsed.error.flatten())
   return repo.update(params.data.id, parsed.data)

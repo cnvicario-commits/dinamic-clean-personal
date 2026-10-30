@@ -26,8 +26,8 @@ export function createPurchasesService(
     listWarehouses: repo.listWarehouses,
     warehouse: repo.warehouseDetail,
     previewImport: repo.previewImport,
-    createRequest: (i: Parameters<typeof repo.saveRequest>[0], a: Actor) =>
-      mutation(a, "purchase_request.create", undefined, () => repo.saveRequest(i, a.userId)),
+    createRequest: (i: Parameters<typeof repo.saveRequest>[0], a: Actor, key: string) =>
+      mutation(a, "purchase_request.create", undefined, () => repo.saveRequest(i, a.userId, undefined, key)),
     updateRequest: (id: string, i: Parameters<typeof repo.saveRequest>[0], a: Actor) =>
       mutation(a, "purchase_request.update", id, () => repo.saveRequest(i, a.userId, id)),
     transition: (

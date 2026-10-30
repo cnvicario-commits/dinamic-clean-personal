@@ -1,6 +1,6 @@
 import type { Db } from './pool.js'
 import { AppError, conflict, notFound, serviceUnavailable } from '../../http/errors/app-error.js'
-import type { Company, CompanyBody } from '../../http/schemas/companies.js'
+import type { Company, CompanyBody, UpdateCompanyBody } from '../../http/schemas/companies.js'
 
 const FIELDS = 'id, nombre, cuit, domicilio, activo'
 
@@ -12,16 +12,15 @@ function postgresCode(error: unknown): string | null {
 
 /**
  * empresas has no incoming foreign key and no check constraint.
- * nombre/cuit are validated before the insert. A 23505 is the only
- * user-correctable SQLSTATE this table can raise today (a unique value).
- * A NOT NULL miss on an internal column stays a persistence failure.
+ * nombre/cuit are validated before the write. 23505 is the only
+ * user-correctable SQLSTATE this table can raise today.
+ * Any other SQLSTATE, including an internal NOT NULL miss, stays a 500.
  */
 function persistenceError(error: unknown): AppError {
   if (error instanceof AppError) return error
   const code = postgresCode(error)
   if (code === '23505') return conflict('A company with this data already exists')
   if (code?.startsWith('08')) return serviceUnavailable('Database connection failed')
-  if (code) return new AppError(502, 'company_persistence_failed', 'Company persistence failed')
   throw error
 }
 
@@ -45,14 +44,24 @@ export function createCompaniesRepository(db: Db) {
       }
     },
 
-    async update(id: string, input: CompanyBody): Promise<Company> {
+    async update(id: string, input: UpdateCompanyBody): Promise<Company> {
       try {
         const result = await db.query<Company>(
           `update public.empresas
-           set nombre = $2, cuit = $3, domicilio = $4
+           set nombre = case when $2::boolean then $3 else nombre end,
+               cuit = case when $4::boolean then $5 else cuit end,
+               domicilio = case when $6::boolean then $7 else domicilio end
            where id = $1
            returning ${FIELDS}`,
-          [id, input.nombre, input.cuit, input.domicilio],
+          [
+            id,
+            input.nombre !== undefined,
+            input.nombre ?? null,
+            input.cuit !== undefined,
+            input.cuit ?? null,
+            input.domicilio !== undefined,
+            input.domicilio ?? null,
+          ],
         )
         const row = result.rows[0]
         if (!row) throw notFound('Company not found')

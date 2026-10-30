@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 import GrillaLineasPedido from './GrillaLineasPedido'
@@ -70,10 +70,12 @@ export default function PedidoCompraForm({
 
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const idempotencyKey = useRef(crypto.randomUUID())
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    if (loading) return
     // Se captura acá, antes de cualquier await: el evento sintético de React
     // no garantiza que currentTarget siga siendo válido después de un await.
     const formEl = e.currentTarget
@@ -130,7 +132,7 @@ export default function PedidoCompraForm({
       const api = await createAuthenticatedBrowserApiClient()
       const saved = pedido
         ? await api.updatePurchaseRequest(pedido.id, payload)
-        : await api.createPurchaseRequest(payload)
+        : await api.createPurchaseRequest(payload, idempotencyKey.current)
       if (pedido) router.refresh()
       else router.push(`/pedidos-compra/${saved.id}`)
     } catch (error) {

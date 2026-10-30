@@ -16,6 +16,10 @@ export type CompanyWriteResult =
   | { ok: true }
   | { ok: false; message: string }
 
+export function canManageCompanies(role: string | null | undefined) {
+  return role === 'admin'
+}
+
 export function saveCompany(api: CompanyWriter, body: CompanyWriteBody, id?: string) {
   return id ? api.updateCompany(id, body) : api.createCompany(body)
 }

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '../api/generated'
-import { runCompanyWrite, saveCompany, saveCompanyStatus, type CompanyWriter } from './company-writes'
+import { canManageCompanies, runCompanyWrite, saveCompany, saveCompanyStatus, type CompanyWriter } from './company-writes'
 
 const body = { nombre: 'ACME', cuit: '30-1', domicilio: null }
 
@@ -36,12 +36,25 @@ describe('company writes', () => {
     await expect(runCompanyWrite(async () => ({ id: '1' }))).resolves.toEqual({ ok: true })
   })
 
+  it('lets only admin manage companies', () => {
+    expect(canManageCompanies('admin')).toBe(true)
+    for (const role of ['gerente', 'compras', 'supervisor', 'auditoria', 'ventas', null, undefined]) {
+      expect(canManageCompanies(role)).toBe(false)
+    }
+  })
+
   it('keeps the empresas screens off direct PostgREST writes', () => {
     const root = resolve(import.meta.dirname, '../../..')
     for (const file of ['src/components/EmpresaForm.tsx', 'src/components/EmpresaEstadoBoton.tsx']) {
       const source = readFileSync(resolve(root, file), 'utf8')
       expect(source).not.toMatch(/supabase\.from\(['"]empresas['"]\)/)
+      expect(source).not.toMatch(/\.(insert|update|delete|upsert)\(/)
       expect(source).toMatch(/runCompanyWrite/)
     }
+    const panel = readFileSync(resolve(root, 'src/components/EmpresasPanel.tsx'), 'utf8')
+    const table = readFileSync(resolve(root, 'src/components/EmpresasTabla.tsx'), 'utf8')
+    expect(panel).toMatch(/canWrite/)
+    expect(table).toMatch(/canWrite/)
+    expect(readFileSync(resolve(root, 'src/app/empresas/page.tsx'), 'utf8')).toMatch(/canManageCompanies/)
   })
 })

@@ -920,6 +920,7 @@ export type CompanyRecord = {
   activo: boolean
 }
 export type CompanyBody = { nombre: string; cuit: string; domicilio?: string | null }
+export type UpdateCompanyBody = { nombre?: string; cuit?: string; domicilio?: string | null }
 export type UpdateCompanyStatusBody = { activo: boolean }
 
 export type EmployeeAssignment = {

@@ -80,6 +80,7 @@ describe.skipIf(!enabled)('ventas role smoke (Supabase Auth + API + DB)', () => 
     const usersDeps = {
       identity: app.identityAdmin,
       profiles: app.profilesRepo,
+      compensation: app.authCompensation,
     }
     const adminEmail = process.env.SMOKE_TEST_ADMIN_EMAIL?.trim()
     const adminPassword = process.env.SMOKE_TEST_ADMIN_PASSWORD

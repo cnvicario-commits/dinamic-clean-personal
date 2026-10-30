@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type pg from "pg";
 import type { Db } from "./pool.js";
 import { AppError, badRequest, notFound } from "../../http/errors/app-error.js";
@@ -69,8 +70,30 @@ where cp.cliente_id=$1 order by cp.created_at desc,cp.id`,
       ]);
       return { client, addresses: addresses.rows, quotes: quotes.rows };
     },
-    async create(input: CreateClientBody) {
+    async create(input: CreateClientBody, scope: { actorId: string; key: string }) {
       return transaction(async (client) => {
+        const hash = createHash("sha256").update(JSON.stringify(input)).digest("hex");
+        await client.query(
+          `insert into public.client_operation_idempotency(actor_id,operation,idempotency_key,payload_hash,status)
+           values($1,'client_create',$2,$3,'PROCESSING') on conflict do nothing`,
+          [scope.actorId, scope.key, hash],
+        );
+        const existing = (
+          await client.query(
+            `select payload_hash,status,response from public.client_operation_idempotency
+             where actor_id=$1 and operation='client_create' and idempotency_key=$2 for update`,
+            [scope.actorId, scope.key],
+          )
+        ).rows[0] as { payload_hash?: string; status?: string; response?: unknown } | undefined;
+        if (!existing) throw new AppError(500, "internal_error", "Idempotency row missing");
+        if (existing.payload_hash !== hash) {
+          throw new AppError(
+            409,
+            "idempotency_key_payload_mismatch",
+            "Idempotency-Key already used with a different payload",
+          );
+        }
+        if (existing.status === "COMPLETED") return existing.response;
         const result = await client.query(
           `insert into public.clientes (nombre,cuit,persona_contacto,codigo_costos,presupuesto_4hs,presupuesto_8hs,domicilio,lleva_insumos) values($1,$2,$3,$4,$5,$6,$7,$8) returning ${CLIENT_FIELDS}`,
           [
@@ -91,6 +114,12 @@ where cp.cliente_id=$1 order by cp.created_at desc,cp.id`,
             `insert into public.cliente_domicilios (cliente_id,alias,direccion,es_principal,activo) values($1,'Principal',$2,true,true)`,
             [row.id, input.domicilio],
           );
+        await client.query(
+          `update public.client_operation_idempotency
+           set status='COMPLETED', response=$3, updated_at=now()
+           where actor_id=$1 and operation='client_create' and idempotency_key=$2`,
+          [scope.actorId, scope.key, row],
+        );
         return row;
       });
     },

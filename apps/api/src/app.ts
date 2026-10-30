@@ -13,6 +13,10 @@ import {
   createProfilesRepository,
   type ProfilesRepository,
 } from './infrastructure/db/profiles-repository.js'
+import {
+  createAuthCompensationRepository,
+  type AuthCompensationRepository,
+} from './infrastructure/db/auth-compensation-repository.js'
 import { authenticateRequest } from './http/plugins/auth.js'
 import { healthRoutes } from './http/routes/health.js'
 import { meRoutes } from './http/routes/v1/me.js'
@@ -65,6 +69,7 @@ declare module 'fastify' {
     jwtVerifier: JwtVerifier
     identityAdmin: IdentityAdmin
     profilesRepo: ProfilesRepository
+    authCompensation: AuthCompensationRepository
     employeesRepo: EmployeesRepository
     companiesRepo: CompaniesRepository
     assignmentsRepo: AssignmentsRepository
@@ -104,6 +109,7 @@ export type BuildAppOptions = {
   /** Test inject — when both identity + profiles are provided, module is ready. */
   identityAdmin?: IdentityAdmin
   profilesRepo?: ProfilesRepository
+  authCompensation?: AuthCompensationRepository
   clientsRepo?: ClientsRepository
   companiesRepo?: CompaniesRepository
   clientQuotesStorage?: ClientQuotesStorage
@@ -202,12 +208,14 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
     options.identityAdmin ?? (hasKey ? createIdentityAdmin(env) : null)
   // Profiles use the DB pool only (Phase 2D) — no service-role table client.
   const profilesRepo = options.profilesRepo ?? createProfilesRepository(db)
+  const authCompensation = options.authCompensation ?? createAuthCompensationRepository(db)
 
   // Ready iff Auth Admin is wired (key or inject) and profiles repo is present.
   const usersModuleReady = identityAdmin != null
 
   app.decorate('identityAdmin', identityAdmin ?? stubIdentityAdmin())
   app.decorate('profilesRepo', profilesRepo ?? stubProfilesRepo())
+  app.decorate('authCompensation', authCompensation)
   app.decorate('employeesRepo', createEmployeesRepository(db))
   app.decorate('companiesRepo', options.companiesRepo ?? createCompaniesRepository(db))
   app.decorate('assignmentsRepo', createAssignmentsRepository(db))
@@ -319,7 +327,7 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
               )
             : toAppError(err)
 
-    if (appErr.code === 'user_create_orphan') {
+    if (appErr.code === 'user_create_failed' || appErr.code === 'user_create_orphan') {
       request.log.error(
         {
           code: appErr.code,

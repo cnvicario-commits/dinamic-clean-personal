@@ -183,10 +183,10 @@ describe('repository postgres mapping', () => {
 
   it('maps client, catalog, crm, attendance, and results writes', async () => {
     await expect(
-      createClientsRepository(db(pgError('23503'))).create(createClientBodySchema.parse({ nombre: 'Cliente' })),
+      createClientsRepository(db(pgError('23503'))).create(createClientBodySchema.parse({ nombre: 'Cliente' }), { actorId: USER, key: 'client-1' }),
     ).rejects.toMatchObject({ status: 400, message: 'Related client data does not exist' })
     await expect(
-      createClientsRepository(db(pgError('23514'))).create(createClientBodySchema.parse({ nombre: 'Cliente' })),
+      createClientsRepository(db(pgError('23514'))).create(createClientBodySchema.parse({ nombre: 'Cliente' }), { actorId: USER, key: 'client-2' }),
     ).rejects.toMatchObject({ status: 400, code: 'bad_request' })
 
     await expect(

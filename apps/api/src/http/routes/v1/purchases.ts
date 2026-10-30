@@ -51,7 +51,7 @@ export const purchasesRoutes: FastifyPluginAsync = async (app) => {
     async (r, reply) =>
       reply
         .code(201)
-        .send(await app.purchasesService.createRequest(body(purchaseRequest, r.body), actor(r))),
+        .send(await app.purchasesService.createRequest(body(purchaseRequest, r.body), actor(r), key(r))),
   );
   app.put(
     "/v1/purchase-requests/:id",

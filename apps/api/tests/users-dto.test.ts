@@ -5,7 +5,10 @@ import {
   parseSetUserPasswordBody,
   parseUpdateOwnProfileBody,
   createUser,
+  retryAuthCompensations,
 } from '../src/application/users/users-service.js'
+import type { AuthCompensationJob, AuthCompensationRepository } from '../src/infrastructure/db/auth-compensation-repository.js'
+import { notFound } from '../src/http/errors/app-error.js'
 import type { IdentityAdmin } from '../src/infrastructure/auth/identity-admin.js'
 import type { ProfilesRepository, ProfileRecord } from '../src/infrastructure/db/profiles-repository.js'
 import { AppError } from '../src/http/errors/app-error.js'
@@ -87,9 +90,30 @@ describe('users/profile DTOs (strict allowlist)', () => {
 })
 
 describe('createUser compensation', () => {
+  function memoryCompensation(): AuthCompensationRepository & { jobs: AuthCompensationJob[] } {
+    const jobs: AuthCompensationJob[] = []
+    return {
+      jobs,
+      async recordPending(authUserId) {
+        if (jobs.some((job) => job.authUserId === authUserId && job.attempts < 5)) return
+        jobs.push({ id: `job-${jobs.length + 1}`, authUserId, attempts: 0 })
+      },
+      async claimPending(limit) {
+        return jobs.filter((job) => job.attempts < 5).slice(0, limit)
+      },
+      async mark(id, status, _errorCode, attempts) {
+        const job = jobs.find((item) => item.id === id)
+        if (!job) return
+        job.attempts = attempts
+        if (status !== 'pending') jobs.splice(jobs.indexOf(job), 1)
+      },
+    }
+  }
+
   function deps(overrides: {
     identity?: Partial<IdentityAdmin>
     profiles?: Partial<ProfilesRepository>
+    compensation?: AuthCompensationRepository
   }) {
     const identity: IdentityAdmin = {
       createAuthUser: async () => ({
@@ -135,7 +159,7 @@ describe('createUser compensation', () => {
         }),
       ...overrides.profiles,
     }
-    return { identity, profiles }
+    return { identity, profiles, compensation: overrides.compensation ?? memoryCompensation() }
   }
 
   it('deletes Auth user when profile upsert fails', async () => {
@@ -160,16 +184,22 @@ describe('createUser compensation', () => {
     expect(deleted).toEqual(['11111111-1111-4111-8111-111111111111'])
   })
 
-  it('orphan when compensate delete fails — never success', async () => {
+  it('records a durable job when compensate delete fails and hides provider details', async () => {
+    const compensation = memoryCompensation()
+    const logged: Array<Record<string, unknown>> = []
     await expect(
       createUser(
-        deps({
-          identity: {
-            async deleteAuthUser() {
-              throw new AppError(502, 'auth_delete_failed', 'Identity provider error')
+        {
+          ...deps({
+            identity: {
+              async deleteAuthUser() {
+                throw new AppError(502, 'auth_delete_failed', 'Identity provider error')
+              },
             },
-          },
-        }),
+            compensation,
+          }),
+          logOrphan: (payload) => logged.push(payload),
+        },
         {
           email: 'a@b.com',
           password: 'secret1',
@@ -178,7 +208,72 @@ describe('createUser compensation', () => {
         },
         { requestId: 'req-1' },
       ),
-    ).rejects.toMatchObject({ code: 'user_create_orphan', status: 500 })
+    ).rejects.toMatchObject({ code: 'user_create_failed', status: 500, details: undefined })
+    expect(compensation.jobs).toEqual([
+      { id: 'job-1', authUserId: '11111111-1111-4111-8111-111111111111', attempts: 0 },
+    ])
+    expect(JSON.stringify(logged)).not.toMatch(/secret1|service_role|Identity provider/)
+    expect(logged.at(-1)).toMatchObject({
+      requestId: 'req-1',
+      authUserId: '11111111-1111-4111-8111-111111111111',
+      operation: 'create_user',
+      compensationAttempted: true,
+      compensationSucceeded: false,
+      errorClass: 'auth_delete_failed',
+      durable: true,
+    })
+  })
+
+  it('fails cleanly when Auth create fails', async () => {
+    const compensation = memoryCompensation()
+    await expect(
+      createUser(
+        deps({
+          identity: {
+            async createAuthUser() {
+              throw new AppError(409, 'conflict', 'A user with this email already exists')
+            },
+          },
+          compensation,
+        }),
+        {
+          email: 'a@b.com',
+          password: 'secret1',
+          nombreCompleto: 'A',
+          rol: 'supervisor',
+        },
+      ),
+    ).rejects.toMatchObject({ status: 409 })
+    expect(compensation.jobs).toEqual([])
+  })
+
+  it('retries a pending compensation and treats an already-deleted user as clean', async () => {
+    const compensation = memoryCompensation()
+    await compensation.recordPending('11111111-1111-4111-8111-111111111111')
+    const deleted: string[] = []
+    const base = deps({
+      identity: {
+        async deleteAuthUser(id) {
+          deleted.push(id)
+        },
+      },
+      compensation,
+    })
+    await expect(retryAuthCompensations(base, { limit: 5 })).resolves.toBe(1)
+    expect(deleted).toEqual(['11111111-1111-4111-8111-111111111111'])
+    expect(compensation.jobs).toEqual([])
+
+    await compensation.recordPending('22222222-2222-4222-8222-222222222222')
+    const again = deps({
+      identity: {
+        async deleteAuthUser() {
+          throw notFound('User not found')
+        },
+      },
+      compensation,
+    })
+    await expect(retryAuthCompensations(again, { limit: 5 })).resolves.toBe(1)
+    expect(compensation.jobs).toEqual([])
   })
 
   it('returns admin user on success', async () => {

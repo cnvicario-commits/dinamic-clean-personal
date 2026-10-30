@@ -27,8 +27,17 @@ function usersDeps(app: FastifyInstance) {
   return {
     identity: app.identityAdmin,
     profiles: app.profilesRepo,
-    logOrphan: (payload: { requestId?: string; authUserId: string }) => {
-      app.log.error(payload, 'user_create_orphan')
+    compensation: app.authCompensation,
+    logOrphan: (payload: {
+      requestId?: string
+      authUserId?: string
+      operation: string
+      compensationAttempted: boolean
+      compensationSucceeded: boolean
+      errorClass: string
+      durable?: boolean
+    }) => {
+      app.log.error(payload, 'user_create_compensation')
     },
     logAdminAction: (payload: {
       requestId?: string

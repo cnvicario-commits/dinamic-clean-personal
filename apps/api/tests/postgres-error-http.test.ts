@@ -115,7 +115,7 @@ describe('postgres constraint HTTP mapping', () => {
     const purchase = await app.inject({
       method: 'POST',
       url: '/v1/purchase-requests',
-      headers,
+      headers: { ...headers, 'idempotency-key': 'purchase-pg' },
       payload: { empresaId: ID, clienteId: ID, items: [{ articuloId: ID, cantidad: 1 }] },
     })
     expect(purchase.statusCode).toBe(400)
@@ -157,7 +157,7 @@ describe('postgres constraint HTTP mapping', () => {
     const headers = await auth()
     const clients = await (
       await start({ db: throwingDb(pgError('23514')) })
-    ).inject({ method: 'POST', url: '/v1/clients', headers, payload: { nombre: 'Cliente' } })
+    ).inject({ method: 'POST', url: '/v1/clients', headers: { ...headers, 'idempotency-key': 'client-pg' }, payload: { nombre: 'Cliente' } })
     expect(clients.statusCode).toBe(400)
     expect(clients.json().code).toBe('bad_request')
     expectClientSafe(clients.body, clients.statusCode)
@@ -233,7 +233,7 @@ describe('postgres constraint HTTP mapping', () => {
     ).inject({
       method: 'POST',
       url: '/v1/clients',
-      headers: await auth(),
+      headers: { ...(await auth()), 'idempotency-key': 'client-unmapped' },
       payload: { nombre: 'Cliente' },
     })
     expect(response.statusCode).toBe(500)

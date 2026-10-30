@@ -14,6 +14,26 @@ export const companyBodySchema = companyBodyOpenApiSchema.transform((body) => ({
   domicilio: body.domicilio && body.domicilio.length > 0 ? body.domicilio : null,
 }))
 
+export const updateCompanyBodyOpenApiSchema = z
+  .object({
+    nombre: z.string().trim().min(1).max(300).optional(),
+    cuit: z.string().trim().min(1).max(50).optional(),
+    domicilio: z.union([z.string().trim().max(500), z.null()]).optional(),
+  })
+  .strict()
+
+export const updateCompanyBodySchema = updateCompanyBodyOpenApiSchema
+  .transform((body) => {
+    const patch: { nombre?: string; cuit?: string; domicilio?: string | null } = {}
+    if (body.nombre !== undefined) patch.nombre = body.nombre
+    if (body.cuit !== undefined) patch.cuit = body.cuit
+    if (body.domicilio !== undefined) {
+      patch.domicilio = body.domicilio && body.domicilio.length > 0 ? body.domicilio : null
+    }
+    return patch
+  })
+  .refine((body) => Object.keys(body).length > 0, { message: 'At least one field is required' })
+
 export const updateCompanyStatusBodySchema = z.object({ activo: z.boolean() }).strict()
 export const companyIdParamsSchema = z.object({ id: postgresUuid }).strict()
 
@@ -26,5 +46,6 @@ export const companySchema = z.object({
 })
 
 export type CompanyBody = z.infer<typeof companyBodySchema>
+export type UpdateCompanyBody = z.infer<typeof updateCompanyBodySchema>
 export type UpdateCompanyStatusBody = z.infer<typeof updateCompanyStatusBodySchema>
 export type Company = z.infer<typeof companySchema>

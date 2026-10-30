@@ -19,6 +19,7 @@ export type {
   UpdateEmployeeStatusBody,
   CompanyRecord,
   CompanyBody,
+  UpdateCompanyBody,
   UpdateCompanyStatusBody,
   EmployeeMutationResponse,
   EmployeeAssignment,

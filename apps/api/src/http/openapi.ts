@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   companyBodyOpenApiSchema,
   companySchema,
+  updateCompanyBodyOpenApiSchema,
   updateCompanyStatusBodySchema,
 } from "./schemas/companies.js";
 import {
@@ -966,12 +967,12 @@ export const openApiDocument = {
     },
     "/v1/companies/{id}": {
       patch: {
-        summary: "Update company name, CUIT and address",
+        summary: "Update one or more editable company fields",
         security: bearer,
         parameters: idParameter,
         requestBody: {
           required: true,
-          content: { "application/json": { schema: { $ref: "#/components/schemas/CompanyBody" } } },
+          content: { "application/json": { schema: { $ref: "#/components/schemas/UpdateCompanyBody" } } },
         },
         responses: {
           "200": {
@@ -2260,6 +2261,7 @@ export const openApiDocument = {
       ListEmployeesQuery: LIST_EMPLOYEES_QUERY_OPENAPI,
       Company: zodJsonSchema(companySchema),
       CompanyBody: zodJsonSchema(companyBodyOpenApiSchema),
+      UpdateCompanyBody: zodJsonSchema(updateCompanyBodyOpenApiSchema),
       UpdateCompanyStatusBody: zodJsonSchema(updateCompanyStatusBodySchema),
       CreateEmployeeBody: zodJsonSchema(createEmployeeBodySchema),
       UpdateEmployeeStatusBody: zodJsonSchema(updateEmployeeStatusBodySchema),
