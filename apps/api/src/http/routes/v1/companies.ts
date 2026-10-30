@@ -8,7 +8,13 @@ import {
 
 export const companiesRoutes: FastifyPluginAsync = async (app) => {
   app.post('/v1/companies', { preHandler: [requirePermission('companies:create')] }, async (request, reply) => {
-    const company = await createCompany(app.companiesRepo, request.body)
+    const actorId = (request as { auth?: { userId: string } }).auth?.userId ?? ''
+    const company = await createCompany(
+      app.companiesRepo,
+      request.body,
+      actorId,
+      request.headers['idempotency-key'],
+    )
     return reply.status(201).send(company)
   })
 

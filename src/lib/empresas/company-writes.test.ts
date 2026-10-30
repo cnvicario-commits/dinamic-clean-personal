@@ -17,10 +17,10 @@ function writer(): CompanyWriter {
 describe('company writes', () => {
   it('creates, updates and changes status through the API client', async () => {
     const api = writer()
-    await saveCompany(api, body)
+    await saveCompany(api, body, undefined, 'company-key')
     await saveCompany(api, body, 'company-1')
     await saveCompanyStatus(api, 'company-1', false)
-    expect(api.createCompany).toHaveBeenCalledWith(body)
+    expect(api.createCompany).toHaveBeenCalledWith(body, 'company-key')
     expect(api.updateCompany).toHaveBeenCalledWith('company-1', body)
     expect(api.setCompanyStatus).toHaveBeenCalledWith('company-1', { activo: false })
   })
@@ -51,6 +51,7 @@ describe('company writes', () => {
       expect(source).not.toMatch(/\.(insert|update|delete|upsert)\(/)
       expect(source).toMatch(/runCompanyWrite/)
     }
+    expect(readFileSync(resolve(root, 'src/components/EmpresaForm.tsx'), 'utf8')).toMatch(/idempotencyKey/)
     const panel = readFileSync(resolve(root, 'src/components/EmpresasPanel.tsx'), 'utf8')
     const table = readFileSync(resolve(root, 'src/components/EmpresasTabla.tsx'), 'utf8')
     expect(panel).toMatch(/canWrite/)

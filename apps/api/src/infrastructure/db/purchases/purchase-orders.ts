@@ -1,5 +1,7 @@
+import { createHash } from "node:crypto";
 import type pg from "pg";
 import type { Db } from "../pool.js";
+import { AppError } from "../../../http/errors/app-error.js";
 import type { OrderInput, RequestItem } from "./purchases-types.js";
 
 export function createPurchaseOrderMethods(
@@ -39,8 +41,30 @@ where i.${fk}=$1 order by i.created_at,i.id`,
     return { ...first(h.rows, "Record not found"), [itemsTable]: items.rows };
   }
 
-  async function createOrder(input: OrderInput, actorId: string) {
+  async function createOrder(input: OrderInput, actorId: string, idempotencyKey: string) {
     return transaction(db, async (c) => {
+      const hash = createHash("sha256").update(JSON.stringify(input)).digest("hex");
+      await c.query(
+        `insert into public.purchase_operation_idempotency(actor_id,operation,idempotency_key,payload_hash,status)
+         values($1,'purchase_order_create',$2,$3,'PROCESSING') on conflict do nothing`,
+        [actorId, idempotencyKey, hash],
+      );
+      const existing = (
+        await c.query(
+          `select payload_hash,status,response from public.purchase_operation_idempotency
+           where actor_id=$1 and operation='purchase_order_create' and idempotency_key=$2 for update`,
+          [actorId, idempotencyKey],
+        )
+      ).rows[0] as { payload_hash?: string; status?: string; response?: Record<string, unknown> } | undefined;
+      if (!existing) throw new AppError(500, "internal_error", "Idempotency row missing");
+      if (existing.payload_hash !== hash) {
+        throw new AppError(
+          409,
+          "idempotency_key_payload_mismatch",
+          "Idempotency-Key already used with a different payload",
+        );
+      }
+      if (existing.status === "COMPLETED" && existing.response) return existing.response;
       await validate(c, input, input.items);
       const h = first(
         (
@@ -68,6 +92,12 @@ values($1,$2,$3,null,$4,$5,$6,$7,$8,'borrador',$9) returning *`,
           "insert into public.ordenes_compra_items(oc_id,articulo_id,cantidad,precio_unitario,observaciones) values($1,$2,$3,$4,$5)",
           [h.id, i.articuloId, i.cantidad, i.precioUnitario, i.observaciones ?? null],
         );
+      await c.query(
+        `update public.purchase_operation_idempotency
+         set status='COMPLETED', response=$3, updated_at=now()
+         where actor_id=$1 and operation='purchase_order_create' and idempotency_key=$2`,
+        [actorId, idempotencyKey, h],
+      );
       return h;
     });
   }

@@ -28,23 +28,44 @@ function companyDb(mode: 'ok' | 'unique' | 'missing' | 'not_null' | 'connection'
   const base = createProfileStubDb({
     profile: { id: USER, nombre_completo: 'User', rol: 'admin' },
   })
-  return {
+  let hash: string | null = null
+  const db: Db = {
     ...base,
     async query(text, params) {
-      const sql = text.replace(/\s+/g, ' ').toLowerCase()
+      const sql = text.replace(/\s+/g, ' ').trim().toLowerCase()
       if (sql.includes('from public.perfiles') || sql.includes('from auth.users')) {
         return base.query(text, params)
       }
+      if (sql === 'begin' || sql === 'commit' || sql === 'rollback') return result([])
+      if (sql.includes('company_operation_idempotency') && sql.startsWith('insert')) {
+        hash = String(params?.[2] ?? '')
+        return result([])
+      }
+      if (sql.includes('company_operation_idempotency') && sql.includes('for update')) {
+        return result([{ payload_hash: hash, status: 'PROCESSING', response: null }])
+      }
+      if (sql.includes('company_operation_idempotency')) return result([])
       if (sql.startsWith('update public.empresas') && sql.includes('case when')) seen.push(params ?? [])
-      if (mode === 'unique') throw pgFailure('23505')
-      if (mode === 'not_null') throw pgFailure('23502')
-      if (mode === 'connection') throw pgFailure('08006')
-      if (mode === 'unknown') throw pgFailure('99999')
-      if (mode === 'missing') return result([])
+      if (sql.startsWith('update public.empresas') || sql.startsWith('insert into public.empresas')) {
+        if (mode === 'unique' && sql.startsWith('insert')) throw pgFailure('23505')
+        if (mode === 'not_null' && sql.startsWith('insert')) throw pgFailure('23502')
+        if (mode === 'connection' && sql.startsWith('insert')) throw pgFailure('08006')
+        if (mode === 'unknown') throw pgFailure('99999')
+        if (mode === 'missing') return result([])
+      }
       return result([ROW])
     },
   }
+  db.pool = {
+    connect: async () => ({
+      query: db.query,
+      release: () => undefined,
+    }),
+  } as unknown as Db['pool']
+  return db
 }
+
+const keyHeaders = { 'idempotency-key': 'company-1' }
 
 async function start(role: string, options: Parameters<typeof buildApp>[1] = {}) {
   const app = await buildApp(testEnv(), {
@@ -83,7 +104,12 @@ describe('companies HTTP', () => {
   it('creates, updates and changes status for admin', async () => {
     const app = await start('admin', { db: companyDb('ok') })
     const headers = await auth()
-    const created = await app.inject({ method: 'POST', url: '/v1/companies', headers, payload })
+    const created = await app.inject({
+      method: 'POST',
+      url: '/v1/companies',
+      headers: { ...headers, ...keyHeaders },
+      payload,
+    })
     expect(created.statusCode).toBe(201)
     expect(created.json()).toMatchObject({ id: ID, nombre: 'ACME', activo: true })
     const updated = await app.inject({ method: 'PATCH', url: `/v1/companies/${ID}`, headers, payload })
@@ -101,6 +127,9 @@ describe('companies HTTP', () => {
     const app = await start('admin', { db: companyDb('ok') })
     const headers = await auth()
     expect((await app.inject({ method: 'POST', url: '/v1/companies', headers, payload: { nombre: ' ', cuit: '30' } })).statusCode).toBe(400)
+    const missingKey = await app.inject({ method: 'POST', url: '/v1/companies', headers, payload })
+    expect(missingKey.statusCode).toBe(400)
+    expect(missingKey.json().detail).toBe('Idempotency-Key header is required')
     expect((await app.inject({ method: 'PATCH', url: '/v1/companies/not-a-uuid', headers, payload })).statusCode).toBe(400)
     expect((await app.inject({ method: 'PATCH', url: `/v1/companies/${ID}`, headers, payload: { activo: false } })).statusCode).toBe(400)
     const status = await app.inject({
@@ -118,7 +147,7 @@ describe('companies HTTP', () => {
     const conflict = await (await start('admin', { db: companyDb('unique') })).inject({
       method: 'POST',
       url: '/v1/companies',
-      headers,
+      headers: { ...headers, ...keyHeaders },
       payload,
     })
     expect(conflict.statusCode).toBe(409)
@@ -169,7 +198,7 @@ describe('companies HTTP', () => {
   it('keeps unknown company SQLSTATE and non-Postgres failures as 500', async () => {
     const headers = await auth()
     const notNull = await (await start('admin', { db: companyDb('not_null') })).inject({
-      method: 'POST', url: '/v1/companies', headers, payload,
+      method: 'POST', url: '/v1/companies', headers: { ...headers, ...keyHeaders }, payload,
     })
     expect(notNull.statusCode).toBe(500)
     expect(notNull.json().code).toBe('internal_error')
@@ -180,7 +209,7 @@ describe('companies HTTP', () => {
     expect(unknown.statusCode).toBe(500)
     expect(unknown.json().code).toBe('internal_error')
     const connection = await (await start('admin', { db: companyDb('connection') })).inject({
-      method: 'POST', url: '/v1/companies', headers, payload,
+      method: 'POST', url: '/v1/companies', headers: { ...headers, ...keyHeaders }, payload,
     })
     expect(connection.statusCode).toBe(503)
     expect(connection.json().code).toBe('service_unavailable')
@@ -199,7 +228,7 @@ describe('companies HTTP', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/v1/companies',
-      headers: await auth(),
+      headers: { ...(await auth()), ...keyHeaders },
       payload,
     })
     expect(response.statusCode).toBe(500)

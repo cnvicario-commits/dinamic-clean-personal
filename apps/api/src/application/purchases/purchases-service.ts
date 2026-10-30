@@ -38,8 +38,8 @@ export function createPurchasesService(
     ) => mutation(a, `${table}.transition`, id, () => repo.transition(table, id, state)),
     discard: (id: string, i: Parameters<typeof repo.discard>[1], a: Actor) =>
       mutation(a, "purchase_request_item.discard", id, () => repo.discard(id, i)),
-    createOrder: (i: Parameters<typeof repo.createOrder>[0], a: Actor) =>
-      mutation(a, "purchase_order.create", undefined, () => repo.createOrder(i, a.userId)),
+    createOrder: (i: Parameters<typeof repo.createOrder>[0], key: string, a: Actor) =>
+      mutation(a, "purchase_order.create", undefined, () => repo.createOrder(i, a.userId, key)),
     assign: (id: string, i: Parameters<typeof repo.applyAssignments>[1], key: string, a: Actor) =>
       mutation(a, "purchase_order.generate", id, () => repo.applyAssignments(id, i, key, a.userId)),
     applyImport: (i: Parameters<typeof repo.applyImport>[0], key: string, a: Actor) =>

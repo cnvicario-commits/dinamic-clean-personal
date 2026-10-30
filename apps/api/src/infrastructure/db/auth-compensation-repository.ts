@@ -25,19 +25,42 @@ export function createAuthCompensationRepository(db: Db): AuthCompensationReposi
       )
     },
     async claimPending(limit) {
-      const result = await db.query<{ id: string; auth_user_id: string; attempts: number }>(
-        `select id, auth_user_id, attempts
-         from public.auth_compensation_jobs
-         where status = 'pending' and attempts < $2
-         order by created_at
-         limit $1`,
-        [limit, MAX_ATTEMPTS],
-      )
-      return result.rows.map((row) => ({
-        id: row.id,
-        authUserId: row.auth_user_id,
-        attempts: row.attempts,
-      }))
+      const client = await db.pool.connect()
+      try {
+        await client.query('begin')
+        await client.query(
+          `update public.auth_compensation_jobs
+           set status = 'pending', updated_at = now()
+           where status = 'processing' and updated_at < now() - interval '2 minutes'`,
+        )
+        const result = await client.query<{ id: string; auth_user_id: string; attempts: number }>(
+          `with claimed as (
+             select id
+             from public.auth_compensation_jobs
+             where status = 'pending' and attempts < $2
+             order by created_at
+             for update skip locked
+             limit $1
+           )
+           update public.auth_compensation_jobs as job
+           set status = 'processing', updated_at = now()
+           from claimed
+           where job.id = claimed.id
+           returning job.id, job.auth_user_id, job.attempts`,
+          [limit, MAX_ATTEMPTS],
+        )
+        await client.query('commit')
+        return result.rows.map((row) => ({
+          id: row.id,
+          authUserId: row.auth_user_id,
+          attempts: row.attempts,
+        }))
+      } catch (error) {
+        await client.query('rollback')
+        throw error
+      } finally {
+        client.release()
+      }
     },
     async mark(id, status, errorCode, attempts) {
       await db.query(

@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 import { runCompanyWrite, saveCompany } from '@/lib/empresas/company-writes'
@@ -17,6 +17,7 @@ export default function EmpresaForm({
   const [domicilio, setDomicilio] = useState(empresa?.domicilio ?? '')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const idempotencyKey = useRef(crypto.randomUUID())
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -41,6 +42,7 @@ export default function EmpresaForm({
           domicilio: domicilio.trim() || null,
         },
         empresa?.id,
+        empresa ? undefined : idempotencyKey.current,
       ),
     )
     setLoading(false)

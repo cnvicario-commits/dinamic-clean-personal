@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import type { Db } from './pool.js'
 import { AppError, conflict, notFound, serviceUnavailable } from '../../http/errors/app-error.js'
 import type { Company, CompanyBody, UpdateCompanyBody } from '../../http/schemas/companies.js'
@@ -28,9 +29,40 @@ export type CompaniesRepository = ReturnType<typeof createCompaniesRepository>
 
 export function createCompaniesRepository(db: Db) {
   return {
-    async create(input: CompanyBody): Promise<Company> {
+    async create(input: CompanyBody, scope: { actorId: string; key: string }): Promise<Company> {
+      const client = await db.pool.connect()
       try {
-        const result = await db.query<Company>(
+        await client.query('begin')
+        const hash = createHash('sha256').update(JSON.stringify(input)).digest('hex')
+        await client.query(
+          `insert into public.company_operation_idempotency
+             (actor_id, operation, idempotency_key, payload_hash, status)
+           values ($1, 'company_create', $2, $3, 'PROCESSING')
+           on conflict do nothing`,
+          [scope.actorId, scope.key, hash],
+        )
+        const existing = (
+          await client.query<{ payload_hash: string; status: string; response: Company | null }>(
+            `select payload_hash, status, response
+             from public.company_operation_idempotency
+             where actor_id = $1 and operation = 'company_create' and idempotency_key = $2
+             for update`,
+            [scope.actorId, scope.key],
+          )
+        ).rows[0]
+        if (!existing) throw new AppError(500, 'internal_error', 'Idempotency row missing')
+        if (existing.payload_hash !== hash) {
+          throw new AppError(
+            409,
+            'idempotency_key_payload_mismatch',
+            'Idempotency-Key already used with a different payload',
+          )
+        }
+        if (existing.status === 'COMPLETED' && existing.response) {
+          await client.query('commit')
+          return existing.response
+        }
+        const result = await client.query<Company>(
           `insert into public.empresas (nombre, cuit, domicilio, activo)
            values ($1, $2, $3, true)
            returning ${FIELDS}`,
@@ -38,9 +70,19 @@ export function createCompaniesRepository(db: Db) {
         )
         const row = result.rows[0]
         if (!row) throw new AppError(502, 'company_create_empty', 'Company persistence failed')
+        await client.query(
+          `update public.company_operation_idempotency
+           set status = 'COMPLETED', response = $3, updated_at = now()
+           where actor_id = $1 and operation = 'company_create' and idempotency_key = $2`,
+          [scope.actorId, scope.key, row],
+        )
+        await client.query('commit')
         return row
       } catch (error) {
+        await client.query('rollback')
         throw persistenceError(error)
+      } finally {
+        client.release()
       }
     },
 

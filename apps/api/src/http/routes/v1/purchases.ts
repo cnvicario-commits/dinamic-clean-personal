@@ -151,7 +151,7 @@ export const purchasesRoutes: FastifyPluginAsync = async (app) => {
     async (r, reply) =>
       reply
         .code(201)
-        .send(await app.purchasesService.createOrder(body(purchaseOrder, r.body), actor(r))),
+        .send(await app.purchasesService.createOrder(body(purchaseOrder, r.body), key(r), actor(r))),
   );
   app.patch(
     "/v1/purchase-orders/:id/state",

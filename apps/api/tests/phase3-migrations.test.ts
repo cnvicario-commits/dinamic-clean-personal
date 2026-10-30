@@ -27,4 +27,30 @@ describe('phase 3 forward migrations', () => {
     expect(sql).toContain('purchase_request_create')
     expect(sql).toContain('revoke all on table public.client_operation_idempotency from anon, authenticated')
   })
+
+  it('claims a compensation job with a row lock and a non-pending status', () => {
+    const migration = readFileSync(
+      resolve(root, 'supabase/migrations/forward/20261030170000_auth_compensation_claim.sql'),
+      'utf8',
+    ).toLowerCase()
+    const repository = readFileSync(
+      resolve(root, 'apps/api/src/infrastructure/db/auth-compensation-repository.ts'),
+      'utf8',
+    ).toLowerCase()
+    expect(migration).toContain("'processing'")
+    expect(migration).toContain("'exhausted'")
+    expect(repository).toContain('for update skip locked')
+    expect(repository).toContain("status = 'processing'")
+    expect(repository).not.toContain('limit $1`,')
+  })
+
+  it('scopes company create idempotency by actor and operation', () => {
+    const sql = readFileSync(
+      resolve(root, 'supabase/migrations/forward/20261030171000_company_create_idempotency.sql'),
+      'utf8',
+    ).toLowerCase()
+    expect(sql).toContain('primary key (actor_id, operation, idempotency_key)')
+    expect(sql).toContain('company_create')
+    expect(sql).toContain('revoke all on table public.company_operation_idempotency from anon, authenticated')
+  })
 })

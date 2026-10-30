@@ -99,7 +99,9 @@ describe('createUser compensation', () => {
         jobs.push({ id: `job-${jobs.length + 1}`, authUserId, attempts: 0 })
       },
       async claimPending(limit) {
-        return jobs.filter((job) => job.attempts < 5).slice(0, limit)
+        const claimed = jobs.filter((job) => job.attempts < 5).slice(0, limit)
+        for (const job of claimed) jobs.splice(jobs.indexOf(job), 1)
+        return claimed
       },
       async mark(id, status, _errorCode, attempts) {
         const job = jobs.find((item) => item.id === id)
@@ -274,6 +276,84 @@ describe('createUser compensation', () => {
     })
     await expect(retryAuthCompensations(again, { limit: 5 })).resolves.toBe(1)
     expect(compensation.jobs).toEqual([])
+  })
+
+  it('gives one pending job to only one concurrent claim', async () => {
+    const compensation = memoryCompensation()
+    await compensation.recordPending('11111111-1111-4111-8111-111111111111')
+    const [first, second] = await Promise.all([
+      compensation.claimPending(1),
+      compensation.claimPending(1),
+    ])
+    const claimed = [...first, ...second]
+    expect(claimed).toHaveLength(1)
+    expect(new Set(claimed.map((job) => job.id)).size).toBe(1)
+  })
+
+  it('marks the fifth failed attempt exhausted instead of pending', async () => {
+    const compensation = memoryCompensation()
+    await compensation.recordPending('11111111-1111-4111-8111-111111111111')
+    compensation.jobs[0]!.attempts = 4
+    const marked: string[] = []
+    await expect(
+      retryAuthCompensations(
+        deps({
+          identity: {
+            async deleteAuthUser() {
+              throw new AppError(502, 'auth_delete_failed', 'delete failed')
+            },
+          },
+          compensation: {
+            recordPending: (authUserId) => compensation.recordPending(authUserId),
+            claimPending: (limit) => compensation.claimPending(limit),
+            mark: async (id, status, errorCode, attempts) => {
+              marked.push(status)
+              await compensation.mark(id, status, errorCode, attempts)
+            },
+          },
+        }),
+        { limit: 1 },
+      ),
+    ).resolves.toBe(0)
+    expect(marked).toEqual(['exhausted'])
+    expect(await compensation.claimPending(1)).toEqual([])
+  })
+
+  it('creates the new user when draining an old compensation job fails', async () => {
+    const row: ProfileRecord = {
+      id: '33333333-3333-4333-8333-333333333333',
+      nombre_completo: 'New',
+      rol: 'supervisor',
+    }
+    const created = await createUser(
+      deps({
+        compensation: {
+          recordPending: async () => undefined,
+          claimPending: async () => {
+            throw new Error('old job claim failed')
+          },
+          mark: async () => undefined,
+        },
+        identity: {
+          async createAuthUser() {
+            return { id: row.id, email: 'new@b.com' }
+          },
+        },
+        profiles: {
+          async upsert() {
+            return row
+          },
+        },
+      }),
+      {
+        email: 'new@b.com',
+        password: 'secret1',
+        nombreCompleto: 'New',
+        rol: 'supervisor',
+      },
+    )
+    expect(created.email).toBe('new@b.com')
+    expect(created.id).toBe(row.id)
   })
 
   it('returns admin user on success', async () => {

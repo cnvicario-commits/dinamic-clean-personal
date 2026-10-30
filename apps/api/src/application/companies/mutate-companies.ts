@@ -1,4 +1,5 @@
 import { badRequest } from '../../http/errors/app-error.js'
+import { idempotencyKeySchema } from '../../http/schemas/clients.js'
 import {
   companyBodySchema,
   companyIdParamsSchema,
@@ -7,10 +8,17 @@ import {
 } from '../../http/schemas/companies.js'
 import type { CompaniesRepository } from '../../infrastructure/db/companies-repository.js'
 
-export function createCompany(repo: CompaniesRepository, body: unknown) {
+export function createCompany(
+  repo: CompaniesRepository,
+  body: unknown,
+  actorId: string,
+  idempotencyKey: unknown,
+) {
   const parsed = companyBodySchema.safeParse(body)
   if (!parsed.success) throw badRequest('Invalid company payload', parsed.error.flatten())
-  return repo.create(parsed.data)
+  const key = idempotencyKeySchema.safeParse(idempotencyKey)
+  if (!key.success) throw badRequest('Idempotency-Key header is required')
+  return repo.create(parsed.data, { actorId, key: key.data })
 }
 
 export function updateCompany(repo: CompaniesRepository, id: unknown, body: unknown) {

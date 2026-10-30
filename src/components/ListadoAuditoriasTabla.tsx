@@ -6,7 +6,9 @@ import type { Audit } from '@/lib/api/generated'
 type Perfil = { id: string; nombre_completo: string }
 
 function formatearFecha(fecha: string) {
-  return new Date(`${fecha}T00:00:00`).toLocaleDateString('es-AR')
+  const dia = /^(\d{4}-\d{2}-\d{2})/.exec(fecha)?.[1]
+  if (!dia) return '-'
+  return new Date(`${dia}T00:00:00`).toLocaleDateString('es-AR')
 }
 
 export default function ListadoAuditoriasTabla({

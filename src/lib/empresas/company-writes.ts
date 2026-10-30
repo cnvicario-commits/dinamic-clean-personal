@@ -7,7 +7,7 @@ export type CompanyWriteBody = {
 }
 
 export type CompanyWriter = {
-  createCompany(body: CompanyWriteBody): Promise<unknown>
+  createCompany(body: CompanyWriteBody, idempotencyKey: string): Promise<unknown>
   updateCompany(id: string, body: CompanyWriteBody): Promise<unknown>
   setCompanyStatus(id: string, body: { activo: boolean }): Promise<unknown>
 }
@@ -20,8 +20,15 @@ export function canManageCompanies(role: string | null | undefined) {
   return role === 'admin'
 }
 
-export function saveCompany(api: CompanyWriter, body: CompanyWriteBody, id?: string) {
-  return id ? api.updateCompany(id, body) : api.createCompany(body)
+export function saveCompany(
+  api: CompanyWriter,
+  body: CompanyWriteBody,
+  id?: string,
+  idempotencyKey?: string,
+) {
+  if (id) return api.updateCompany(id, body)
+  if (!idempotencyKey) throw new Error('Idempotency-Key is required')
+  return api.createCompany(body, idempotencyKey)
 }
 
 export function saveCompanyStatus(api: CompanyWriter, id: string, activo: boolean) {
