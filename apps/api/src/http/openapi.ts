@@ -1,5 +1,10 @@
 import { z } from "zod";
 import {
+  companyBodyOpenApiSchema,
+  companySchema,
+  updateCompanyStatusBodySchema,
+} from "./schemas/companies.js";
+import {
   employeeAssignmentSchema,
   employeeListItemSchema,
   employeeMutationResponseSchema,
@@ -937,6 +942,71 @@ export const openApiDocument = {
         security: bearer,
         parameters: idParameter,
         responses: { "200": { description: "Resolved" }, "404": { description: "Not found" } },
+      },
+    },
+    "/v1/companies": {
+      post: {
+        summary: "Create company",
+        security: bearer,
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: { $ref: "#/components/schemas/CompanyBody" } } },
+        },
+        responses: {
+          "201": {
+            description: "Created",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Company" } } },
+          },
+          "400": { description: "Validation" },
+          "401": { description: "Unauthorized" },
+          "403": { description: "Forbidden" },
+          "409": { description: "Conflict" },
+        },
+      },
+    },
+    "/v1/companies/{id}": {
+      patch: {
+        summary: "Update company name, CUIT and address",
+        security: bearer,
+        parameters: idParameter,
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: { $ref: "#/components/schemas/CompanyBody" } } },
+        },
+        responses: {
+          "200": {
+            description: "Updated",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Company" } } },
+          },
+          "400": { description: "Validation" },
+          "401": { description: "Unauthorized" },
+          "403": { description: "Forbidden" },
+          "404": { description: "Not found" },
+          "409": { description: "Conflict" },
+        },
+      },
+    },
+    "/v1/companies/{id}/status": {
+      patch: {
+        summary: "Activate or deactivate a company",
+        security: bearer,
+        parameters: idParameter,
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": { schema: { $ref: "#/components/schemas/UpdateCompanyStatusBody" } },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Updated",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Company" } } },
+          },
+          "400": { description: "Validation" },
+          "401": { description: "Unauthorized" },
+          "403": { description: "Forbidden" },
+          "404": { description: "Not found" },
+        },
       },
     },
     "/v1/employees": {
@@ -2188,6 +2258,9 @@ export const openApiDocument = {
       EmployeeListItem: zodJsonSchema(employeeListItemSchema),
       EmployeesResponse: zodJsonSchema(employeesResponseSchema),
       ListEmployeesQuery: LIST_EMPLOYEES_QUERY_OPENAPI,
+      Company: zodJsonSchema(companySchema),
+      CompanyBody: zodJsonSchema(companyBodyOpenApiSchema),
+      UpdateCompanyStatusBody: zodJsonSchema(updateCompanyStatusBodySchema),
       CreateEmployeeBody: zodJsonSchema(createEmployeeBodySchema),
       UpdateEmployeeStatusBody: zodJsonSchema(updateEmployeeStatusBodySchema),
       EmployeeMutationResponse: zodJsonSchema(employeeMutationResponseSchema),

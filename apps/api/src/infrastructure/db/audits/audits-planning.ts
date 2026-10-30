@@ -1,6 +1,7 @@
 import type { Db } from '../pool.js'
 import { conflict } from '../../../http/errors/app-error.js'
 import type { AuditListQuery, PlanningBody, PlanningUpdate } from '../../../http/schemas/audits.js'
+import { rethrowPostgresError } from '../postgres-error.js'
 import { assertUnchanged, auditOne, auditTx } from './audits-shared.js'
 
 export function createAuditsPlanningMethods(db: Db) {
@@ -71,16 +72,20 @@ export function createAuditsPlanningMethods(db: Db) {
     return auditOne(rows.rows, 'Planning not found')
   }
 
-  const createPlanning = (v: PlanningBody) =>
-    db
-      .query(
+  const createPlanning = async (v: PlanningBody) => {
+    try {
+      const result = await db.query(
         `insert into public.auditoria_planificaciones
           (alias_id, fecha_propuesta, horario_desde, horario_hasta, supervisor_id, observaciones)
          values ($1, $2, $3, $4, $5, $6)
          returning *`,
         [v.aliasId, v.fechaPropuesta, v.horarioDesde, v.horarioHasta, v.supervisorId, v.observaciones],
       )
-      .then((x) => auditOne(x.rows, 'Planning creation failed'))
+      return auditOne(result.rows, 'Planning creation failed')
+    } catch (error) {
+      rethrowPostgresError(error)
+    }
+  }
 
   const updatePlanning = (id: string, v: PlanningUpdate) =>
     auditTx(db, async (c) => {

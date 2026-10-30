@@ -912,6 +912,16 @@ export type CreateEmployeeBody = {
 
 export type UpdateEmployeeStatusBody = { activo: boolean }
 
+export type CompanyRecord = {
+  id: string
+  nombre: string
+  cuit: string | null
+  domicilio: string | null
+  activo: boolean
+}
+export type CompanyBody = { nombre: string; cuit: string; domicilio?: string | null }
+export type UpdateCompanyStatusBody = { activo: boolean }
+
 export type EmployeeAssignment = {
   fecha_desde: string
   fecha_hasta: string | null

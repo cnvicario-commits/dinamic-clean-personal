@@ -141,18 +141,22 @@ describe('postgres constraint HTTP mapping', () => {
     expect(audit.statusCode).toBe(400)
     expect(audit.json().code).toBe('bad_request')
     expectClientSafe(audit.body, audit.statusCode)
+
+    const results = await app.inject({
+      method: 'POST',
+      url: '/v1/results/import/apply',
+      headers: { ...headers, 'idempotency-key': 'results-real-pg' },
+      payload: { rows: [{ anio: 2026, mes: 1, values: { total_ventas: 1 }, details: [] }] },
+    })
+    expect(results.statusCode).toBe(400)
+    expect(results.json().code).toBe('bad_request')
+    expectClientSafe(results.body, results.statusCode)
   })
 
   it('maps clients, employees, and assignments writes away from 502', async () => {
     const headers = await auth()
     const clients = await (
-      await start({
-        clientsRepo: {
-          create: async () => {
-            throw pgError('23502')
-          },
-        } as unknown as ClientsRepository,
-      })
+      await start({ db: throwingDb(pgError('23514')) })
     ).inject({ method: 'POST', url: '/v1/clients', headers, payload: { nombre: 'Cliente' } })
     expect(clients.statusCode).toBe(400)
     expect(clients.json().code).toBe('bad_request')
@@ -186,7 +190,7 @@ describe('postgres constraint HTTP mapping', () => {
     expectClientSafe(assignments.body, assignments.statusCode)
   })
 
-  it('maps a results import constraint to 400 and rejects a non-uuid id before the repository', async () => {
+  it('does not turn an unmapped results foreign key into 400, and rejects a non-uuid id first', async () => {
     const detail = vi.fn(async () => {
       throw new Error('repository should not run')
     })
@@ -207,9 +211,9 @@ describe('postgres constraint HTTP mapping', () => {
       headers: { ...headers, 'idempotency-key': 'results-pg-key' },
       payload: { rows: [{ anio: 2026, mes: 1, values: { total_ventas: 1 }, details: [] }] },
     })
-    expect(applied.statusCode).toBe(400)
-    expect(applied.json().code).toBe('bad_request')
-    expectClientSafe(applied.body, applied.statusCode)
+    expect(applied.statusCode).toBe(500)
+    expect(applied.json()).toMatchObject({ status: 500, code: 'internal_error' })
+    expect(applied.body).not.toMatch(/secret_table|insert into|Related record/i)
 
     const missing = await app.inject({ method: 'GET', url: '/v1/results/not-a-uuid', headers })
     expect(missing.statusCode).toBe(400)
@@ -217,22 +221,43 @@ describe('postgres constraint HTTP mapping', () => {
     expect(detail).not.toHaveBeenCalled()
   })
 
-  it('maps an audits repository rejection through the error handler', async () => {
-    const app = await start({
-      auditsRepo: {
-        createPlanning: async () => {
-          throw pgError('23514')
-        },
-      } as unknown as ReturnType<typeof createAuditsRepository>,
+  it('keeps an unexpected not-null violation as 500 when no repository mapped it', async () => {
+    const response = await (
+      await start({
+        clientsRepo: {
+          create: async () => {
+            throw pgError('23502')
+          },
+        } as unknown as ClientsRepository,
+      })
+    ).inject({
+      method: 'POST',
+      url: '/v1/clients',
+      headers: await auth(),
+      payload: { nombre: 'Cliente' },
     })
-    const response = await app.inject({
+    expect(response.statusCode).toBe(500)
+    expect(response.json()).toMatchObject({ status: 500, code: 'internal_error' })
+    expect(response.body).not.toMatch(/secret_table|insert into|required value/i)
+  })
+
+  it('keeps a connection failure as 503 even without a repository mapping', async () => {
+    const response = await (
+      await start({
+        auditsRepo: {
+          createPlanning: async () => {
+            throw pgError('08006')
+          },
+        } as unknown as ReturnType<typeof createAuditsRepository>,
+      })
+    ).inject({
       method: 'POST',
       url: '/v1/audits/plannings',
       headers: await auth(),
       payload: { aliasId: ID, fechaPropuesta: '2026-10-01', supervisorId: ID },
     })
-    expect(response.statusCode).toBe(400)
-    expect(response.json().code).toBe('bad_request')
-    expectClientSafe(response.body, response.statusCode)
+    expect(response.statusCode).toBe(503)
+    expect(response.json().code).toBe('service_unavailable')
+    expect(response.body).not.toMatch(/secret_table|insert into/i)
   })
 })

@@ -1,7 +1,8 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
+import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
+import { runCompanyWrite, saveCompany } from '@/lib/empresas/company-writes'
 import type { Empresa } from '@/types/compras'
 
 export default function EmpresaForm({
@@ -17,23 +18,34 @@ export default function EmpresaForm({
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (loading) return
     setError('')
     setLoading(true)
-    const payload = {
-      nombre,
-      cuit,
-      domicilio: domicilio || null,
+    let api
+    try {
+      api = await createAuthenticatedBrowserApiClient()
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'No se pudo guardar la empresa.')
+      setLoading(false)
+      return
     }
-    const { error } = empresa
-      ? await supabase.from('empresas').update(payload).eq('id', empresa.id)
-      : await supabase.from('empresas').insert({ ...payload, activo: true })
+    const result = await runCompanyWrite(() =>
+      saveCompany(
+        api,
+        {
+          nombre: nombre.trim(),
+          cuit: cuit.trim(),
+          domicilio: domicilio.trim() || null,
+        },
+        empresa?.id,
+      ),
+    )
     setLoading(false)
-    if (error) {
-      setError('Error al guardar: ' + error.message)
+    if (!result.ok) {
+      setError(result.message)
       return
     }
     if (empresa) {

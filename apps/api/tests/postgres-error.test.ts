@@ -11,7 +11,8 @@ import { createClientsRepository } from '../src/infrastructure/db/clients-reposi
 import { createCrmRepository } from '../src/infrastructure/db/crm-repository.js'
 import { createEmployeesRepository } from '../src/infrastructure/db/employees-repository.js'
 import type { Db } from '../src/infrastructure/db/pool.js'
-import { mapPostgresError } from '../src/infrastructure/db/postgres-error.js'
+import { mapPostgresError, mapUnhandledPostgresError } from '../src/infrastructure/db/postgres-error.js'
+import { mapProfileWriteError } from '../src/infrastructure/db/profiles-repository.js'
 import { purchaseTransaction } from '../src/infrastructure/db/purchases/purchases-shared.js'
 import { createResultsRepository } from '../src/infrastructure/db/results-repository.js'
 
@@ -91,6 +92,22 @@ describe('mapPostgresError', () => {
     expect(mapPostgresError({ message: 'not a driver error' })).toBeNull()
     expect(mapPostgresError(new AppError(400, 'bad_request', 'kept'))).toBeNull()
     expect(mapPostgresError('23503')).toBeNull()
+  })
+
+  it('does not turn an unexpected constraint into a client error at the global boundary', () => {
+    expect(mapUnhandledPostgresError(pgError('23502'))).toBeNull()
+    expect(mapUnhandledPostgresError(pgError('23503'))).toBeNull()
+    expect(mapUnhandledPostgresError(pgError('23505'))).toBeNull()
+    expect(mapUnhandledPostgresError(pgError('08006'))).toMatchObject({
+      status: 503,
+      code: 'service_unavailable',
+    })
+  })
+
+  it('keeps a profile foreign key as an internal failure', () => {
+    const mapped = mapProfileWriteError(pgError('23503', 'perfiles_id_fkey'))
+    expect(mapped).toMatchObject({ status: 502, code: 'profile_write_failed' })
+    expect(mapped.message).not.toMatch(/secret_table|insert into/i)
   })
 })
 

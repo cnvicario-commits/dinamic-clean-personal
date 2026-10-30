@@ -40,6 +40,8 @@ const CONFIRMED_PRODUCTIVE_GRANTS: Readonly<Record<Role, readonly Permission[]>>
     'purchase_requests:read','purchase_requests:create','purchase_requests:update','purchase_orders:read','purchase_orders:create','purchase_orders:update','warehouse_requests:read','warehouse_requests:create','warehouse_requests:update','economic_results:read','economic_results:import',
     'crm:read','crm:create','crm:update','crm:delete',
     'audits:read','audits:create','audits:update','audit_checklists:manage',
+    'companies:create',
+    'companies:update',
   ],
   gerente: [
     'profile:read_self', 'profile:update_self', 'employees:read',
@@ -69,8 +71,6 @@ const CONFIRMED_PRODUCTIVE_GRANTS: Readonly<Record<Role, readonly Permission[]>>
 /** Catalog capabilities that must remain DENY for all roles until Phase 3+ confirms grants. */
 const CATALOG_DENY_UNTIL_CONFIRMED: readonly Permission[] = [
   'companies:read',
-  'companies:create',
-  'companies:update',
 ]
 
 describe('business RBAC catalog (Phase 2C corrections)', () => {

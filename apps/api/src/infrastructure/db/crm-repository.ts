@@ -158,24 +158,29 @@ where s.oportunidad_id=$1 order by s.fecha_contacto desc,s.created_at desc offse
       total: Number(total.rows[0]?.count ?? 0),
     };
   };
-  const createProspect = async (v: CrmCreateProspect) =>
-    first(
-      (
-        await db.query(
-          "insert into public.crm_prospectos(nombre,tipo_cliente_id,contacto_nombre,telefono,email,referido_por_id,notas) values($1,$2,$3,$4,$5,$6,$7) returning *",
-          [
-            v.nombre,
-            v.tipoClienteId,
-            v.contactoNombre,
-            v.telefono,
-            v.email,
-            v.referidoPorId,
-            v.notas,
-          ],
-        )
-      ).rows,
-      "Prospect creation failed",
-    );
+  const createProspect = async (v: CrmCreateProspect) => {
+    try {
+      return first(
+        (
+          await db.query(
+            "insert into public.crm_prospectos(nombre,tipo_cliente_id,contacto_nombre,telefono,email,referido_por_id,notas) values($1,$2,$3,$4,$5,$6,$7) returning *",
+            [
+              v.nombre,
+              v.tipoClienteId,
+              v.contactoNombre,
+              v.telefono,
+              v.email,
+              v.referidoPorId,
+              v.notas,
+            ],
+          )
+        ).rows,
+        "Prospect creation failed",
+      );
+    } catch (error) {
+      rethrowPostgresError(error);
+    }
+  };
   const updateProspect = async (id: string, v: CrmUpdateProspect, c: pg.PoolClient, scope: CrmScope) => {
     first(
       (await c.query("select id from public.crm_prospectos where id=$1 for update", [id])).rows,
@@ -395,16 +400,20 @@ values($1,coalesce($2::date,current_date),$3,$4,$5,$6) returning *`,
     },
     async markViewed(id: string, actor: string, scope: CrmScope) {
       await detail(id, scope);
-      return first(
-        (
-          await db.query(
-            `insert into public.crm_vistas(oportunidad_id,usuario_id,last_viewed_at) values($1,$2,now())
+      try {
+        return first(
+          (
+            await db.query(
+              `insert into public.crm_vistas(oportunidad_id,usuario_id,last_viewed_at) values($1,$2,now())
 on conflict(oportunidad_id,usuario_id) do update set last_viewed_at=excluded.last_viewed_at returning *`,
-            [id, actor],
-          )
-        ).rows,
-        "View mark failed",
-      );
+              [id, actor],
+            )
+          ).rows,
+          "View mark failed",
+        );
+      } catch (error) {
+        rethrowPostgresError(error);
+      }
     },
     ...leads,
     catalog(resource: "tipos-cliente" | "tipos-servicio" | "referidores") {
@@ -434,10 +443,17 @@ on conflict(oportunidad_id,usuario_id) do update set last_viewed_at=excluded.las
             rethrowPostgresError(error);
           }
         },
-        status: (id: string, activo: boolean) =>
-          db
-            .query(`update public.${table} set activo=$2 where id=$1 returning *`, [id, activo])
-            .then((x) => first(x.rows, "Catalog item not found")),
+        status: async (id: string, activo: boolean) => {
+          try {
+            return first(
+              (await db.query(`update public.${table} set activo=$2 where id=$1 returning *`, [id, activo]))
+                .rows,
+              "Catalog item not found",
+            );
+          } catch (error) {
+            rethrowPostgresError(error);
+          }
+        },
       };
     },
   };

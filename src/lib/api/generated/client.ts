@@ -9,6 +9,9 @@ import type {
   CreateUserBody,
   CreateEmployeeBody,
   UpdateEmployeeStatusBody,
+  CompanyRecord,
+  CompanyBody,
+  UpdateCompanyStatusBody,
   EmployeeMutationResponse,
   EmployeesResponse,
   ListEmployeesQuery,
@@ -94,6 +97,9 @@ export type DinamicApiClient = {
   listEmployees: (query?: ListEmployeesQuery) => Promise<EmployeesResponse>
   createEmployee: (body: CreateEmployeeBody) => Promise<EmployeeMutationResponse>
   updateEmployeeStatus: (id: string, body: UpdateEmployeeStatusBody) => Promise<EmployeeMutationResponse>
+  createCompany: (body: CompanyBody) => Promise<CompanyRecord>
+  updateCompany: (id: string, body: CompanyBody) => Promise<CompanyRecord>
+  setCompanyStatus: (id: string, body: UpdateCompanyStatusBody) => Promise<CompanyRecord>
   listAssignments: (query?: ListAssignmentsQuery) => Promise<AssignmentsResponse>
   createAssignment: (body: CreateAssignmentBody) => Promise<AssignmentListItem>
   closeAssignment: (id: string) => Promise<AssignmentListItem>
@@ -294,6 +300,15 @@ export function createDinamicApiClient(options: DinamicApiClientOptions): Dinami
     },
     updateEmployeeStatus(id, body) {
       return requestJson<EmployeeMutationResponse>(`/v1/employees/${id}/status`, { method: 'PATCH', body: JSON.stringify(body) })
+    },
+    createCompany(body) {
+      return requestJson<CompanyRecord>('/v1/companies', { method: 'POST', body: JSON.stringify(body) })
+    },
+    updateCompany(id, body) {
+      return requestJson<CompanyRecord>(`/v1/companies/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+    },
+    setCompanyStatus(id, body) {
+      return requestJson<CompanyRecord>(`/v1/companies/${id}/status`, { method: 'PATCH', body: JSON.stringify(body) })
     },
     listAssignments(query = {}) {
       const q: Record<string, string> = {}
