@@ -34,7 +34,9 @@ export const clientsRoutes: FastifyPluginAsync = async (app) => {
     async (r, reply) => {
       const p = createClientBodySchema.safeParse(r.body);
       if (!p.success) throw badRequest("Invalid client payload");
-      return reply.code(201).send(await app.clientsService.create(p.data, actor(r)));
+      const key = idempotencyKeySchema.safeParse(r.headers["idempotency-key"]);
+      if (!key.success) throw badRequest("Idempotency-Key header is required");
+      return reply.code(201).send(await app.clientsService.create(p.data, actor(r), key.data));
     },
   );
   app.patch("/v1/clients/:id", { preHandler: [requirePermission("clients:update")] }, async (r) => {

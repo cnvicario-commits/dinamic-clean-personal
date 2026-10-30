@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { postgresUuid } from './postgres-uuid.js'
 import { PERMISSIONS, ROLES } from '../../domain/rbac.js'
 import { passwordSchema } from '../../domain/password-policy.js'
 
@@ -44,11 +45,11 @@ export const setUserPasswordBodySchema = z
 
 export type SetUserPasswordBody = z.infer<typeof setUserPasswordBodySchema>
 
-export const userIdParamSchema = z.string().uuid()
+export const userIdParamSchema = postgresUuid
 
 /** Basic profile (e.g. PATCH /me response) — no admin email requirement. */
 export const profileResponseSchema = z.object({
-  id: z.string().uuid(),
+  id: postgresUuid,
   nombreCompleto: z.string().nullable(),
   rol: roleSchema,
 })
@@ -61,7 +62,7 @@ export const profileResponseSchema = z.object({
 export const adminUserLifecycleStatusSchema = z.enum(['ACTIVE', 'DISABLED', 'MISSING_AUTH'])
 
 export const adminUserResponseSchema = z.object({
-  id: z.string().uuid(),
+  id: postgresUuid,
   nombreCompleto: z.string().nullable(),
   rol: roleSchema,
   email: z.string().nullable(),
@@ -74,8 +75,8 @@ export const usersListResponseSchema = z.object({
 })
 
 export const meResponseSchema = z.object({
-  userId: z.string().uuid(),
-  profileId: z.string().uuid(),
+  userId: postgresUuid,
+  profileId: postgresUuid,
   role: roleSchema,
   email: z.string().nullable(),
   nombreCompleto: z.string().nullable(),

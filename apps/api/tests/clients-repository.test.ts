@@ -5,10 +5,11 @@ import type { Db } from '../src/infrastructure/db/pool.js'
 describe('clients repository transactions',()=>{
   it('rolls back client creation when initial address insert fails',async()=>{
     const queries:string[]=[]
-    const client={query:vi.fn(async(sql:string)=>{queries.push(sql);if(sql.startsWith('insert into public.clientes'))return{rows:[{id:'c'}]};if(sql.includes('insert into public.cliente_domicilios'))throw new Error('address failure');return{rows:[]}}),release:vi.fn()}
+    let hash=''
+    const client={query:vi.fn(async(sql:string, params?: unknown[])=>{queries.push(sql);if(sql.includes('client_operation_idempotency')&&sql.includes('for update'))return{rows:[{payload_hash:hash,status:'PROCESSING',response:null}]};if(sql.startsWith('insert into public.client_operation_idempotency')){hash=String(params?.[2]??'');return{rows:[]}};if(sql.startsWith('insert into public.clientes'))return{rows:[{id:'c'}]};if(sql.includes('insert into public.cliente_domicilios'))throw new Error('address failure');return{rows:[]}}),release:vi.fn()}
     const db={pool:{connect:async()=>client},query:vi.fn()} as unknown as Db
     const repo=createClientsRepository(db)
-    await expect(repo.create({nombre:'Cliente',cuit:null,personaContacto:null,codigoCostos:null,presupuesto4hs:0,presupuesto8hs:0,domicilio:'Calle',llevaInsumos:false})).rejects.toThrow('Client persistence failed')
+    await expect(repo.create({nombre:'Cliente',cuit:null,personaContacto:null,codigoCostos:null,presupuesto4hs:0,presupuesto8hs:0,domicilio:'Calle',llevaInsumos:false},{actorId:'22222222-2222-4222-8222-222222222222',key:'client-1'})).rejects.toThrow('Client persistence failed')
     expect(queries).toContain('rollback')
     expect(queries).not.toContain('commit')
     expect(client.release).toHaveBeenCalledOnce()

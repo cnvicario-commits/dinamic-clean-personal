@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAuthenticatedBrowserApiClient } from "@/lib/api/browser";
 export default function ClienteForm() {
@@ -13,23 +13,28 @@ export default function ClienteForm() {
   const [llevaInsumos, setLlevaInsumos] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const idempotencyKey = useRef(crypto.randomUUID());
   const router = useRouter();
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setError("");
     setLoading(true);
     try {
       const api = await createAuthenticatedBrowserApiClient();
-      const data = await api.createClient({
-        nombre,
-        cuit: cuit || null,
-        personaContacto: personaContacto || null,
-        codigoCostos: codigoCostos || null,
-        presupuesto4hs: parseInt(presupuesto4hs) || 0,
-        presupuesto8hs: parseInt(presupuesto8hs) || 0,
-        domicilio: domicilio || null,
-        llevaInsumos,
-      });
+      const data = await api.createClient(
+        {
+          nombre,
+          cuit: cuit || null,
+          personaContacto: personaContacto || null,
+          codigoCostos: codigoCostos || null,
+          presupuesto4hs: parseInt(presupuesto4hs) || 0,
+          presupuesto8hs: parseInt(presupuesto8hs) || 0,
+          domicilio: domicilio || null,
+          llevaInsumos,
+        },
+        idempotencyKey.current,
+      );
       setLoading(false);
       router.push(`/clientes/${data.id}`);
     } catch (cause) {

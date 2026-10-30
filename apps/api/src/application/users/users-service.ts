@@ -1,5 +1,6 @@
 import type { IdentityAdmin, AuthUserSecurityState } from '../../infrastructure/auth/identity-admin.js'
 import type { ProfilesRepository, ProfileRecord } from '../../infrastructure/db/profiles-repository.js'
+import type { AuthCompensationRepository } from '../../infrastructure/db/auth-compensation-repository.js'
 import type { Role } from '../../domain/rbac.js'
 import { badRequest, notFound, conflict, forbidden, AppError } from '../../http/errors/app-error.js'
 import {
@@ -22,10 +23,21 @@ import { isRole, permissionsFor } from '../../domain/rbac.js'
 import type { AuthContext } from '../../domain/auth-context.js'
 import type { LoadedProfile } from '../../infrastructure/db/profiles-repo.js'
 
+export type CompensationLog = {
+  requestId?: string
+  authUserId?: string
+  operation: string
+  compensationAttempted: boolean
+  compensationSucceeded: boolean
+  errorClass: string
+  durable?: boolean
+}
+
 export type UsersDeps = {
   identity: IdentityAdmin
   profiles: ProfilesRepository
-  logOrphan?: (payload: { requestId?: string; authUserId: string }) => void
+  compensation: AuthCompensationRepository
+  logOrphan?: (payload: CompensationLog) => void
   logAdminAction?: (payload: {
     requestId?: string
     actorUserId?: string
@@ -170,11 +182,58 @@ export async function getUser(deps: UsersDeps, id: string): Promise<AdminUserRes
   return toAdminUser(row, state)
 }
 
+const COMPENSATION_ATTEMPT_LIMIT = 5
+
+function errorClass(err: unknown): string {
+  return err instanceof AppError ? err.code : 'unknown'
+}
+
+export async function retryAuthCompensations(deps: UsersDeps, opts?: { limit?: number }): Promise<number> {
+  const jobs = await deps.compensation.claimPending(opts?.limit ?? 5)
+  let resolved = 0
+  for (const job of jobs) {
+    const attempts = job.attempts + 1
+    try {
+      await deps.identity.deleteAuthUser(job.authUserId)
+      await deps.compensation.mark(job.id, 'succeeded', null, attempts)
+      resolved += 1
+    } catch (err) {
+      if (err instanceof AppError && err.status === 404) {
+        await deps.compensation.mark(job.id, 'succeeded', null, attempts)
+        resolved += 1
+        continue
+      }
+      const status = attempts >= COMPENSATION_ATTEMPT_LIMIT ? 'exhausted' : 'pending'
+      await deps.compensation.mark(job.id, status, errorClass(err), attempts)
+      deps.logOrphan?.({
+        authUserId: job.authUserId,
+        operation: 'delete_orphan_auth_user',
+        compensationAttempted: true,
+        compensationSucceeded: false,
+        errorClass: errorClass(err),
+      })
+    }
+  }
+  return resolved
+}
+
 export async function createUser(
   deps: UsersDeps,
   input: CreateUserBody,
   opts?: { requestId?: string },
 ): Promise<AdminUserResponse> {
+  try {
+    await retryAuthCompensations(deps, { limit: 1 })
+  } catch (err) {
+    deps.logOrphan?.({
+      ...(opts?.requestId !== undefined ? { requestId: opts.requestId } : {}),
+      operation: 'auth_compensation_retry',
+      compensationAttempted: true,
+      compensationSucceeded: false,
+      errorClass: errorClass(err),
+    })
+  }
+
   const authUser = await deps.identity.createAuthUser({
     email: input.email,
     password: input.password,
@@ -197,24 +256,31 @@ export async function createUser(
     try {
       await deps.identity.deleteAuthUser(authUser.id)
     } catch (compensateErr) {
+      let durable = false
+      try {
+        await deps.compensation.recordPending(authUser.id)
+        durable = true
+      } catch (recordErr) {
+        deps.logOrphan?.({
+          ...(opts?.requestId !== undefined ? { requestId: opts.requestId } : {}),
+          authUserId: authUser.id,
+          operation: 'create_user',
+          compensationAttempted: true,
+          compensationSucceeded: false,
+          errorClass: errorClass(recordErr),
+          durable: false,
+        })
+      }
       deps.logOrphan?.({
         ...(opts?.requestId !== undefined ? { requestId: opts.requestId } : {}),
         authUserId: authUser.id,
+        operation: 'create_user',
+        compensationAttempted: true,
+        compensationSucceeded: false,
+        errorClass: errorClass(compensateErr),
+        durable,
       })
-      throw new AppError(
-        500,
-        'user_create_orphan',
-        'User create incomplete; manual reconciliation required',
-        {
-          authUserId: authUser.id,
-          requestId: opts?.requestId,
-          profileFailed: true,
-          compensateFailed: true,
-          profileErrorCode: err instanceof AppError ? err.code : 'unknown',
-          compensateErrorCode:
-            compensateErr instanceof AppError ? compensateErr.code : 'unknown',
-        },
-      )
+      throw new AppError(500, 'user_create_failed', 'User could not be created')
     }
     throw err
   }

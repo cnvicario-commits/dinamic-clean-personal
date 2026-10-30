@@ -13,17 +13,24 @@ import {
   createProfilesRepository,
   type ProfilesRepository,
 } from './infrastructure/db/profiles-repository.js'
+import {
+  createAuthCompensationRepository,
+  type AuthCompensationRepository,
+} from './infrastructure/db/auth-compensation-repository.js'
 import { authenticateRequest } from './http/plugins/auth.js'
 import { healthRoutes } from './http/routes/health.js'
 import { meRoutes } from './http/routes/v1/me.js'
 import { employeesRoutes } from './http/routes/v1/employees.js'
+import { companiesRoutes } from './http/routes/v1/companies.js'
 import { assignmentsRoutes } from './http/routes/v1/assignments.js'
 import { hrCatalogsRoutes } from './http/routes/v1/hr-catalogs.js'
 import { usersRoutes } from './http/routes/v1/users.js'
 import { AppError, rateLimitExceeded } from './http/errors/app-error.js'
 import { buildProblemBody, isProblemBody, sendProblem, toAppError } from './http/errors/problem-details.js'
+import { mapUnhandledPostgresError } from './infrastructure/db/postgres-error.js'
 import { openApiDocument } from './http/openapi.js'
 import { createEmployeesRepository, type EmployeesRepository } from './infrastructure/db/employees-repository.js'
+import { createCompaniesRepository, type CompaniesRepository } from './infrastructure/db/companies-repository.js'
 import { createAssignmentsRepository, type AssignmentsRepository } from './infrastructure/db/assignments-repository.js'
 import { createHrCatalogsRepository } from './infrastructure/db/hr-catalogs-repository.js'
 import { createAttendanceRepository } from './infrastructure/db/attendance-repository.js'
@@ -62,7 +69,9 @@ declare module 'fastify' {
     jwtVerifier: JwtVerifier
     identityAdmin: IdentityAdmin
     profilesRepo: ProfilesRepository
+    authCompensation: AuthCompensationRepository
     employeesRepo: EmployeesRepository
+    companiesRepo: CompaniesRepository
     assignmentsRepo: AssignmentsRepository
     hrCatalogsRepo: ReturnType<typeof createHrCatalogsRepository>
     attendanceRepo: ReturnType<typeof createAttendanceRepository>
@@ -100,7 +109,9 @@ export type BuildAppOptions = {
   /** Test inject — when both identity + profiles are provided, module is ready. */
   identityAdmin?: IdentityAdmin
   profilesRepo?: ProfilesRepository
+  authCompensation?: AuthCompensationRepository
   clientsRepo?: ClientsRepository
+  companiesRepo?: CompaniesRepository
   clientQuotesStorage?: ClientQuotesStorage
   attendanceRepo?: ReturnType<typeof createAttendanceRepository>
   attendanceJustificationsStorage?: AttendanceJustificationsStorage
@@ -197,13 +208,16 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
     options.identityAdmin ?? (hasKey ? createIdentityAdmin(env) : null)
   // Profiles use the DB pool only (Phase 2D) — no service-role table client.
   const profilesRepo = options.profilesRepo ?? createProfilesRepository(db)
+  const authCompensation = options.authCompensation ?? createAuthCompensationRepository(db)
 
   // Ready iff Auth Admin is wired (key or inject) and profiles repo is present.
   const usersModuleReady = identityAdmin != null
 
   app.decorate('identityAdmin', identityAdmin ?? stubIdentityAdmin())
   app.decorate('profilesRepo', profilesRepo ?? stubProfilesRepo())
+  app.decorate('authCompensation', authCompensation)
   app.decorate('employeesRepo', createEmployeesRepository(db))
+  app.decorate('companiesRepo', options.companiesRepo ?? createCompaniesRepository(db))
   app.decorate('assignmentsRepo', createAssignmentsRepository(db))
   app.decorate('hrCatalogsRepo', createHrCatalogsRepository(db))
   app.decorate('attendanceRepo', options.attendanceRepo ?? createAttendanceRepository(db))
@@ -295,22 +309,25 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
         })
     }
 
+    const mappedPg = err instanceof AppError ? null : mapUnhandledPostgresError(err)
     const appErr =
       err instanceof AppError
         ? err
-        : typeof (err as { statusCode?: number }).statusCode === 'number' &&
-            (err as { statusCode: number }).statusCode < 500 &&
-            typeof (err as Error).message === 'string'
-          ? new AppError(
-              (err as { statusCode: number }).statusCode,
-              typeof (err as { code?: string }).code === 'string'
-                ? (err as { code: string }).code
-                : 'request_error',
-              (err as Error).message,
-            )
-          : toAppError(err)
+        : mappedPg
+          ? mappedPg
+          : typeof (err as { statusCode?: number }).statusCode === 'number' &&
+              (err as { statusCode: number }).statusCode < 500 &&
+              typeof (err as Error).message === 'string'
+            ? new AppError(
+                (err as { statusCode: number }).statusCode,
+                typeof (err as { code?: string }).code === 'string'
+                  ? (err as { code: string }).code
+                  : 'request_error',
+                (err as Error).message,
+              )
+            : toAppError(err)
 
-    if (appErr.code === 'user_create_orphan') {
+    if (appErr.code === 'user_create_failed' || appErr.code === 'user_create_orphan') {
       request.log.error(
         {
           code: appErr.code,
@@ -373,6 +390,7 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
   await app.register(healthRoutes)
   await app.register(meRoutes)
   await app.register(employeesRoutes)
+  await app.register(companiesRoutes)
   await app.register(assignmentsRoutes)
   await app.register(hrCatalogsRoutes)
   await app.register(clientsRoutes)

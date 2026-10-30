@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type pg from "pg";
 import type { Db } from "../pool.js";
 import { AppError, conflict } from "../../../http/errors/app-error.js";
@@ -80,8 +81,38 @@ from public.pedidos_compra_items i join public.articulos a on a.id=i.articulo_id
       pedidos_compra_items: items.rows,
     };
   }
-  async function saveRequest(input: RequestInput, actorId: string, id?: string) {
+  async function saveRequest(input: RequestInput, actorId: string, id?: string, idempotencyKey?: string) {
+    let replayedId: string | null = null;
     const header = await transaction(db, async (c) => {
+      if (!id && idempotencyKey) {
+        const hash = createHash("sha256").update(JSON.stringify(input)).digest("hex");
+        await c.query(
+          `insert into public.purchase_operation_idempotency(actor_id,operation,idempotency_key,payload_hash,status)
+           values($1,'purchase_request_create',$2,$3,'PROCESSING') on conflict do nothing`,
+          [actorId, idempotencyKey, hash],
+        );
+        const existing = first(
+          (
+            await c.query(
+              `select payload_hash,status,response from public.purchase_operation_idempotency
+               where actor_id=$1 and operation='purchase_request_create' and idempotency_key=$2 for update`,
+              [actorId, idempotencyKey],
+            )
+          ).rows,
+          "Idempotency row missing",
+        );
+        if (existing.payload_hash !== hash) {
+          throw new AppError(
+            409,
+            "idempotency_key_payload_mismatch",
+            "Idempotency-Key already used with a different payload",
+          );
+        }
+        if (existing.status === "COMPLETED") {
+          replayedId = String((existing.response as { id?: string }).id);
+          return existing;
+        }
+      }
       await validate(c, input, input.items);
       let saved: pg.QueryResultRow;
       if (id) {
@@ -141,8 +172,17 @@ values($1,$2,$3,$4,$5,$6,$7,$8,$9) returning *`,
           "insert into public.pedidos_compra_items(pedido_id,articulo_id,cantidad,observaciones) values($1,$2,$3,$4)",
           [saved.id, item.articuloId, item.cantidad, item.observaciones ?? null],
         );
+      if (!id && idempotencyKey) {
+        await c.query(
+          `update public.purchase_operation_idempotency
+           set status='COMPLETED', response=$3, updated_at=now()
+           where actor_id=$1 and operation='purchase_request_create' and idempotency_key=$2`,
+          [actorId, idempotencyKey, { id: saved.id }],
+        );
+      }
       return saved;
     });
+    if (replayedId) return requestDetail(replayedId);
     return requestDetail(String(header.id));
   }
 

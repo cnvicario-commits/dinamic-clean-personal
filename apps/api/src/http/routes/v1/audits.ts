@@ -5,6 +5,7 @@ import {
   actionCreate,
   actionListQuery,
   actionUpdate,
+  auditId,
   auditListQuery,
   auditPageQuery,
   auditSubmit,
@@ -17,12 +18,9 @@ import {
   planningCancel,
   planningUpdate,
 } from '../../schemas/audits.js'
-import { z } from 'zod'
-
-const idSchema = z.string().uuid()
 
 const parseId = (value: unknown) => {
-  const parsed = idSchema.safeParse(value)
+  const parsed = auditId.safeParse(value)
   if (!parsed.success) throw badRequest('Invalid audit id')
   return parsed.data
 }

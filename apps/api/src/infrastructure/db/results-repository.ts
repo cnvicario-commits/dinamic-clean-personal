@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type pg from "pg";
 import type { Db } from "./pool.js";
 import { AppError, badRequest, notFound } from "../../http/errors/app-error.js";
+import { mapPostgresError } from "./postgres-error.js";
 import type { ResultsImport } from "../../http/schemas/results.js";
 
 const fields = [
@@ -51,6 +52,8 @@ function transaction<T>(db: Db, fn: (c: pg.PoolClient) => Promise<T>): Promise<T
     } catch (e) {
       await c.query("rollback");
       if (e instanceof AppError) throw e;
+      const mapped = mapPostgresError(e);
+      if (mapped) throw mapped;
       throw new AppError(502, "results_persistence_failed", "Results persistence failed");
     } finally {
       c.release();

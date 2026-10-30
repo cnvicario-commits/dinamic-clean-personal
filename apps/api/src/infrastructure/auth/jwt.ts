@@ -23,7 +23,12 @@ export type JwtVerifier = {
 export function createJwtVerifier(env: Env): JwtVerifier {
   const issuer = `${env.SUPABASE_URL.replace(/\/$/, '')}/auth/v1`
   const jwksUrl = new URL(`${env.SUPABASE_URL.replace(/\/$/, '')}/auth/v1/.well-known/jwks.json`)
-  const jwks = createRemoteJWKSet(jwksUrl)
+  const jwks = createRemoteJWKSet(jwksUrl, {
+    // Tests sign HS256 and only use JWKS as a failing first attempt. The default
+    // 5s fetch timeout is the same budget as a unit test, so a slow DNS lookup
+    // aborts the test before the HMAC fallback runs.
+    timeoutDuration: env.NODE_ENV === 'test' ? 250 : 5_000,
+  })
 
   return {
     async verify(token: string): Promise<VerifiedToken> {

@@ -1,5 +1,6 @@
 import type { Db } from './pool.js'
 import { AppError, conflict, notFound } from '../../http/errors/app-error.js'
+import { mapPostgresError } from './postgres-error.js'
 import type {
   AssignmentListItem,
   AssignmentsResponse,
@@ -16,7 +17,7 @@ function persistenceError(error: unknown): AppError {
   if (code === '23503' && constraint === 'asignaciones_cliente_id_fkey') {
     return notFound('Client not found')
   }
-  return new AppError(502, 'assignment_persistence_failed', 'Assignment persistence failed')
+  return mapPostgresError(error) ?? new AppError(502, 'assignment_persistence_failed', 'Assignment persistence failed')
 }
 
 export type AssignmentsRepository = ReturnType<typeof createAssignmentsRepository>

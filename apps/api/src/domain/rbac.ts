@@ -75,8 +75,9 @@ const SELF_PROFILE = [
  * - profile:* — every authenticated role (GET/PATCH /v1/me)
  * - profiles:read_any, users:* — admin (users routes)
  * - Phase 3A Core HR — admin + gerente (employees/assignments endpoints)
+ * - companies:create, companies:update — admin only (company write routes)
  *
- * All other catalog permissions intentionally unmapped → DENY until confirmed.
+ * companies:read stays unmapped. All other catalog permissions stay DENY until confirmed.
  */
 const ROLE_PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = Object.freeze({
   admin: Object.freeze([
@@ -104,6 +105,8 @@ const ROLE_PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = Object.f
     'economic_results:read','economic_results:import',
     'crm:read','crm:create','crm:update','crm:delete',
     'audits:read','audits:create','audits:update','audit_checklists:manage',
+    'companies:create',
+    'companies:update',
   ] as const satisfies readonly Permission[]),
   gerente: Object.freeze([
     ...SELF_PROFILE,

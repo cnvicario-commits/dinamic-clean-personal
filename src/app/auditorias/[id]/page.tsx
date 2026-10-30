@@ -6,7 +6,9 @@ import type { ResultadoRespuesta } from '@/types/auditoria'
 
 function formatearFecha(fecha: string | null) {
   if (!fecha) return '-'
-  return new Date(`${fecha}T00:00:00`).toLocaleDateString('es-AR')
+  const dia = /^(\d{4}-\d{2}-\d{2})/.exec(fecha)?.[1]
+  if (!dia) return '-'
+  return new Date(`${dia}T00:00:00`).toLocaleDateString('es-AR')
 }
 
 const ETIQUETAS_RESULTADO: Record<ResultadoRespuesta, string> = {

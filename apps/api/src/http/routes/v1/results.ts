@@ -4,6 +4,7 @@ import { requirePermission } from "../../plugins/auth.js";
 import { badRequest } from "../../errors/app-error.js";
 import { parseImportPayload } from "../../parse-import-payload.js";
 import { resultsImport, resultsQuery } from "../../schemas/results.js";
+import { postgresUuid } from "../../schemas/postgres-uuid.js";
 const parse = <T>(schema: z.ZodType<T>, v: unknown): T => {
   const p = schema.safeParse(v);
   if (!p.success) throw badRequest("Invalid results payload", p.error.flatten());
@@ -13,9 +14,11 @@ export const resultsRoutes: FastifyPluginAsync = async (app) => {
   app.get("/v1/results", { preHandler: [requirePermission("economic_results:read")] }, (r) =>
     app.resultsService.list(parse(resultsQuery, r.query) as { anio?: number; mes?: number }),
   );
-  app.get("/v1/results/:id", { preHandler: [requirePermission("economic_results:read")] }, (r) =>
-    app.resultsService.detail(String((r.params as { id: string }).id)),
-  );
+  app.get("/v1/results/:id", { preHandler: [requirePermission("economic_results:read")] }, (r) => {
+    const id = postgresUuid.safeParse((r.params as { id?: unknown }).id);
+    if (!id.success) throw badRequest("Invalid results id");
+    return app.resultsService.detail(id.data);
+  });
   app.post(
     "/v1/results/import/preview",
     { preHandler: [requirePermission("economic_results:import")] },

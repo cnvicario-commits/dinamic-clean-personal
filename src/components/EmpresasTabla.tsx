@@ -6,9 +6,11 @@ import type { Empresa } from '@/types/compras'
 
 export default function EmpresasTabla({
   empresas,
+  canWrite,
   onEditar,
 }: {
   empresas: Empresa[]
+  canWrite: boolean
   onEditar: (e: Empresa) => void
 }) {
   const [busqueda, setBusqueda] = useState('')
@@ -44,7 +46,7 @@ export default function EmpresasTabla({
               <th className="px-4 py-3 font-medium">CUIT</th>
               <th className="px-4 py-3 font-medium">Domicilio</th>
               <th className="px-4 py-3 font-medium">Estado</th>
-              <th className="px-4 py-3 font-medium"></th>
+              {canWrite && <th className="px-4 py-3 font-medium"></th>}
             </tr>
           </thead>
           <tbody>
@@ -54,13 +56,21 @@ export default function EmpresasTabla({
                 <td className="px-4 py-3 text-slate-600">{e.cuit}</td>
                 <td className="px-4 py-3 text-slate-600">{e.domicilio ?? '-'}</td>
                 <td className="px-4 py-3">
-                  <EmpresaEstadoBoton id={e.id} activo={e.activo} />
+                  {canWrite ? (
+                    <EmpresaEstadoBoton id={e.id} activo={e.activo} />
+                  ) : (
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${e.activo ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                      {e.activo ? 'Activa' : 'Inactiva'}
+                    </span>
+                  )}
                 </td>
-                <td className="px-4 py-3">
-                  <button onClick={() => onEditar(e)} className="text-teal-600 hover:underline text-sm">
-                    Editar
-                  </button>
-                </td>
+                {canWrite && (
+                  <td className="px-4 py-3">
+                    <button onClick={() => onEditar(e)} className="text-teal-600 hover:underline text-sm">
+                      Editar
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

@@ -1,6 +1,7 @@
 import type { Db } from "./pool.js";
 import type { AttendanceQuery, AttendanceUpsert } from "../../http/schemas/attendance.js";
-import { notFound } from "../../http/errors/app-error.js";
+import { AppError, badRequest, notFound } from "../../http/errors/app-error.js";
+import { mapPostgresError } from "./postgres-error.js";
 
 type Row = {
   id: string;
@@ -42,6 +43,25 @@ export type AttendanceJustificationRow = {
 
 export type AttendanceRepository = ReturnType<typeof createAttendanceRepository>;
 
+export function mapAttendanceWriteError(error: unknown): AppError | null {
+  if (error instanceof AppError) return error;
+  const code = postgresField(error, "code");
+  const constraint = postgresField(error, "constraint");
+  if (code === "23503" && constraint === "asistencias_codigo_fkey") {
+    return badRequest("Unknown attendance code");
+  }
+  if (code === "23503" && constraint === "asistencias_empleado_id_fkey") {
+    return notFound("Employee not found");
+  }
+  return mapPostgresError(error);
+}
+
+function postgresField(error: unknown, field: "code" | "constraint"): string | null {
+  if (error === null || typeof error !== "object" || !(field in error)) return null;
+  const value = (error as Record<string, unknown>)[field];
+  return typeof value === "string" ? value : null;
+}
+
 export function createAttendanceRepository(db: Db) {
   return {
     async list(q: AttendanceQuery) {
@@ -80,27 +100,33 @@ order by a.fecha desc,a.id desc offset $${params.length - 1} limit $${params.len
       };
     },
     async upsert(input: AttendanceUpsert, userId: string) {
-      const r = await db.query<Row>(
-        `insert into public.asistencias (empleado_id,fecha,codigo,horas_extras,cargado_por,observaciones,
+      try {
+        const r = await db.query<Row>(
+          `insert into public.asistencias (empleado_id,fecha,codigo,horas_extras,cargado_por,observaciones,
 archivo_url,archivo_storage_path,cliente_destino_id,cliente_horas_extra_id)
 values ($1,$2,$3,$4,$5,$6,null,null,$7,$8)
 on conflict (empleado_id,fecha) do update set codigo=excluded.codigo,horas_extras=excluded.horas_extras,
 cargado_por=excluded.cargado_por,observaciones=excluded.observaciones,
 cliente_destino_id=excluded.cliente_destino_id,cliente_horas_extra_id=excluded.cliente_horas_extra_id
 returning *, (select nombre_apellido from public.empleados where id=asistencias.empleado_id) empleado_nombre`,
-        [
-          input.empleadoId,
-          input.fecha,
-          input.codigo,
-          input.horasExtras,
-          userId,
-          input.observaciones ?? null,
-          input.clienteDestinoId ?? null,
-          input.clienteHorasExtraId ?? null,
-        ],
-      );
-      if (!r.rows[0]) throw new Error("Attendance upsert returned no row");
-      return map(r.rows[0]);
+          [
+            input.empleadoId,
+            input.fecha,
+            input.codigo,
+            input.horasExtras,
+            userId,
+            input.observaciones ?? null,
+            input.clienteDestinoId ?? null,
+            input.clienteHorasExtraId ?? null,
+          ],
+        );
+        if (!r.rows[0]) throw new Error("Attendance upsert returned no row");
+        return map(r.rows[0]);
+      } catch (error) {
+        const mapped = mapAttendanceWriteError(error);
+        if (mapped) throw mapped;
+        throw error;
+      }
     },
     async listCodes() {
       const r = await db.query<{

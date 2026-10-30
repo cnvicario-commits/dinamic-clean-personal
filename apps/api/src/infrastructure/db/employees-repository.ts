@@ -1,5 +1,6 @@
 import type { Db } from './pool.js'
 import { AppError, conflict, notFound } from '../../http/errors/app-error.js'
+import { mapPostgresError } from './postgres-error.js'
 import type {
   CreateEmployeeBody,
   EmployeeListItem,
@@ -25,7 +26,7 @@ function persistenceError(error: unknown): AppError {
   if (code === '23514') {
     return new AppError(400, 'employee_constraint_violation', 'Employee data violates a database constraint')
   }
-  return new AppError(502, 'employee_persistence_failed', 'Employee persistence failed')
+  return mapPostgresError(error) ?? new AppError(502, 'employee_persistence_failed', 'Employee persistence failed')
 }
 
 export type EmployeesRepository = ReturnType<typeof createEmployeesRepository>
