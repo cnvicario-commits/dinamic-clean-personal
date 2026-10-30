@@ -22,6 +22,7 @@ import { hrCatalogsRoutes } from './http/routes/v1/hr-catalogs.js'
 import { usersRoutes } from './http/routes/v1/users.js'
 import { AppError, rateLimitExceeded } from './http/errors/app-error.js'
 import { buildProblemBody, isProblemBody, sendProblem, toAppError } from './http/errors/problem-details.js'
+import { mapPostgresError } from './infrastructure/db/postgres-error.js'
 import { openApiDocument } from './http/openapi.js'
 import { createEmployeesRepository, type EmployeesRepository } from './infrastructure/db/employees-repository.js'
 import { createAssignmentsRepository, type AssignmentsRepository } from './infrastructure/db/assignments-repository.js'
@@ -295,20 +296,23 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
         })
     }
 
+    const mappedPg = err instanceof AppError ? null : mapPostgresError(err)
     const appErr =
       err instanceof AppError
         ? err
-        : typeof (err as { statusCode?: number }).statusCode === 'number' &&
-            (err as { statusCode: number }).statusCode < 500 &&
-            typeof (err as Error).message === 'string'
-          ? new AppError(
-              (err as { statusCode: number }).statusCode,
-              typeof (err as { code?: string }).code === 'string'
-                ? (err as { code: string }).code
-                : 'request_error',
-              (err as Error).message,
-            )
-          : toAppError(err)
+        : mappedPg
+          ? mappedPg
+          : typeof (err as { statusCode?: number }).statusCode === 'number' &&
+              (err as { statusCode: number }).statusCode < 500 &&
+              typeof (err as Error).message === 'string'
+            ? new AppError(
+                (err as { statusCode: number }).statusCode,
+                typeof (err as { code?: string }).code === 'string'
+                  ? (err as { code: string }).code
+                  : 'request_error',
+                (err as Error).message,
+              )
+            : toAppError(err)
 
     if (appErr.code === 'user_create_orphan') {
       request.log.error(

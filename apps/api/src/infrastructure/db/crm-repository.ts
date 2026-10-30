@@ -1,6 +1,7 @@
 import type pg from "pg";
 import type { Db } from "./pool.js";
 import { conflict, forbidden, notFound } from "../../http/errors/app-error.js";
+import { rethrowPostgresError } from "./postgres-error.js";
 import type { CrmScope } from "../../domain/crm-scope.js";
 import { createCrmReadModelMethods } from "./crm/crm-read-models.js";
 import { createCrmOpportunityIdempotency } from "./crm/crm-idempotency.js";
@@ -26,7 +27,7 @@ const tx = async <T>(db: Db, run: (c: pg.PoolClient) => Promise<T>) => {
     return r;
   } catch (e) {
     await c.query("rollback");
-    throw e;
+    rethrowPostgresError(e);
   } finally {
     c.release();
   }
@@ -430,7 +431,7 @@ on conflict(oportunidad_id,usuario_id) do update set last_viewed_at=excluded.las
           } catch (error) {
             if ((error as { code?: string }).code === "23505")
               throw conflict("Catalog record conflicts with an existing unique value");
-            throw error;
+            rethrowPostgresError(error);
           }
         },
         status: (id: string, activo: boolean) =>

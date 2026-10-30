@@ -1,6 +1,7 @@
 import type pg from "pg";
 import type { Db } from "./pool.js";
 import { AppError, badRequest, notFound } from "../../http/errors/app-error.js";
+import { mapPostgresError } from "./postgres-error.js";
 import type {
   CreateAddressBody,
   CreateClientBody,
@@ -19,7 +20,7 @@ function persistenceError(error: unknown): AppError {
   if (code === "23505")
     return new AppError(409, "client_conflict", "Client data conflicts with an existing record");
   if (code === "23503") return badRequest("Related client data does not exist");
-  return new AppError(502, "client_persistence_failed", "Client persistence failed");
+  return mapPostgresError(error) ?? new AppError(502, "client_persistence_failed", "Client persistence failed");
 }
 
 export function createClientsRepository(db: Db) {

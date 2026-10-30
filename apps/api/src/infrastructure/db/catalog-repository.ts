@@ -1,6 +1,7 @@
 import type { Db } from "./pool.js";
 import type pg from "pg";
 import { AppError, conflict, notFound } from "../../http/errors/app-error.js";
+import { rethrowPostgresError } from "./postgres-error.js";
 import { normalizeSupplierCode, performImport, performPriceList } from "./catalog/catalog-imports.js";
 const s = (x: string) => x.replace(/[A-Z]/g, (m) => "_" + m.toLowerCase());
 export function createCatalogRepository(db: Db) {
@@ -10,9 +11,10 @@ export function createCatalogRepository(db: Db) {
       if (!r.rows[0]) throw notFound(message);
       return r.rows[0];
     } catch (error) {
+      if (error instanceof AppError) throw error;
       if ((error as { code?: string }).code === "23505")
         throw conflict("Catalog record conflicts with an existing unique value");
-      throw error;
+      rethrowPostgresError(error);
     }
   };
   const patch = async (
@@ -213,7 +215,7 @@ values($1,$2,$3,$4,$5,true,now()) returning *
         return relation;
       } catch (e) {
         await c.query("rollback");
-        throw e;
+        rethrowPostgresError(e);
       } finally {
         c.release();
       }
@@ -284,7 +286,7 @@ where id=$1 and articulo_id=$2 returning *
         return { replayed: false, response };
       } catch (e) {
         await c.query("rollback");
-        throw e;
+        rethrowPostgresError(e);
       } finally {
         c.release();
       }

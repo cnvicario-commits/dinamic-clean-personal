@@ -1,7 +1,8 @@
 import { z } from "zod";
+import { postgresUuid } from "./postgres-uuid.js";
 import { CATALOG_IMPORT_MAX_ROWS } from "../../domain/import-limits.js";
 const text = z.string().trim().max(500).nullable().optional().default(null);
-export const uuid = z.string().uuid();
+export const uuid = postgresUuid;
 export const supplierCreate = z
   .object({
     razonSocial: z.string().trim().min(1).max(300),

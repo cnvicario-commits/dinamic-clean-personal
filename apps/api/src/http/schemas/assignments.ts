@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { postgresUuid } from './postgres-uuid.js'
 
 const queryBoolean = z.union([
   z.literal(true), z.literal(false),
@@ -16,12 +17,12 @@ export const listAssignmentsQuerySchema = z.object({
   active: queryBoolean.optional(),
 }).strict()
 export const createAssignmentBodySchema = z.object({
-  empleadoId: z.string().uuid(), clienteId: z.string().uuid(), fechaDesde: isoDate,
+  empleadoId: postgresUuid, clienteId: postgresUuid, fechaDesde: isoDate,
 }).strict()
-export const assignmentIdParamsSchema = z.object({ id: z.string().uuid() }).strict()
+export const assignmentIdParamsSchema = z.object({ id: postgresUuid }).strict()
 export const assignmentListItemSchema = z.object({
-  id: z.string().uuid(), empleado_id: z.string().uuid(), empleado_nombre: z.string(),
-  cliente_id: z.string().uuid(), cliente_nombre: z.string(), fecha_desde: z.string(),
+  id: postgresUuid, empleado_id: postgresUuid, empleado_nombre: z.string(),
+  cliente_id: postgresUuid, cliente_nombre: z.string(), fecha_desde: z.string(),
   fecha_hasta: z.string().nullable(),
 })
 export const assignmentsResponseSchema = z.object({
