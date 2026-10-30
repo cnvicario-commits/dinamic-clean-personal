@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createAuthenticatedBrowserApiClient } from '@/lib/api/browser'
 import BuscadorArticulo from './BuscadorArticulo'
@@ -129,8 +129,11 @@ export default function OrdenCompraForm({
     setLineas((prev) => prev.filter((l) => l.clave !== clave))
   }
 
+  const idempotencyKey = useRef(crypto.randomUUID())
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (loading) return
     setError('')
     if (!empresaId || !proveedorId || !clienteId) {
       setError('Elegí empresa, proveedor y cliente.')
@@ -160,7 +163,7 @@ export default function OrdenCompraForm({
           precioUnitario: Number(l.precioUnitario),
           observaciones: l.observaciones || null,
         })),
-      })
+      }, idempotencyKey.current)
       router.push(`/ordenes-compra/${nuevo.id}`)
     } catch (error) {
       setError(

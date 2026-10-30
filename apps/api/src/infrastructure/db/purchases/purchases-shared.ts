@@ -1,6 +1,7 @@
 import type pg from 'pg'
 import type { Db } from '../pool.js'
 import { notFound } from '../../../http/errors/app-error.js'
+import { rethrowPostgresError } from '../postgres-error.js'
 
 export async function purchaseTransaction<T>(
   db: Db,
@@ -14,7 +15,7 @@ export async function purchaseTransaction<T>(
     return result
   } catch (error) {
     await c.query('rollback')
-    throw error
+    rethrowPostgresError(error)
   } finally {
     c.release()
   }

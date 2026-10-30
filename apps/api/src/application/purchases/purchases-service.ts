@@ -26,8 +26,8 @@ export function createPurchasesService(
     listWarehouses: repo.listWarehouses,
     warehouse: repo.warehouseDetail,
     previewImport: repo.previewImport,
-    createRequest: (i: Parameters<typeof repo.saveRequest>[0], a: Actor) =>
-      mutation(a, "purchase_request.create", undefined, () => repo.saveRequest(i, a.userId)),
+    createRequest: (i: Parameters<typeof repo.saveRequest>[0], a: Actor, key: string) =>
+      mutation(a, "purchase_request.create", undefined, () => repo.saveRequest(i, a.userId, undefined, key)),
     updateRequest: (id: string, i: Parameters<typeof repo.saveRequest>[0], a: Actor) =>
       mutation(a, "purchase_request.update", id, () => repo.saveRequest(i, a.userId, id)),
     transition: (
@@ -38,8 +38,8 @@ export function createPurchasesService(
     ) => mutation(a, `${table}.transition`, id, () => repo.transition(table, id, state)),
     discard: (id: string, i: Parameters<typeof repo.discard>[1], a: Actor) =>
       mutation(a, "purchase_request_item.discard", id, () => repo.discard(id, i)),
-    createOrder: (i: Parameters<typeof repo.createOrder>[0], a: Actor) =>
-      mutation(a, "purchase_order.create", undefined, () => repo.createOrder(i, a.userId)),
+    createOrder: (i: Parameters<typeof repo.createOrder>[0], key: string, a: Actor) =>
+      mutation(a, "purchase_order.create", undefined, () => repo.createOrder(i, a.userId, key)),
     assign: (id: string, i: Parameters<typeof repo.applyAssignments>[1], key: string, a: Actor) =>
       mutation(a, "purchase_order.generate", id, () => repo.applyAssignments(id, i, key, a.userId)),
     applyImport: (i: Parameters<typeof repo.applyImport>[0], key: string, a: Actor) =>

@@ -1,5 +1,11 @@
 import { z } from "zod";
 import {
+  companyBodyOpenApiSchema,
+  companySchema,
+  updateCompanyBodyOpenApiSchema,
+  updateCompanyStatusBodySchema,
+} from "./schemas/companies.js";
+import {
   employeeAssignmentSchema,
   employeeListItemSchema,
   employeeMutationResponseSchema,
@@ -639,13 +645,22 @@ export const openApiDocument = {
       post: {
         summary: "Create independent purchase order atomically",
         security: bearer,
+        parameters: [
+          { name: "Idempotency-Key", in: "header", required: true, schema: { type: "string" } },
+        ],
         requestBody: {
           required: true,
           content: {
             "application/json": { schema: { $ref: "#/components/schemas/PurchaseOrderBody" } },
           },
         },
-        responses: { "201": { description: "Created" } },
+        responses: {
+          "201": {
+            description: "Created. A replay of the same actor and Idempotency-Key returns the same order with 201.",
+          },
+          "400": { description: "Validation or missing Idempotency-Key" },
+          "409": { description: "idempotency_key_payload_mismatch" },
+        },
       },
     },
     "/v1/purchase-orders/{id}": {
@@ -937,6 +952,74 @@ export const openApiDocument = {
         security: bearer,
         parameters: idParameter,
         responses: { "200": { description: "Resolved" }, "404": { description: "Not found" } },
+      },
+    },
+    "/v1/companies": {
+      post: {
+        summary: "Create company",
+        security: bearer,
+        parameters: [
+          { name: "Idempotency-Key", in: "header", required: true, schema: { type: "string" } },
+        ],
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: { $ref: "#/components/schemas/CompanyBody" } } },
+        },
+        responses: {
+          "201": {
+            description: "Created. A replay of the same actor, operation and Idempotency-Key returns this same company with 201.",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Company" } } },
+          },
+          "400": { description: "Validation or missing Idempotency-Key" },
+          "401": { description: "Unauthorized" },
+          "403": { description: "Forbidden" },
+          "409": { description: "idempotency_key_payload_mismatch when the key was stored for a different payload" },
+        },
+      },
+    },
+    "/v1/companies/{id}": {
+      patch: {
+        summary: "Update one or more editable company fields",
+        security: bearer,
+        parameters: idParameter,
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: { $ref: "#/components/schemas/UpdateCompanyBody" } } },
+        },
+        responses: {
+          "200": {
+            description: "Updated",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Company" } } },
+          },
+          "400": { description: "Validation" },
+          "401": { description: "Unauthorized" },
+          "403": { description: "Forbidden" },
+          "404": { description: "Not found" },
+          "409": { description: "Conflict" },
+        },
+      },
+    },
+    "/v1/companies/{id}/status": {
+      patch: {
+        summary: "Activate or deactivate a company",
+        security: bearer,
+        parameters: idParameter,
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": { schema: { $ref: "#/components/schemas/UpdateCompanyStatusBody" } },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Updated",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Company" } } },
+          },
+          "400": { description: "Validation" },
+          "401": { description: "Unauthorized" },
+          "403": { description: "Forbidden" },
+          "404": { description: "Not found" },
+        },
       },
     },
     "/v1/employees": {
@@ -2188,6 +2271,10 @@ export const openApiDocument = {
       EmployeeListItem: zodJsonSchema(employeeListItemSchema),
       EmployeesResponse: zodJsonSchema(employeesResponseSchema),
       ListEmployeesQuery: LIST_EMPLOYEES_QUERY_OPENAPI,
+      Company: zodJsonSchema(companySchema),
+      CompanyBody: zodJsonSchema(companyBodyOpenApiSchema),
+      UpdateCompanyBody: zodJsonSchema(updateCompanyBodyOpenApiSchema),
+      UpdateCompanyStatusBody: zodJsonSchema(updateCompanyStatusBodySchema),
       CreateEmployeeBody: zodJsonSchema(createEmployeeBodySchema),
       UpdateEmployeeStatusBody: zodJsonSchema(updateEmployeeStatusBodySchema),
       EmployeeMutationResponse: zodJsonSchema(employeeMutationResponseSchema),

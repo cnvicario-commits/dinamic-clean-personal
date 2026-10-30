@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import type pg from 'pg'
 import type { Db } from '../pool.js'
 import { conflict, notFound } from '../../../http/errors/app-error.js'
+import { rethrowPostgresError } from '../postgres-error.js'
 
 export type AuditClient = pg.PoolClient
 
@@ -14,7 +15,7 @@ export const auditTx = async <T>(db: Db, run: (c: AuditClient) => Promise<T>): P
     return result
   } catch (error) {
     await c.query('rollback')
-    throw error
+    rethrowPostgresError(error)
   } finally {
     c.release()
   }

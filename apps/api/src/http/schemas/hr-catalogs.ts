@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { postgresUuid } from './postgres-uuid.js'
 const includeValues = z.enum(['employees', 'clients'])
 export const hrCatalogsQuerySchema = z.object({
   include: z.string().transform((value, context) => {
@@ -12,8 +13,8 @@ export const hrCatalogsQuerySchema = z.object({
   }),
 }).strict()
 export const hrCatalogsResponseSchema = z.object({
-  employees: z.array(z.object({ id: z.string().uuid(), nombre_apellido: z.string() })),
-  clients: z.array(z.object({ id: z.string().uuid(), nombre: z.string() })),
+  employees: z.array(z.object({ id: postgresUuid, nombre_apellido: z.string() })),
+  clients: z.array(z.object({ id: postgresUuid, nombre: z.string() })),
 })
 export type HrCatalogsResponse = z.infer<typeof hrCatalogsResponseSchema>
 export type HrCatalogsQuery = z.infer<typeof hrCatalogsQuerySchema>

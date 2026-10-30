@@ -1,7 +1,8 @@
 import { z } from 'zod'
+import { postgresUuid } from './postgres-uuid.js'
 
 const nullableText = z.string().trim().max(500).nullable().optional().default(null)
-export const clientIdSchema = z.object({ id: z.string().uuid() }).strict()
+export const clientIdSchema = z.object({ id: postgresUuid }).strict()
 export const createClientBodySchema = z.object({
   nombre: z.string().trim().min(1).max(300), cuit: nullableText, personaContacto: nullableText,
   codigoCostos: nullableText, presupuesto4hs: z.number().int().min(0).default(0),

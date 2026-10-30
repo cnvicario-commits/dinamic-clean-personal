@@ -1,6 +1,7 @@
 import { z } from "zod";
+import { postgresUuid } from "./postgres-uuid.js";
 
-export const crmId = z.string().uuid();
+export const crmId = postgresUuid;
 export const crmState = z.enum(["en_seguimiento", "aceptado", "rechazado", "en_espera"]);
 const text = z.string().trim().max(2000).nullable().optional().default(null);
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);

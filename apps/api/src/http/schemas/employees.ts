@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { postgresUuid } from './postgres-uuid.js'
 
 /** Query: only true/false or "true"/"false" (Fastify querystrings are strings). */
 const queryBoolean = z.union([
@@ -18,7 +19,7 @@ export const listEmployeesQuerySchema = z
     pageSize: z.coerce.number().int().min(1).max(100).default(50),
     activo: queryBoolean.optional(),
     search: z.string().trim().min(1).max(100).optional(),
-    clienteId: z.string().uuid().optional(),
+    clienteId: postgresUuid.optional(),
   })
   .strict()
 
@@ -48,14 +49,14 @@ export const employeeAssignmentSchema = z.object({
   fecha_hasta: z.string().nullable(),
   clientes: z
     .object({
-      id: z.string().uuid(),
+      id: postgresUuid,
       nombre: z.string(),
     })
     .nullable(),
 })
 
 export const employeeListItemSchema = z.object({
-  id: z.string().uuid(),
+  id: postgresUuid,
   nombre_apellido: z.string(),
   cuil: z.string(),
   fecha_ingreso: z.string().nullable(),
@@ -88,7 +89,7 @@ export const createEmployeeBodySchema = z
   .strict()
 
 export const updateEmployeeStatusBodySchema = z.object({ activo: z.boolean() }).strict()
-export const employeeIdParamsSchema = z.object({ id: z.string().uuid() }).strict()
+export const employeeIdParamsSchema = z.object({ id: postgresUuid }).strict()
 export const employeeMutationResponseSchema = employeeListItemSchema.omit({ asignaciones: true })
 
 export type EmployeeAssignment = z.infer<typeof employeeAssignmentSchema>

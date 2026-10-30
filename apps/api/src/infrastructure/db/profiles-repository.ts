@@ -50,6 +50,9 @@ export function mapProfileWriteError(err: unknown): AppError {
   if (code === '23505') {
     return conflict('Profile already exists')
   }
+  // The only FK on public.perfiles is perfiles_id_fkey (id → auth.users.id).
+  // Upsert uses the id returned by Auth after createAuthUser, not a client-supplied user id.
+  // Role and name updates do not change that key. A 23503 is an Auth/database inconsistency.
   if (code === '23503') {
     return new AppError(502, 'profile_write_failed', 'Profile persistence failed')
   }

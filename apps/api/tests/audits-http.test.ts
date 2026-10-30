@@ -6,6 +6,7 @@ import type { createAuditsRepository } from '../src/infrastructure/db/audits-rep
 
 const USER = '22222222-2222-4222-8222-222222222222'
 const ID = '33333333-3333-4333-8333-333333333333'
+const SEEDED_CHECKLIST_ID = '00000000-0000-0000-0000-000000000001'
 const VERSION = '2026-09-30T12:00:00.000Z'
 const apps: FastifyInstance[] = []
 
@@ -300,5 +301,45 @@ describe('Phase 5B audits HTTP/RBAC', () => {
         })
       ).statusCode,
     ).toBe(400)
+  })
+
+  it('accepts the seeded checklist id that PostgreSQL stores but RFC 4122 rejects', async () => {
+    const instance = await app('admin')
+    const headers = await auth()
+    expect(
+      (
+        await instance.inject({
+          method: 'GET',
+          url: `/v1/audit-checklists/${SEEDED_CHECKLIST_ID}`,
+          headers,
+        })
+      ).statusCode,
+    ).toBe(200)
+
+    const created = await instance.inject({
+      method: 'POST',
+      url: '/v1/audits',
+      headers: { ...headers, 'idempotency-key': 'seed-checklist' },
+      payload: {
+        aliasId: ID,
+        plantillaId: SEEDED_CHECKLIST_ID,
+        fechaRealizada: '2026-10-01',
+        supervisorId: ID,
+        respuestas: [{ itemId: SEEDED_CHECKLIST_ID, resultado: 'conforme' }],
+      },
+    })
+    expect(created.statusCode).toBe(201)
+  })
+
+  it('still rejects malformed audit ids', async () => {
+    const instance = await app('admin')
+    const headers = await auth()
+    const response = await instance.inject({
+      method: 'GET',
+      url: '/v1/audit-checklists/not-a-uuid',
+      headers,
+    })
+    expect(response.statusCode).toBe(400)
+    expect(JSON.parse(response.body).detail).toBe('Invalid audit id')
   })
 })

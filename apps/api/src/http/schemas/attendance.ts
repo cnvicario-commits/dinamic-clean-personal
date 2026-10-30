@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { postgresUuid } from './postgres-uuid.js'
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date').refine((value) => {
   const parts = value.split('-').map(Number)
@@ -11,20 +12,20 @@ const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date').refine((val
 export const attendanceQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(25),
-  empleadoId: z.string().uuid().optional(),
+  empleadoId: postgresUuid.optional(),
   desde: date.optional(),
   hasta: date.optional(),
 }).strict()
 export const attendanceUpsertSchema = z.object({
-  empleadoId: z.string().uuid(),
+  empleadoId: postgresUuid,
   fecha: date,
   codigo: z.string().min(1).max(50),
   horasExtras: z.number().finite().min(0).default(0),
   observaciones: z.string().max(5000).nullable().optional(),
-  clienteDestinoId: z.string().uuid().nullable().optional(),
-  clienteHorasExtraId: z.string().uuid().nullable().optional(),
+  clienteDestinoId: postgresUuid.nullable().optional(),
+  clienteHorasExtraId: postgresUuid.nullable().optional(),
 }).strict()
-export const attendanceIdParamsSchema = z.object({ id: z.string().uuid() }).strict()
+export const attendanceIdParamsSchema = z.object({ id: postgresUuid }).strict()
 export const justificationUploadBodySchema = z.object({
   fileName: z.string().trim().min(1).max(255),
   contentBase64: z.string().min(1).max(21_000_000),

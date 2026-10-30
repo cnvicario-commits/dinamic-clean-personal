@@ -20,8 +20,8 @@ export function createClientsService(
     list: () => repo.list(),
     detail: (id: string) => repo.detail(id),
     addresses: (id: string) => repo.addresses(id),
-    async create(input: CreateClientBody, actor: Actor) {
-      const row = await repo.create(input);
+    async create(input: CreateClientBody, actor: Actor, idempotencyKey: string) {
+      const row = await repo.create(input, { actorId: actor.userId, key: idempotencyKey });
       audit(actor, "client.create", (row as { id?: unknown }).id);
       return row;
     },

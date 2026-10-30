@@ -1,6 +1,10 @@
 import { z } from 'zod'
+import { postgresUuid } from './postgres-uuid.js'
 
-const id = z.string().uuid()
+// PostgreSQL uuid accepts any 8-4-4-4-12 hex value. Zod's RFC 4122 `.uuid()`
+// rejects the seeded FR-01-01 template id `00000000-0000-0000-0000-000000000001`.
+export const auditId = postgresUuid
+const id = auditId
 
 const date = z
   .string()
