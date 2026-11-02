@@ -18,13 +18,6 @@ export default async function NuevaOportunidadPage({
     ? catalogs.prospectos.find((prospecto) => prospecto.id === prospectoId) ?? null
     : null
 
-  const responsableFijo =
-    !esAdmin && session && miPerfil ? { id: session.user.id, nombre_completo: miPerfil.nombre_completo } : null
-
-  const { data: prospectoInicial } = prospectoId
-    ? await supabase.from('crm_prospectos').select('id, nombre').eq('id', prospectoId).single()
-    : { data: null }
-
   return (
     <div className="max-w-4xl mx-auto px-6 py-10">
       <Link href={leadId ? `/ventas/leads/${leadId}` : '/ventas'} className="text-teal-600 hover:underline text-sm mb-4 inline-block">
