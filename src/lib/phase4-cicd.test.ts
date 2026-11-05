@@ -128,13 +128,60 @@ describe('CI must authorize the exact SHA', () => {
   }
 
   it('deploys only a successful push of that SHA', () => {
-    expect(evaluateCristianDeployGate(base).action).toBe('deploy')
-    expect(evaluateCristianDeployGate({ ...base, conclusion: 'failure' }).action).toBe('skip')
-    expect(evaluateCristianDeployGate({ ...base, conclusion: 'cancelled' }).action).toBe('skip')
-    expect(evaluateCristianDeployGate({ ...base, headSha: 'abc' }).reason).toBe('sha')
-    expect(evaluateCristianDeployGate({ ...base, headBranch: 'main' }).reason).toBe('branch')
-    expect(evaluateCristianDeployGate({ ...base, triggeringEvent: 'pull_request' }).action).toBe('skip')
-    expect(evaluateCristianDeployGate({ ...base, headRepository: 'other/fork' }).reason).toBe('fork')
+    expect(evaluateCristianDeployGate(base)).toEqual({ action: 'deploy', reason: '', sha: shaA })
+    const failed = evaluateCristianDeployGate({ ...base, conclusion: 'failure' })
+    expect(failed.action).toBe('skip')
+    expect(failed.reason).toBe('conclusion')
+    const cancelled = evaluateCristianDeployGate({ ...base, conclusion: 'cancelled' })
+    expect(cancelled.action).toBe('skip')
+    expect(cancelled.reason).toBe('conclusion')
+    const main = evaluateCristianDeployGate({ ...base, headBranch: 'main' })
+    expect(main.action).toBe('skip')
+    expect(main.reason).toBe('branch')
+    const pullRequest = evaluateCristianDeployGate({ ...base, triggeringEvent: 'pull_request' })
+    expect(pullRequest.action).toBe('skip')
+    expect(pullRequest.reason).toBe('event')
+    expect(evaluateCristianDeployGate({ ...base, repository: 'other/repo' })).toEqual({ action: 'reject', reason: 'repository' })
+    expect(evaluateCristianDeployGate({ ...base, headRepository: 'other/fork' })).toEqual({ action: 'reject', reason: 'fork' })
+    expect(evaluateCristianDeployGate({ ...base, headSha: 'abc' })).toEqual({ action: 'reject', reason: 'sha' })
+  })
+
+  it('skips main with exit 0 and does not publish or read deploy secrets', () => {
+    const output = join(mkdtempSync(join(tmpdir(), 'cristian-gate-')), 'github_output')
+    const result = spawnSync('node', ['scripts/ci/evaluate-cristian-deploy-gate.mjs'], {
+      cwd: root,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        EVENT_NAME: 'workflow_run',
+        REPOSITORY: 'cnvicario-commits/dinamic-clean-personal',
+        HEAD_REPOSITORY: 'cnvicario-commits/dinamic-clean-personal',
+        WORKFLOW_NAME: 'ci',
+        CONCLUSION: 'success',
+        TRIGGERING_EVENT: 'push',
+        HEAD_BRANCH: 'main',
+        HEAD_SHA: shaA,
+        GITHUB_OUTPUT: output,
+      },
+    })
+    expect(result.status).toBe(0)
+    expect(result.stdout).toContain('CRISTIAN_DEPLOY_SKIPPED branch')
+    expect(result.stderr).not.toContain('CRISTIAN_DEPLOY_REJECTED')
+    expect(readFileSync(output, 'utf8')).toBe('deploy=false\nsha=\nreason=branch\n')
+
+    const workflow = readFileSync(join(root, '.github/workflows/cd-cristian.yml'), 'utf8')
+    const gate = workflow.slice(0, workflow.indexOf('\n  publish:'))
+    const publish = workflow.slice(workflow.indexOf('\n  publish:'), workflow.indexOf('\n  deploy:'))
+    const deploy = workflow.slice(workflow.indexOf('\n  deploy:'))
+    expect(gate).toContain("if: steps.decision.outputs.deploy == 'true'")
+    expect(gate).not.toContain('secrets.CRISTIAN_')
+    expect(publish).toContain("if: needs.gate.outputs.deploy == 'true'")
+    expect(deploy).toContain("if: needs.gate.outputs.deploy == 'true'")
+    expect(publish).toContain('secrets.CRISTIAN_NEXT_PUBLIC_SUPABASE_ANON_KEY')
+    expect(deploy).toContain('secrets.CRISTIAN_DEPLOY_SSH_KEY')
+    expect(deploy).toContain('secrets.CRISTIAN_DEPLOY_KNOWN_HOSTS')
+    expect(deploy).toContain('secrets.CRISTIAN_DEPLOY_HOST')
+    expect(deploy).toContain('secrets.CRISTIAN_DEPLOY_USER')
   })
 
   it('reads the CI run instead of trusting a dispatch input', () => {
