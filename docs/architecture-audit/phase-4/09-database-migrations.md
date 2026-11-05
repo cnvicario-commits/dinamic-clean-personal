@@ -1,13 +1,11 @@
 # 09 — Migraciones
 
-La validación, la aplicación y el despliegue de la aplicación son tres pasos distintos.
+La validación, la aplicación y el despliegue siguen separados. El CD de Cristian no llama al runner.
 
-El CI ejecuta `scripts/ci/check-forward-migration-files.mjs`. Comprueba nombre, orden y versión única. No calcula un plan contra una base y no aplica SQL. Resultado local de esta sesión: `migration_files 28 rollback_files 0`.
+`.github/workflows/cd-migrations.yml` solo acepta `workflow_dispatch` desde `refs/heads/main`, con la confirmación `migrate-test`, `CRISTIAN_MIGRATIONS_ENABLED=true` y el SHA del propio workflow. No hay un input para elegir otra rama. El job que tiene el secret exige que `scripts/assert-migration-target.mjs` clasifique el URL como `test-cloud`. Un URL con el ref productivo se rechaza antes de aplicar.
 
-La aplicación usa el runner existente. Ese runner registra `app_migrations.forward_history` con checksum SHA-256, exige que lo aplicado sea un prefijo del repositorio, no repite una migración con el mismo checksum y rechaza el ref productivo antes de conectar. No se modificó esa prohibición y no se agregó un bypass.
+`scripts/ci/evaluate-migration-gate.mjs` marca como destructivo un `DROP TABLE`, `DROP SCHEMA`, `DROP COLUMN`, `TRUNCATE` o `DELETE FROM`. Un `REVOKE ... TRUNCATE` no entra en esa categoría. Los 28 archivos actuales no coinciden con el patrón destructivo. Si alguno coincidiera, el workflow se detiene.
 
-`.github/workflows/cd-migrations.yml` es manual. Pide la confirmación `migrate-test`, exige `CRISTIAN_MIGRATIONS_ENABLED=true` y solo entonces entra al environment `cristian-pruebas` para leer `CRISTIAN_MIGRATIONS_DATABASE_URL`. No está activado y no se ejecutó.
+El runner toma un lock de directorio en el equipo que lo ejecuta y el workflow usa el grupo de concurrencia `migrations-test`. Esa prueba de lock se ejecutó en local: la segunda invocación imprimió `MIGRATIONS_LOCKED`. No es un advisory lock de Postgres entre dos máquinas. Un proceso terminado con `SIGKILL` puede dejar el directorio; se retira a mano y no contiene datos. No se aplicó ninguna migración.
 
-No hay workflow de migración productiva. El runner actual no puede apuntar a `biectbcujabpjhinouil`. Una migración productiva sigue siendo una operación separada, con respaldo y revisión, fuera de esta fase. Un rollback de contenedor no revierte el esquema. Una migración destructiva no entra en el workflow manual de Test: el runner aplica el siguiente archivo pendiente, así que un archivo destructivo tendría que excluirse del recorrido automático antes de activar la variable.
-
-El despliegue de Cristian no llama al runner aunque el diff contenga SQL. El código y el esquema se publican por separado.
+No existe un workflow que aplique migraciones productivas. El runner sigue sin aceptar `biectbcujabpjhinouil`.

@@ -2,14 +2,14 @@
 
 ## Cristian
 
-`scripts/deploy/cristian-remote-apply.sh` guarda `releases/previous-sha` antes de recrear. Si el healthcheck falla, ejecuta `scripts/deploy/cristian-remote-rollback.sh` con ese SHA y el servicio anterior. El rollback exige que la imagen local siga presente, vuelve a pasar el preflight y comprueba el healthcheck. El archivo `releases/rolling-back` hace que una segunda entrada salga con `ROLLBACK_REJECTED already_running`. El lock `releases/deploy.lock` rechaza otro despliegue simultáneo.
+El frontend y la API tienen registros separados. Un fallo del frontend restaura solo la imagen anterior del frontend. La API permanece en su propio SHA.
 
-No se probó este recorrido sobre contenedores. Estado: `NOT_VERIFIED`.
+Antes de recrear el contenedor, un fallo no cambia `current`. Después de recrearlo, la recuperación usa la imagen y el digest de `current`. Si ese registro no existe, el comando sale con `ROLLBACK_UNAVAILABLE` y conserva `lastFailed`. No reconstruye una imagen antigua y no borra el historial `events.jsonl`.
+
+Un run id menor que el ya desplegado se rechaza. Dos escritores del mismo servicio no entran juntos: el segundo recibe `locked`.
 
 ## Producción
 
-`scripts/deploy/production-remote-apply.sh` conserva el SHA anterior y, si `127.0.0.1:3005/healthz` no contiene el SHA nuevo, llama a `scripts/deploy/production-remote-rollback.sh`. El rollback no ejecuta SQL. Si una migración ya se aplicó, restaurar la imagen anterior solo es válido cuando esa versión de la API sigue siendo compatible con el esquema. Esa decisión queda para el operador; el script no la infiere.
+El mismo modelo aplica al servicio `api` bajo `/var/lib/dinamic-clean/production`. El script no ejecuta Docker hasta que el Compose privilegiado fue revisado. Restaurar el contenedor no ejecuta SQL. Si el esquema ya avanzó, la imagen anterior solo vuelve a ser usable cuando sigue siendo compatible. Esa decisión no la toma el script.
 
-El frontend de Vercel no se promociona ni se revierte desde estos scripts. Si la API se restaura, el estado del frontend tiene que revisarse en Vercel con el mismo SHA anterior. La forma concreta de hacerlo sigue `NOT_VERIFIED` porque no se leyó el proyecto.
-
-No hay borrado automático de la imagen anterior ni rollback destructivo de la base.
+El frontend de Vercel no se revierte desde aquí. `VERCEL_INTEGRATION_NOT_VERIFIED`.

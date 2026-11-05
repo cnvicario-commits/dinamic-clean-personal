@@ -41,6 +41,6 @@ No incluye URL ni claves de Supabase Test. La configuración de Vercel no se cop
 
 ## Archivos del servidor, fuera de Git
 
-`/opt/dinamic-clean-cristian/deploy.env` solo puede contener las claves que acepta `scripts/deploy/load-cristian-deploy-env.sh`. Una clave desconocida detiene el script. `/opt/dinamic-clean/deploy.env` solo acepta `PRODUCTION_COMPOSE_FILE` y `PRODUCTION_REGISTRY`.
+`/etc/dinamic-clean/cristian.env` es la única fuente automática de variables de Cristian. `scripts/deploy/load-cristian-deploy-env.sh` acepta una lista cerrada y rechaza una ruta dentro de cualquiera de los dos checkouts. `PRODUCTION_COMPOSE_REVIEWED=operator-reviewed` es una marca del operador en el entorno del proceso privilegiado, no un secret de GitHub. El Compose productivo se lee desde `/opt/dinamic-clean-privileged/compose`.
 
 Los workflows no imprimen esas variables. El paso SSH falla con `CRISTIAN_DEPLOY_NOT_CONFIGURED` o `PRODUCTION_DEPLOY_NOT_CONFIGURED` si falta alguno, sin mostrar el contenido. La clave anónima del frontend es pública por diseño; el guardia rechaza una clave `service_role`. Aun así, BuildKit puede conservar un build arg en el historial de la imagen. No se pasa service role, contraseña ni connection string como build arg.

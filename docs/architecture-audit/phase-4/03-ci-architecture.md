@@ -17,4 +17,6 @@ Se ejecuta en pull request y en push a `main`, `master` y `cristian-pruebas`. Pe
 
 Ningún job llama a `scripts/apply-forward-migrations.sh`.
 
-El workflow nuevo no fue ejecutado por GitHub en esta sesión. `actionlint` terminó sin hallazgos sobre los cuatro workflows. Los checks de guardias y el test `src/lib/phase4-cicd.test.ts` se ejecutaron en local.
+El CD de Cristian no escucha el push. Espera a que este workflow termine y después valida el SHA, la rama, el evento y el repositorio. Las acciones quedan fijadas al commit leído el 2026-11-05: `actions/checkout` `11d5960a326750d5838078e36cf38b85af677262`, `actions/setup-node` `49933ea5288caeca8642d1e84afbd3f7d6820020` y `supabase/setup-cli` `1dedf2c611547ede7232d26866dd3c56ab903bbb`.
+
+El workflow no fue ejecutado por GitHub en esta sesión. `actionlint` terminó sin hallazgos. Los checks locales están en `src/lib/phase4-cicd.test.ts`.

@@ -11,40 +11,55 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: migrations-test
+  cancel-in-progress: false
+
 jobs:
   authorize:
     runs-on: ubuntu-latest
     steps:
-      - name: Require explicit Test migration confirmation
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Admit only main at this SHA
         env:
+          REF: ${{ github.ref }}
           CONFIRM: ${{ inputs.confirm }}
           ENABLED: ${{ vars.CRISTIAN_MIGRATIONS_ENABLED }}
+          GITHUB_SHA: ${{ github.sha }}
+          HEAD_SHA: ${{ github.sha }}
+          DESTRUCTIVE: "false"
         run: |
           set -euo pipefail
-          if [[ "$CONFIRM" != "migrate-test" ]]; then
-            echo "MIGRATIONS_CONFIRMATION_REJECTED"
-            exit 1
-          fi
-          if [[ "$ENABLED" != "true" ]]; then
-            echo "MIGRATIONS_DISABLED"
-            exit 1
-          fi
+          node --input-type=module -e "import { findDestructiveMigrations } from './scripts/ci/evaluate-migration-gate.mjs'; const found = findDestructiveMigrations('supabase/migrations/forward'); if (found.length) { console.error('MIGRATIONS_REJECTED destructive'); process.exit(1) }"
+          node scripts/ci/evaluate-migration-gate.mjs
 
   apply-test:
     needs: authorize
     runs-on: ubuntu-latest
     environment: cristian-pruebas
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
       - name: Apply pending Test migrations
         env:
           MIGRATIONS_DATABASE_URL: ${{ secrets.CRISTIAN_MIGRATIONS_DATABASE_URL }}
+          REF: ${{ github.ref }}
+          CONFIRM: ${{ inputs.confirm }}
+          ENABLED: "true"
+          GITHUB_SHA: ${{ github.sha }}
+          HEAD_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           if [[ -z "$MIGRATIONS_DATABASE_URL" ]]; then
             echo "MIGRATIONS_NOT_CONFIGURED"
             exit 1
           fi
+          target="$(node scripts/assert-migration-target.mjs "$MIGRATIONS_DATABASE_URL")"
+          kind="$(printf '%s\n' "$target" | awk '/^MIGRATION_TARGET / {print $2}')"
+          TARGET_KIND="$kind" node scripts/ci/evaluate-migration-gate.mjs
           node scripts/ci/check-forward-migration-files.mjs
           ./scripts/apply-forward-migrations.sh
           echo "MIGRATIONS_TEST_APPLY_REQUESTED ${GITHUB_SHA}"

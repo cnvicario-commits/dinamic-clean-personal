@@ -1,12 +1,12 @@
 # 14 — Riesgos residuales
 
-1. `gh` no tiene sesión. No está comprobado el plan, los reviewers, los rulesets ni la visibilidad de GHCR. La variable apagada impide el despliegue automático; no sustituye una aprobación de otra persona cuando alguien pueda encenderla y despachar.
-2. Un push directo a `cristian-pruebas` ejecuta el YAML de esa rama. Sin protección de rama, ese YAML puede modificarse para pedir secretos de otro environment. La activación queda bloqueada hasta existir la protección y los reviewers.
-3. La cuenta de despliegue todavía no existe. Un wrapper sin un permiso acotado de Docker no puede publicar, y darle el grupo `docker` anularía el aislamiento. Ese permiso todavía no está diseñado como una regla instalada.
-4. El Compose productivo real no se leyó del VPS en esta fase. El script rechaza un archivo con señales de Cristian, pero no se validó contra `/opt/dinamic-clean`.
-5. La integración con Vercel no se leyó. Puede haber un despliegue de frontend al mergear `main` que esta fase no controla ni debe duplicar.
-6. El rollback de Docker no revierte migraciones. El workflow de migración está separado y apagado; una migración ya aplicada queda fuera del rollback.
-7. Cristian sigue en HTTP público. El pipeline no agrega TLS y no convierte esa dirección en un canal adecuado para credenciales reales.
-8. El anon key del frontend viaja como build arg. No es la service role, y puede quedar en el historial de la imagen. Los logs de GitHub enmascaran el secret, el historial local de BuildKit no es el mismo control.
-9. No se midió de nuevo el VPS. La activación tiene que volver a medir antes de publicar imágenes.
-10. `deploy-guards` en CI usa Docker del runner para `docker compose config`. Eso valida sintaxis. No despliega y no abre los puertos 3006 ni 8086.
+1. `workflow_run` protege el YAML de despliegue solo cuando ese archivo está en la rama por defecto. Hoy está en `DIN-417`. Hasta el merge, el CD no queda activo.
+2. El job de publicación construye el SHA ya aceptado por CI. Ese checkout recibe la clave anónima de Test, que es pública por diseño. No recibe la llave SSH ni el URL de migraciones. Un Dockerfile malicioso podría intentar imprimir la clave anónima; GitHub enmascara el secret.
+3. La protección de ramas y los reviewers no se leyeron. `gh` sigue sin sesión.
+4. El Compose productivo del VPS no se inspeccionó. El script está cerrado hasta una revisión humana. Los nombres `dinamic-clean-api` y el puerto `3005` vienen de la descripción operativa.
+5. `VERCEL_INTEGRATION_NOT_VERIFIED`.
+6. El lock de migraciones es local al proceso y al grupo de concurrencia del workflow. No se probó un advisory lock de Postgres entre dos hosts. `SIGKILL` puede dejar el directorio de lock vacío.
+7. El rollback de un contenedor no revierte SQL.
+8. Cristian sigue en HTTP público. Esta corrección no agrega TLS.
+9. La cuenta que finalmente invoque Docker sigue sin un mecanismo instalado que evite el grupo `docker`. El procedimiento está escrito y no aplicado.
+10. No se volvió a medir el VPS.

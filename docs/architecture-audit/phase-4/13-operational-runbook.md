@@ -1,39 +1,30 @@
 # 13 — Runbook de activación
 
-Esta fase deja los archivos listos y no ejecuta este runbook. El orden es el de activación posterior. No incluye cambios de firewall, Nginx, DNS ni HTTPS de Cristian.
+Esta corrección no ejecuta el runbook.
 
-## Antes de tocar el VPS
+## Antes de encender Cristian
 
-1. Medir CPU, memoria y disco. La medición anterior no se repite aquí.
-2. Confirmar que `/opt/dinamic-clean-cristian` y `/opt/dinamic-clean` siguen siendo directorios distintos.
-3. Crear en GitHub los environments `cristian-pruebas` y `production`.
-4. Cargar solo los nombres del documento 07. No usar secrets de repositorio para producción.
-5. Activar required reviewers en `production`. Si el plan no los ofrece, dejar `PRODUCTION_DEPLOY_ENABLED` sin definir y no usar el workflow productivo.
-6. Proteger `main` y `cristian-pruebas`: PR obligatorio, CI verde y sin push directo.
-7. Crear dos llaves SSH. Instalar cada pública con `command=` a su wrapper y `restrict`. No agregar la cuenta a `docker`. El permiso para Compose tiene que quedar limitado a los scripts del checkout correspondiente.
-8. Copiar el checkout de `main` ya promovido. Crear `deploy.env` fuera de Git, con el allowlist del loader. Permiso de lectura solo para la cuenta de despliegue.
+1. Medir de nuevo CPU, memoria y disco.
+2. Confirmar que la rama por defecto contiene `.github/workflows/cd-cristian.yml`. `workflow_run` usa ese archivo, no el de `cristian-pruebas`.
+3. Proteger `main` y `cristian-pruebas`: PR, CI verde y sin push directo.
+4. Crear el environment `cristian-pruebas` solo con secretos de Test.
+5. Ejecutar, como root y fuera de esta sesión, los comandos que imprime `scripts/deploy/print-privileged-install.sh`.
+6. Copiar los Compose revisados a `/opt/dinamic-clean-privileged/compose/`. No usar los archivos del checkout como ejecutables privilegiados.
+7. Instalar la llave de Cristian con `command=` hacia `cristian-ssh` y `restrict`. No agregar la cuenta a `docker`. El permiso para recrear los dos contenedores de Cristian queda limitado a ese wrapper.
+8. Recién entonces definir `CRISTIAN_DEPLOY_ENABLED=true`.
 
-## Cristian
-
-1. Integrar `main` en `cristian-pruebas` con merge.
-2. Definir `CRISTIAN_DEPLOY_ENABLED=true` solo después de los pasos anteriores.
-3. El push publica el tag `cristian-<sha>` y ejecuta `cristian-apply` del servicio afectado.
-4. Verificar los comandos del documento 11. Confirmar que el contenedor `dinamic-clean-api` del puerto 3005 conserva su imagen anterior.
-5. Para volver atrás sin reconstruir: `cristian-rollback <servicio> <sha anterior>`, con la imagen todavía presente.
+Un push a `cristian-pruebas` debe mostrar el CI verde y, después, el gate del CD para ese SHA. Si el CI falla, el CD registra `CRISTIAN_DEPLOY_SKIPPED` y no abre SSH.
 
 ## Producción
 
-1. Merge autorizado a `main`.
-2. Observar el despliegue que Vercel ya tenga configurado. No lanzar otro.
-3. Con reviewers activos, despachar `cd-production` desde `main` y escribir `deploy-production`.
-4. Definir `PRODUCTION_DEPLOY_ENABLED=true` solo en ese momento.
-5. El script usa el Compose que ya está en el servidor y el puerto 3005. No reemplaza Nginx.
-6. Si `/healthz` no coincide con el SHA, el script intenta el SHA anterior. No toca la base.
+No encenderla junto con Cristian. Hace falta, además:
 
-## Migraciones de Test
+1. Required reviewers del environment `production`, o dejar `PRODUCTION_DEPLOY_ENABLED` sin definir si el plan no los ofrece.
+2. Correr en el servidor los comandos de `scripts/deploy/production-readonly-diagnose.sh` y revisar la salida.
+3. Colocar el Compose revisado en la ruta privilegiada y definir `PRODUCTION_COMPOSE_REVIEWED=operator-reviewed` solo después de esa lectura.
+4. Completar el checklist de Vercel del documento 05. No crear un segundo deploy de frontend.
+5. Despachar `cd-production` desde `main` con el texto `deploy-production`.
 
-Despachar `cd-migrations` con `migrate-test` solo cuando `CRISTIAN_MIGRATIONS_ENABLED=true` y el secret apunte al proyecto `edruejzwwnixsjsadbgb`. El runner aborta si el URL contiene el ref productivo. No forma parte del push de aplicación.
+## Apagado y rollback
 
-## Apagado
-
-Borrar o vaciar la variable `*_ENABLED` detiene el job antes del environment. Retirar la línea de `authorized_keys` detiene el SSH aunque la variable siga encendida.
+Vaciar la variable `*_ENABLED` detiene el job antes del environment. Retirar la línea de `authorized_keys` detiene el SSH. El rollback de un servicio usa su propio registro y no toca el otro. Si el registro dice `ROLLBACK_UNAVAILABLE`, no hay imagen anterior que restaurar: se conserva el estado y se interviene a mano.

@@ -2,18 +2,23 @@
 
 Archivo: `.github/workflows/cd-production.yml`.
 
-No tiene trigger `push` ni `pull_request`. Solo `workflow_dispatch`. El primer job falla si la ref no es `refs/heads/main`, si la confirmación escrita no es `deploy-production`, o si `PRODUCTION_DEPLOY_ENABLED` no vale `true`. Esa variable no está definida, así que una ejecución hoy terminaría en `PRODUCTION_DEPLOY_DISABLED` antes de usar el environment.
+Sigue siendo solo `workflow_dispatch`. Antes de usar el environment `production`, el job lee la corrida de CI del mismo SHA en `main` y `scripts/ci/evaluate-production-deploy-gate.mjs` exige confirmación `deploy-production`, `PRODUCTION_DEPLOY_ENABLED=true` y un push de CI exitoso. La imagen se publica como `production-<sha>` y el SSH envía el digest.
 
-Los jobs siguientes usan el environment `production`. Publican únicamente:
+`scripts/deploy/production-remote-apply.sh` no llega a Docker si `PRODUCTION_COMPOSE_REVIEWED` no es `operator-reviewed`. El Compose que acepta tiene que estar bajo `/opt/dinamic-clean-privileged/compose/`, nombrar el contenedor `dinamic-clean-api`, publicar `3005` y no contener el ref de Test ni `cristian-pruebas`. Esos marcadores salen de la descripción operativa, no de una lectura nueva del servidor. `scripts/deploy/production-readonly-diagnose.sh` solo imprime comandos de lectura. Esta sesión no los ejecutó. El Compose real del VPS queda pendiente.
 
-`ghcr.io/<owner>/dinamic-clean-api:production-<sha>`
-
-El build no recibe `APP_DEPLOYMENT_ENV=cristian-pruebas` ni variables de Supabase Test. El comando remoto es `production-apply <sha>`. El script solo acepta `/opt/dinamic-clean`, exige que el Compose existente publique `3005` y rechaza si ese archivo contiene el ref de Test, `cristian-pruebas`, `3006` u `8086`. No modifica Nginx.
-
-## Aprobaciones
-
-No se pudo comprobar si el plan del repositorio ofrece required reviewers. `gh` no tiene sesión. La alternativa implementada es el despacho manual, la confirmación literal y la variable apagada. Eso evita un despliegue automático. No equivale a una aprobación de otra persona si un administrador enciende la variable y despacha el workflow. La protección del environment queda pendiente y es `NOT_VERIFIED`.
+`/healthz` exige el SHA. `/readyz` exige `status=ready`. El estado productivo es independiente, en `/var/lib/dinamic-clean/production/api.json`.
 
 ## Vercel
 
-No se agregó `vercel deploy` ni un segundo pipeline de frontend. El frontend productivo debe seguir el mecanismo que ya tenga Vercel sobre `main`. Cuál es la rama productiva, si hay preview y si un merge ya despliega solo, no se pudo leer. Estado: `NOT_VERIFIED`. Hasta conocerlo, activar el workflow de API no debe acompañarse de otra publicación del frontend.
+`VERCEL_INTEGRATION_NOT_VERIFIED`
+
+No hay CLI ni `.vercel/project.json`. No se agregó `vercel deploy`. El checklist para una revisión posterior es:
+
+- proyecto vinculado y rama productiva;
+- si el merge a `main` ya despliega solo;
+- variables por entorno y ausencia del ref de Test;
+- alias productivo;
+- cómo se revierte un deployment;
+- cómo se promociona un deployment ya construido.
+
+Hasta leer eso, el workflow de API no debe acompañarse de otra publicación del frontend.

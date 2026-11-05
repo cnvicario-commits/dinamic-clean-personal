@@ -3,6 +3,17 @@
 import re
 import sys
 
+def mentions_production_checkout(text):
+    for match in re.finditer(r"/opt/dinamic-clean", text):
+        nxt = text[match.end():match.end() + 1]
+        if nxt in ("", "/", " ", "\n", "\t", '"', "'"):
+            return True
+    return False
+
+if len(sys.argv) > 1 and sys.argv[1] == "--path-class":
+    print("production" if mentions_production_checkout(sys.argv[2]) else "allowed")
+    raise SystemExit(0)
+
 text = sys.stdin.read()
 port, sha = sys.argv[1], sys.argv[2]
 checks = {
@@ -28,7 +39,7 @@ checks = {
     "log_rotation": "max-size" in text,
     "external_network": "external: true" in text and re.search(r"(?m)^\s*name: dinamic-clean-cristian\s*$", text) is not None,
     "no_remove_orphans": "remove-orphans" not in text,
-    "no_production_dir": "/opt/dinamic-clean" not in text,
+    "no_production_dir": not mentions_production_checkout(text),
     "tls_verification_stays_on": "NODE_TLS_REJECT_UNAUTHORIZED" not in text,
 }
 failed = [name for name, ok in checks.items() if not ok]

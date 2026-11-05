@@ -1,22 +1,9 @@
 # 06 — Seguridad del despliegue en el VPS
 
-No se crearon usuarios, no se editó `sudoers`, SSH ni el firewall, y no se agregó ninguna cuenta al grupo `docker`. El acceso al daemon equivale a root; el diseño no usa ese grupo como aislamiento.
+No se crearon usuarios ni se editó `sudoers`, SSH o el firewall. Ninguna cuenta se agrega al grupo `docker`.
 
-## Preparado y no instalado
+Los comandos SSH ejecutan binarios bajo `/opt/dinamic-clean-privileged/bin`. `scripts/deploy/authorized-command.sh` y `scripts/deploy/production-authorized-command.sh` rechazan cualquier otra cadena. La variable que apunta a otro directorio solo se honra en el modo de fixture de pruebas. El script termina si su propia ruta está dentro de `/opt/dinamic-clean` o `/opt/dinamic-clean-cristian`. `/opt/dinamic-clean-cristian` no se confunde con la raíz productiva.
 
-Cada entorno tiene su propia llave y su propio `ForceCommand`:
+`scripts/deploy/print-privileged-install.sh` imprime la instalación con propietario root y modo `755` para binarios y `700` para el estado y `/etc/dinamic-clean`. No copia archivos y no se ejecutó. El checkout de la aplicación no es el origen de los scripts en tiempo de ejecución. El estado vive en `/var/lib/dinamic-clean`. Los secretos siguen fuera de Git.
 
-| Entorno | Wrapper | Comandos |
-|---|---|---|
-| Cristian | `scripts/deploy/authorized-command.sh` | `cristian-apply` y `cristian-rollback` con servicio y SHA de 40 hexadecimales |
-| Producción | `scripts/deploy/production-authorized-command.sh` | `production-apply` y `production-rollback` con SHA |
-
-La llave de Cristian rechaza `production-apply`. Un comando como `docker system prune` también es rechazado. Esas dos pruebas se ejecutaron en local. La llave de producción no está autorizada a entrar en `/opt/dinamic-clean-cristian`.
-
-La instalación posterior, fuera de esta fase, consiste en una cuenta sin grupo `docker`, una llave por entorno, `command=` apuntando al wrapper, `restrict` en `authorized_keys`, y un mecanismo del sistema que permita a ese wrapper invocar solo los scripts de preflight y `docker compose` del directorio correspondiente. Mientras ese mecanismo no exista, la variable de activación permanece apagada. No se documenta un `sudo` amplio ni una cuenta dentro de `docker`.
-
-## Integridad
-
-Los scripts viven en el checkout del servidor. El wrapper ejecuta la ruta fija; no recibe el cuerpo del script por SSH. Una rotación consiste en retirar la línea de `authorized_keys`, generar otro par y cargar la clave privada solo en el environment de GitHub que corresponde. Los archivos `deploy.env` del servidor quedan fuera de Git, con permiso de lectura solo para la cuenta que ejecuta el wrapper.
-
-El workflow de `cristian-pruebas` corre el YAML de esa rama. Si la rama acepta push directo, alguien puede editar el workflow y pedir el environment `production`. Por eso la protección de rama y los reviewers del environment son parte de la activación, no un detalle posterior.
+`AcceptEnv` no debe permitir cambiar la ruta privilegiada. Cada entorno conserva su propia llave. La de Cristian no acepta `production-apply`.

@@ -2,23 +2,29 @@
 
 Archivo: `.github/workflows/cd-cristian.yml`.
 
-Trigger: push a `cristian-pruebas` o `workflow_dispatch`. Concurrencia `cristian-deploy`, sin cancelar un despliegue en curso. Permisos: lectura del repo y escritura de paquetes.
+No se dispara con un push. El despliegue automático usa `workflow_run` cuando termina el workflow `ci`. GitHub ejecuta ese archivo desde la rama por defecto del repositorio, no desde el YAML que haya en `cristian-pruebas`. Un `workflow_dispatch` solo se admite desde `refs/heads/main` y después de leer una corrida real de CI.
 
-El job de publicación y el de despliegue solo arrancan si la variable de repositorio `CRISTIAN_DEPLOY_ENABLED` vale `true` y el diff toca API, frontend o ambos. Un cambio solo de documentación selecciona `services=none` y no recrea contenedores. Esa variable no está definida. Los jobs quedan omitidos hasta la activación.
+`scripts/ci/evaluate-cristian-deploy-gate.mjs` deja seguir el deploy únicamente cuando se cumplen todas estas condiciones:
 
-## Publicación
+- el repositorio y `head_repository` son `cnvicario-commits/dinamic-clean-personal`;
+- el workflow se llama `ci` y su conclusión es `success`;
+- el evento de origen es `push` a `cristian-pruebas`;
+- el SHA tiene 40 hexadecimales y es el mismo que se construye y se envía por SSH.
 
-Environment GitHub: `cristian-pruebas`. No referencia el environment `production` ni el ref productivo.
+Una conclusión `failure`, `cancelled` o un pull request producen `CRISTIAN_DEPLOY_SKIPPED` y no publican. Un fork o un SHA distinto producen `CRISTIAN_DEPLOY_REJECTED`. El job de publicación y el de SSH siguen apagados mientras `CRISTIAN_DEPLOY_ENABLED` no sea `true`.
 
-- API: `ghcr.io/<owner>/dinamic-clean-api:cristian-<sha>`
-- Frontend: `ghcr.io/<owner>/dinamic-clean-frontend:cristian-<sha>`
+## Salud
 
-El frontend pasa antes por `scripts/assert-cristian-frontend-env.mjs build`. Las variables públicas de Next quedan fijadas en la imagen. No existe tag `latest`. El workflow no fue ejecutado y no publicó imágenes.
+`/healthz` debe responder HTTP 200 y `{ "status": "ok", "release": "<sha>" }`. `/readyz` debe responder HTTP 200 y `{ "status": "ready" }`. `status=ok` en `/readyz` es un fallo. El frontend valida `/api/healthz`: HTTP 200, `status=ok`, el SHA y `deployment=cristian-pruebas`. No consulta la API, así que una API caída no provoca rollback del frontend.
 
-## Despliegue
+La sonda tiene tres intentos y un timeout de tres segundos. Un HTTP 503 o un timeout fallan.
 
-El job usa SSH con `StrictHostKeyChecking=yes` y un `known_hosts` secreto. El comando remoto permitido es `cristian-apply api|frontend|both <sha>`. El script de destino es `scripts/deploy/cristian-remote-apply.sh`, que solo acepta el checkout `/opt/dinamic-clean-cristian`, toma un lock, conserva el SHA anterior y llama a los preflight y redeploy existentes. `CRISTIAN_NO_BUILD=1` evita reconstruir otra imagen bajo el mismo SHA.
+## Estado
 
-Después exige `/healthz` y `/readyz` en el puerto 3006, o `/api/healthz` y `/login` en el 8086, con el SHA publicado. Si falla y hay un SHA anterior, llama una sola vez a `scripts/deploy/cristian-remote-rollback.sh`. Un marcador `rolling-back` impide repetir el rollback. Al final consulta `127.0.0.1:3005/healthz` y falla si producción no responde 200. No cambia archivos productivos ni borra la red `dinamic-clean-cristian`.
+Cada servicio tiene su archivo en `/var/lib/dinamic-clean/cristian/<servicio>.json`, con SHA, imagen, digest, fecha, resultado, run id y el release anterior. El registro se escribe con un archivo temporal y `rename`. Un intento fallido queda en `lastFailed` y no reemplaza `current`. El run id debe ser mayor que el ya registrado; si no, el resultado es `stale_run`. El mismo SHA, digest y run id es idempotente.
 
-Este script no se copió al VPS y no se ejecutó contra los contenedores. Estado del despliegue real: `NOT_VERIFIED`.
+La imagen se descarga por digest. Si el digest inspeccionado no coincide, no se recrea el contenedor.
+
+## Rollback
+
+Si el fallo ocurre antes de recrear, no hay rollback. Si ocurre después, se restaura la imagen de `current` de ese servicio. Si no hay un release exitoso, el resultado es `ROLLBACK_UNAVAILABLE` y el registro no se borra. El rollback de operador usa solo `previous` de ese servicio.

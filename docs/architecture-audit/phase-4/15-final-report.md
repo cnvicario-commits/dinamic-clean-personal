@@ -1,29 +1,24 @@
 # 15 — Informe final
 
-Estado: `PHASE_4_IMPLEMENTED_PENDING_INFRASTRUCTURE`
+Estado: `PHASE_4_CORRECTIONS_IMPLEMENTED_PENDING_ACTIVATION`
 
-Los workflows, los scripts de despliegue y la separación de secretos están en `DIN-417`. No se activaron. GitHub, GHCR, Vercel y el VPS no quedaron automatizados: no hubo sesión de `gh`, no hay proyecto Vercel en el repo y no se aplicó ningún cambio en el servidor.
+Las correcciones están en `DIN-417`. No se hizo push, merge ni ningún cambio en el VPS, Supabase, Nginx o Vercel.
 
-## Bloques
+## P0 resueltos en código y pruebas locales
 
-| Bloque | Estado |
-|---|---|
-| A — Auditoría | Hecho sobre el repo local. GitHub, Vercel y el VPS vivo quedan `NOT_VERIFIED` |
-| B — CI | Workflow ampliado y validado con `actionlint`, el checker y Compose en local. No corrió en GitHub |
-| C — Cristian | Workflow y scripts listos, variable de activación ausente. Sin deploy |
-| D — Producción | Despacho manual y fail-closed. Sin aprobación real configurada y sin segunda tubería de Vercel |
-| E — Migraciones y observabilidad | Chequeo de archivos en CI. Aplicación manual, apagada, solo Test. Logs definidos, no emitidos por un run |
-| F — Cierre | Matriz distinguida. No se declara `PHASE_4_COMPLETED` |
+- `/readyz` exige `status=ready`. `/healthz` exige HTTP 200 y el SHA. El frontend no depende de la API.
+- Cada servicio tiene su release, su digest y su rollback. Un fallo no pisa el último éxito.
+- El CD de Cristian arranca después de un CI exitoso del mismo SHA, rama, evento y repositorio. Un run más viejo se rechaza por run id.
 
-## Pendiente para una activación controlada
+## P1 resueltos como controles locales, no como activación
 
-- Sesión de un administrador y lectura real del plan, los environments y Vercel.
-- Rulesets de `main` y `cristian-pruebas`.
-- Required reviewers de producción, o mantener el workflow apagado si el plan no los tiene.
-- Llaves SSH separadas, sin grupo `docker`, con `command=` instalado.
-- `deploy.env` en cada checkout del servidor.
-- Medición nueva del VPS.
-- Una corrida real de CI, una publicación GHCR y un despliegue de Cristian con rollback probado.
-- Confirmación del comportamiento actual de Vercel antes de encender la API productiva.
+- El deploy productivo exige CI, confirmación, digest y un Compose privilegiado revisado. El archivo real del VPS no se leyó.
+- Los comandos SSH apuntan a `/opt/dinamic-clean-privileged` y rechazan los checkouts mutables. La instalación no se ejecutó.
+- Las migraciones de Test exigen `main`, el SHA del workflow, el proyecto Test y un lock local. No se aplicó SQL.
+- Vercel queda `VERCEL_INTEGRATION_NOT_VERIFIED`. No hay un segundo pipeline.
 
-Hasta que eso ocurra, un push a `cristian-pruebas` no despliega y un dispatch de producción termina apagado.
+## Activación
+
+No es seguro encender el CD de Cristian todavía. Falta merge a la rama por defecto, protección de ramas, el environment, la instalación privilegiada y una medición nueva del VPS. Producción necesita además reviewers, la lectura del Compose real y la revisión de Vercel.
+
+`DIN-417` puede entrar al proceso de revisión hacia `main`: las suites pedidas pasaron en local. El merge no se ejecutó y los pipelines no están operativos.

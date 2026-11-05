@@ -1,24 +1,19 @@
 #!/usr/bin/env bash
-# Closed command list for a future deploy key. It is not installed on the VPS.
-# Docker group membership is intentionally absent: this script is the only command.
+# ForceCommand template. It executes only the privileged copies, never the checkout.
 set -euo pipefail
 
 command="${SSH_ORIGINAL_COMMAND:-}"
-root="${CRISTIAN_CHECKOUT:-/opt/dinamic-clean-cristian}"
+bin="/opt/dinamic-clean-privileged/bin"
+if [[ "${DINAMIC_DEPLOY_FIXTURE:-}" == "1" && -n "${DINAMIC_PRIVILEGED_BIN:-}" ]]; then
+  bin="$DINAMIC_PRIVILEGED_BIN"
+fi
+node "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/path-boundary.mjs" "$bin" >/dev/null
 
-case "$command" in
-  "cristian-apply api "*|"cristian-apply frontend "*|"cristian-apply both "*)
-    set -- $command
-    [[ "$3" =~ ^[0-9a-f]{40}$ ]] || { echo "AUTHORIZED_COMMAND_REJECTED sha" >&2; exit 2; }
-    exec "$root/scripts/deploy/cristian-remote-apply.sh" "$2" "$3"
-    ;;
-  "cristian-rollback api "*|"cristian-rollback frontend "*|"cristian-rollback both "*)
-    set -- $command
-    [[ "$3" =~ ^[0-9a-f]{40}$ ]] || { echo "AUTHORIZED_COMMAND_REJECTED sha" >&2; exit 2; }
-    exec "$root/scripts/deploy/cristian-remote-rollback.sh" "$2" "$3"
-    ;;
-  *)
-    echo "AUTHORIZED_COMMAND_REJECTED" >&2
-    exit 2
-    ;;
-esac
+if [[ "$command" =~ ^(cristian-apply)[[:space:]]+(api|frontend)[[:space:]]+([0-9a-f]{40})[[:space:]]+(sha256:[a-f0-9]{64})[[:space:]]+([1-9][0-9]*)$ ]]; then
+  exec "$bin/cristian-apply" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}" "${BASH_REMATCH[4]}" "${BASH_REMATCH[5]}"
+fi
+if [[ "$command" =~ ^(cristian-rollback)[[:space:]]+(api|frontend)$ ]]; then
+  exec "$bin/cristian-rollback" "${BASH_REMATCH[2]}"
+fi
+echo "AUTHORIZED_COMMAND_REJECTED" >&2
+exit 2

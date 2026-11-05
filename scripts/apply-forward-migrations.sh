@@ -1,6 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+lockdir="${TMPDIR:-/tmp}/dinamic-forward-migrations.lock"
+release_migration_lock() {
+  rmdir "$lockdir" 2>/dev/null || true
+}
+if ! mkdir "$lockdir" 2>/dev/null; then
+  echo "MIGRATIONS_LOCKED" >&2
+  exit 1
+fi
+trap release_migration_lock EXIT
+
+if [[ "${1:-}" == "--lock-probe" ]]; then
+  echo "MIGRATIONS_LOCK_HELD"
+  sleep "${2:-0.4}"
+  exit 0
+fi
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FORWARD_DIR="${ROOT}/supabase/migrations/forward"
 ONLY_FILE=""
@@ -57,7 +73,7 @@ SQL
 
 repo_list="$(mktemp)"
 db_list="$(mktemp)"
-trap 'rm -f "$repo_list" "$db_list"' EXIT
+trap 'rm -f "$repo_list" "$db_list"; rmdir "$lockdir" 2>/dev/null || true' EXIT
 find "$FORWARD_DIR" -maxdepth 1 -type f -name '*.sql' ! -name '*.rollback.sql' -exec basename {} \; | LC_ALL=C sort >"$repo_list"
 psql "$MIGRATIONS_DATABASE_URL" -At -v ON_ERROR_STOP=1 -c "select filename from app_migrations.forward_history order by filename" >"$db_list"
 python3 - "$repo_list" "$db_list" "$ONLY_FILE" <<'PY'

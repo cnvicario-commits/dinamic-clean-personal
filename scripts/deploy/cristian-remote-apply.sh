@@ -1,100 +1,111 @@
 #!/usr/bin/env bash
-# Apply one already-built Cristian release on the VPS.
-# This script is not installed or executed by the Phase 4 implementation.
+# Apply one Cristian service from an immutable image digest.
+# This file is the template installed under /opt/dinamic-clean-privileged.
+# It refuses to run from either application checkout.
 set -euo pipefail
 
-service="${1:?usage: cristian-remote-apply.sh api|frontend|both sha}"
-sha="${2:?usage: cristian-remote-apply.sh api|frontend|both sha}"
-root="${CRISTIAN_CHECKOUT:-/opt/dinamic-clean-cristian}"
-[[ "$root" == /opt/dinamic-clean-cristian ]] || { echo "DEPLOY_REJECTED checkout" >&2; exit 2; }
-# shellcheck disable=SC1091
-source "$(dirname "${BASH_SOURCE[0]}")/load-cristian-deploy-env.sh"
-registry="${CRISTIAN_REGISTRY:?CRISTIAN_REGISTRY is required}"
-api_image="${registry}/dinamic-clean-api:cristian-${sha}"
-frontend_image="${registry}/dinamic-clean-frontend:cristian-${sha}"
+service="${1:?usage: cristian-remote-apply.sh api|frontend sha digest run-id}"
+sha="${2:?sha}"
+digest="${3:?digest}"
+run_id="${4:?run-id}"
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+node "$here/path-boundary.mjs" "$here" >/dev/null
 
 case "$service" in
-  api|frontend|both) ;;
+  api|frontend) ;;
   *) echo "DEPLOY_REJECTED service" >&2; exit 2 ;;
 esac
 [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "DEPLOY_REJECTED sha" >&2; exit 2; }
-[[ "$registry" == ghcr.io/* && "$registry" != *latest* ]] || { echo "DEPLOY_REJECTED registry" >&2; exit 2; }
-[[ "$root" != /opt/dinamic-clean && "$root" != /opt/dinamic-clean/* ]] || { echo "DEPLOY_REJECTED production_path" >&2; exit 2; }
+[[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "DEPLOY_REJECTED digest" >&2; exit 2; }
+[[ "$run_id" =~ ^[1-9][0-9]*$ ]] || { echo "DEPLOY_REJECTED run_id" >&2; exit 2; }
 
-cd "$root"
-mkdir -p "$root/releases"
-exec 9>"$root/releases/deploy.lock"
-if ! flock -n 9; then
-  echo "DEPLOY_REJECTED locked" >&2
-  exit 1
+state="${DINAMIC_RELEASE_STATE_DIR:-/var/lib/dinamic-clean/cristian}"
+if [[ "${DINAMIC_DEPLOY_FIXTURE:-}" != "1" ]]; then
+  # shellcheck disable=SC1091
+  source "$here/load-cristian-deploy-env.sh"
 fi
-if [[ -f "$root/releases/rolling-back" ]]; then
-  echo "DEPLOY_REJECTED rollback_in_progress" >&2
-  exit 1
-fi
+registry="${CRISTIAN_REGISTRY:-ghcr.io/example}"
+pull_ref="${registry}/dinamic-clean-${service}@${digest}"
+export RELEASE_SHA="$sha" RELEASE_DIGEST="$digest" RELEASE_RUN_ID="$run_id"
+export RELEASE_RUN_ATTEMPT="${RELEASE_RUN_ATTEMPT:-1}" RELEASE_IMAGE="$pull_ref"
 
-previous="$(cat "$root/releases/current-sha" 2>/dev/null || true)"
-previous_service="$(cat "$root/releases/current-service" 2>/dev/null || true)"
-printf '%s\n' "$previous" >"$root/releases/previous-sha"
-printf '%s\n' "$previous_service" >"$root/releases/previous-service"
-
-pull_and_tag() {
-  local remote="$1" local_name="$2"
-  docker pull "$remote"
-  docker tag "$remote" "$local_name"
-}
-
-if [[ "$service" == "api" || "$service" == "both" ]]; then
-  pull_and_tag "$api_image" "dinamic-clean-api:${sha}"
-fi
-if [[ "$service" == "frontend" || "$service" == "both" ]]; then
-  pull_and_tag "$frontend_image" "dinamic-clean-frontend:${sha}"
+plan="$(node "$here/release-state.mjs" plan "$state" cristian "$service")" || exit 1
+printf '%s\n' "$plan"
+if [[ "$plan" == "RELEASE_IDEMPOTENT" ]]; then
+  echo "DEPLOY_CONFIRMED idempotent ${service} ${sha}"
+  exit 0
 fi
 
-export APP_RELEASE_SHA="$sha"
-export CRISTIAN_NO_BUILD=1
-failed=0
-if [[ "$service" == "api" || "$service" == "both" ]]; then
-  ./scripts/redeploy-cristian-api.sh || failed=1
-fi
-if [[ "$failed" == "0" && ( "$service" == "frontend" || "$service" == "both" ) ]]; then
-  ./scripts/redeploy-cristian-frontend.sh || failed=1
-fi
-
-check_url() {
-  local url="$1" expected="$2"
-  local body
-  body="$(curl -fsS --max-time 20 "$url")" || return 1
-  [[ "$body" == *"$expected"* ]]
-}
-
-if [[ "$failed" == "0" && ( "$service" == "api" || "$service" == "both" ) ]]; then
-  check_url "http://127.0.0.1:${CRISTIAN_API_HOST_PORT:-3006}/healthz" "$sha" || failed=1
-  check_url "http://127.0.0.1:${CRISTIAN_API_HOST_PORT:-3006}/readyz" '"status":"ok"' || failed=1
-fi
-if [[ "$failed" == "0" && ( "$service" == "frontend" || "$service" == "both" ) ]]; then
-  check_url "http://127.0.0.1:${CRISTIAN_FRONTEND_HOST_PORT:-8086}/api/healthz" "$sha" || failed=1
-  curl -fsS --max-time 20 -o /dev/null "http://127.0.0.1:${CRISTIAN_FRONTEND_HOST_PORT:-8086}/login" || failed=1
-fi
-
-if [[ "$failed" != "0" ]]; then
-  echo "DEPLOY_HEALTH_FAILED ${service} ${sha}" >&2
-  if [[ -n "$previous" ]]; then
-    CRISTIAN_REGISTRY="$registry" "$root/scripts/deploy/cristian-remote-rollback.sh" "$previous_service" "$previous" || {
-      echo "ROLLBACK_FAILED" >&2
-      exit 1
-    }
+finish_failure() {
+  local phase="$1" reason="$2"
+  RELEASE_PHASE="$phase" RELEASE_REASON="$reason" node "$here/release-state.mjs" fail "$state" cristian "$service" >/dev/null
+  if [[ "$phase" == "before_recreate" ]]; then
+    echo "DEPLOY_FAILED_BEFORE_RECREATE ${service} ${reason}" >&2
+    exit 1
   fi
+  local restore
+  if ! restore="$(node "$here/release-state.mjs" recover "$state" cristian "$service")"; then
+    echo "ROLLBACK_UNAVAILABLE ${service}" >&2
+    exit 1
+  fi
+  # RELEASE_RESTORE sha digest image
+  local restore_sha restore_digest restore_image
+  read -r _ restore_sha restore_digest restore_image <<<"$restore"
+  if [[ "${DINAMIC_DEPLOY_FIXTURE:-}" == "1" ]]; then
+    if [[ "${FIXTURE_RESTORE:-ok}" != "ok" ]]; then
+      echo "ROLLBACK_FAILED ${service}" >&2
+      exit 1
+    fi
+  else
+    docker image inspect "$restore_image" >/dev/null || { echo "ROLLBACK_FAILED ${service} image_absent" >&2; exit 1; }
+    RELEASE_DIGEST="$restore_digest" RELEASE_ACTUAL="$(docker image inspect --format '{{json .RepoDigests}}' "$restore_image")" \
+      node "$here/release-state.mjs" digest "$state" cristian "$service" >/dev/null || { echo "ROLLBACK_FAILED ${service} digest" >&2; exit 1; }
+    docker tag "$restore_image" "dinamic-clean-${service}:${restore_sha}"
+    APP_RELEASE_SHA="$restore_sha" CRISTIAN_NO_BUILD=1 recreate_"$service" || { echo "ROLLBACK_FAILED ${service}" >&2; exit 1; }
+  fi
+  echo "ROLLBACK_CONFIRMED ${service} ${restore_sha}" >&2
   exit 1
+}
+
+recreate_api() {
+  local compose="${DINAMIC_PRIVILEGED_ROOT:-/opt/dinamic-clean-privileged}/compose/docker-compose.cristian.yml"
+  node "$here/path-boundary.mjs" "$compose" >/dev/null
+  docker compose -f "$compose" up -d --no-deps --no-build --force-recreate api
+}
+
+recreate_frontend() {
+  local compose="${DINAMIC_PRIVILEGED_ROOT:-/opt/dinamic-clean-privileged}/compose/docker-compose.cristian-frontend.yml"
+  node "$here/path-boundary.mjs" "$compose" >/dev/null
+  docker compose -f "$compose" up -d --no-deps --no-build --force-recreate frontend
+}
+
+if [[ "${DINAMIC_DEPLOY_FIXTURE:-}" != "1" ]]; then
+  docker pull "$pull_ref" || finish_failure before_recreate image_absent
+  RELEASE_ACTUAL="$(docker image inspect --format '{{json .RepoDigests}}' "$pull_ref")"
+  export RELEASE_ACTUAL
+  node "$here/release-state.mjs" digest "$state" cristian "$service" >/dev/null || finish_failure before_recreate digest
+  docker tag "$pull_ref" "dinamic-clean-${service}:${sha}"
+  APP_RELEASE_SHA="$sha" CRISTIAN_NO_BUILD=1 recreate_"$service" || finish_failure after_recreate recreate
+else
+  if [[ "${FIXTURE_PULL:-ok}" != "ok" ]]; then
+    finish_failure before_recreate image_absent
+  fi
+  if [[ "${FIXTURE_RECREATE:-ok}" != "ok" ]]; then
+    finish_failure after_recreate recreate
+  fi
 fi
 
-printf '%s\n' "$sha" >"$root/releases/current-sha"
-printf '%s\n' "$service" >"$root/releases/current-service"
+if [[ "$service" == "api" ]]; then
+  node "$here/assess-health.mjs" api-healthz "http://127.0.0.1:${CRISTIAN_API_HOST_PORT:-3006}/healthz" || finish_failure after_recreate healthz
+  node "$here/assess-health.mjs" api-readyz "http://127.0.0.1:${CRISTIAN_API_HOST_PORT:-3006}/readyz" || finish_failure after_recreate readyz
+else
+  node "$here/assess-health.mjs" frontend-healthz "http://127.0.0.1:${CRISTIAN_FRONTEND_HOST_PORT:-8086}/api/healthz" || finish_failure after_recreate healthz
+  if [[ "${DINAMIC_DEPLOY_FIXTURE:-}" == "1" ]]; then
+    [[ "${FIXTURE_LOGIN_HTTP:-200}" == "200" ]] || finish_failure after_recreate login
+  else
+    curl -fsS --max-time 10 -o /dev/null "http://127.0.0.1:${CRISTIAN_FRONTEND_HOST_PORT:-8086}/login" || finish_failure after_recreate login
+  fi
+fi
+
+node "$here/release-state.mjs" commit "$state" cristian "$service" >/dev/null
 echo "DEPLOY_CONFIRMED ${service} ${sha}"
-
-production_code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 http://127.0.0.1:3005/healthz || echo curl_failed)"
-echo "PRODUCTION_PORT_3005 ${production_code}"
-if [[ "$production_code" != "200" ]]; then
-  echo "PRODUCTION_CHECK_FAILED" >&2
-  exit 1
-fi

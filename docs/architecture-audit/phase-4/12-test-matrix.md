@@ -1,36 +1,35 @@
 # 12 — Matriz de pruebas
 
-`PASS_REAL` significa que el comando se ejecutó en esta sesión. Inspeccionar el YAML no alcanza. No hubo despliegue ni ejecución en GitHub.
-
-## Comprobado
+Las filas `PASS_REAL` se ejecutaron en esta corrección. Los fixtures no tocan Docker ni una base.
 
 | Caso | Estado | Evidencia |
 |---|---|---|
-| Aislamiento estático de los cuatro workflows | `PASS_REAL` | `node scripts/ci/check-workflow-isolation.mjs` → `workflow_isolation_ok` |
-| Nombres de migraciones, sin base | `PASS_REAL` | `migration_files 28 rollback_files 0` |
-| Selección API, frontend, ambos y ninguno | `PASS_REAL` | `src/lib/phase4-cicd.test.ts`, 3 pruebas, exit 0 |
-| `actionlint` de los cuatro workflows | `PASS_REAL` | exit 0, sin hallazgos |
-| Sintaxis Compose de Cristian | `PASS_REAL` | `compose_config_ok` y `frontend_compose_config_ok` |
-| Comando cerrado rechaza `docker system prune`, un SHA inválido y `production-apply` | `PASS_REAL` | exit 2 en `scripts/deploy/authorized-command.sh` |
+| `/readyz` con `status=ready` | `PASS_REAL` | `assessHealthPayload` |
+| `/readyz` con `status=ok` | `PASS_REAL` | razón `status` |
+| HTTP 503 y timeout | `PASS_REAL` | fixture de `probeUrl` y del script de Cristian |
+| Release distinto | `PASS_REAL` | razón `release` |
+| Frontend sano con API no lista | `PASS_REAL` | el deploy de frontend no lee `/readyz` |
+| Frontend A, fallo de C, vuelve A; API queda en B | `PASS_REAL` | fixture de `cristian-remote-apply.sh` |
+| Imagen ausente antes de recrear | `PASS_REAL` | `current` permanece vacío |
+| Digest distinto | `PASS_REAL` | `digestMatches` |
+| Estado corrupto | `PASS_REAL` | el archivo no se reescribe |
+| Dos escritores | `PASS_REAL` | `RELEASE_REJECTED locked` |
+| Reintento del mismo run | `PASS_REAL` | `DEPLOY_CONFIRMED idempotent` |
+| CI fallido, cancelado, SHA o rama incorrectos, fork | `PASS_REAL` | `evaluateCristianDeployGate` |
+| Run de CI con otro SHA | `PASS_REAL` | `readSuccessfulCiRun` |
+| Migración: rama, SHA, target, SQL destructivo y lock local | `PASS_REAL` | gate, scanner y `--lock-probe` |
+| Ruta `/opt/dinamic-clean-cristian` | `PASS_REAL` | `allowed`; `/opt/dinamic-clean/certs` es `production` |
+| Frontend `npm test` | `PASS_REAL` | 35 pruebas, exit 0 |
+| Frontend lint y build | `PASS_REAL` | lint exit 0 con dos warnings previos; build exit 0 |
+| API test, lint, typecheck y build | `PASS_REAL` | 438 passed, 80 skipped; los tres comandos exit 0 |
+| `actionlint` y `shellcheck` | `PASS_REAL` | exit 0 |
+| Compose de frontend | `PASS_REAL` | `frontend_compose_config_ok` |
 
-## Cristian
-
-| Caso | Estado |
+| Caso no ejecutado | Estado |
 |---|---|
-| Push de frontend, backend, ambos o sin cambios relevantes | `NOT_VERIFIED` |
-| Error de tests o de build dentro de GitHub | `NOT_VERIFIED` |
-| Imagen ausente, healthcheck fallido y rollback | `NOT_VERIFIED` |
-| Despliegues simultáneos sobre el VPS | `NOT_VERIFIED` |
-| Rechazo de Supabase producción en el build del frontend | cubierto por los guardias ya existentes; este pipeline no se ejecutó |
-| Producción no modificada durante un deploy de Cristian | `NOT_VERIFIED` |
+| Corrida de GitHub, GHCR, SSH y contenedores del VPS | `NOT_VERIFIED` |
+| Lock de migraciones entre dos máquinas | `NOT_VERIFIED` |
+| Compose productivo leído del VPS | `NOT_VERIFIED` |
+| Vercel | `VERCEL_INTEGRATION_NOT_VERIFIED` |
 
-## Producción
-
-| Caso | Estado |
-|---|---|
-| PR válido o con tests fallidos en GitHub | `NOT_VERIFIED` |
-| Release sin aprobación | el YAML falla cerrado si la variable no está; no se despachó |
-| Release aprobado, deploy, Vercel, migración, healthcheck, rollback y orden | `NOT_VERIFIED` |
-| Credenciales de Test en producción | el workflow de producción no las declara; GitHub no se observó |
-
-No hay filas `FAIL` en lo que sí se ejecutó. Tampoco hay un escenario de despliegue marcado como validado.
+No hay filas `FAIL` en lo ejecutado. El fixture de deploy no es un despliegue real.
