@@ -1,31 +1,51 @@
 /**
- * Hard guardrails for destructive Supabase/Postgres integration suites.
- * Never logs secrets, JWTs, passwords, or full DATABASE_URL.
+ * Test-process guard. The API dev server does not load this module.
+ * Integration is allowed only against a loopback Supabase CLI / Postgres.
+ * Hosted project refs are refused even when the URL is otherwise local.
  */
 
-export function extractSupabaseProjectRefFromUrl(url: string): string | null {
-  const m = url.match(/https?:\/\/([a-z0-9]+)\.supabase\.co/i)
-  if (m?.[1]) return m[1].toLowerCase()
-  return null
-}
+import pg from 'pg'
+import {
+  classifyConnectionTarget,
+  refuseNonLocalDatabaseInTest,
+} from '../src/infrastructure/db/connection-target.js'
 
-/** Pooler user `postgres.<ref>` or host containing project ref. */
-export function extractProjectRefFromDatabaseUrl(databaseUrl: string): string | null {
-  const userMatch = databaseUrl.match(/postgresql:\/\/[^:@]*?\.([a-z0-9]+)[:@]/i)
-  if (userMatch?.[1]) return userMatch[1].toLowerCase()
-  const hostMatch = databaseUrl.match(/@db\.([a-z0-9]+)\.supabase\.co/i)
-  if (hostMatch?.[1]) return hostMatch[1].toLowerCase()
-  const poolerMatch = databaseUrl.match(/\.([a-z0-9]+)\.pooler\.supabase/i)
-  if (poolerMatch?.[1]) return poolerMatch[1].toLowerCase()
-  return null
-}
+export {
+  BLOCKED_CLOUD_PROJECT_REFS,
+  classifyConnectionTarget,
+  refuseNonLocalDatabaseInTest,
+} from '../src/infrastructure/db/connection-target.js'
 
-/**
- * Opt-in gate for describe.skipIf. Flag-only: RUN_SUPABASE_INTEGRATION=1.
- * beforeAll must call assertDinamicCleanTestTarget() so missing TEST env fails the suite.
- */
+export const CONNECTION_ENV_KEYS = [
+  'DATABASE_URL',
+  'MIGRATIONS_DATABASE_URL',
+  'SUPABASE_URL',
+  'NEXT_PUBLIC_SUPABASE_URL',
+  'PHASE4A_ADMIN_DATABASE_URL',
+  'SOURCE_DATABASE_URL',
+  'TARGET_DATABASE_URL',
+  'RESTORE_TARGET_DB_URL',
+] as const
+
 export function isSupabaseIntegrationEnabled(): boolean {
   return process.env.RUN_SUPABASE_INTEGRATION === '1'
+}
+
+export function extractSupabaseProjectRefFromUrl(url: string): string | null {
+  const match = String(url).match(/https?:\/\/([a-z0-9]+)\.supabase\.co/i)
+  return match?.[1]?.toLowerCase() ?? null
+}
+
+/** Pooler user `postgres.<ref>` / `dinamic_api.<ref>` or `@db.<ref>.supabase.co` host. */
+export function extractProjectRefFromDatabaseUrl(databaseUrl: string): string | null {
+  const raw = String(databaseUrl)
+  const userMatch = raw.match(/postgresql:\/\/[^:@]*?\.([a-z0-9]+)[:@]/i)
+  if (userMatch?.[1]) return userMatch[1].toLowerCase()
+  const hostMatch = raw.match(/@db\.([a-z0-9]+)\.supabase\.co/i)
+  if (hostMatch?.[1]) return hostMatch[1].toLowerCase()
+  const poolerMatch = raw.match(/\.([a-z0-9]+)\.pooler\.supabase/i)
+  if (poolerMatch?.[1]) return poolerMatch[1].toLowerCase()
+  return null
 }
 
 export type TestTargetAssertOptions = {
@@ -33,7 +53,8 @@ export type TestTargetAssertOptions = {
 }
 
 /**
- * Abort before any write if TEST target is not unequivocally identified.
+ * Integration suites may run only when the operator opted in and every
+ * connection variable is a loopback target. Hosted Supabase is refused.
  */
 export function assertDinamicCleanTestTarget(opts: TestTargetAssertOptions = {}): void {
   if (process.env.RUN_SUPABASE_INTEGRATION !== '1') {
@@ -42,82 +63,67 @@ export function assertDinamicCleanTestTarget(opts: TestTargetAssertOptions = {})
   if (process.env.NODE_ENV !== 'test') {
     throw new Error('Integration requires NODE_ENV=test')
   }
-
   const compatibilityTarget = (process.env.DB_COMPATIBILITY_TARGET ?? '').trim().toLowerCase()
-  if (compatibilityTarget === 'production' || compatibilityTarget === 'staging') {
-    throw new Error('Refusing integration writes when DB_COMPATIBILITY_TARGET is not test')
+  if (compatibilityTarget !== 'simulation') {
+    throw new Error('Integration requires DB_COMPATIBILITY_TARGET=simulation')
   }
 
-  const productionRef = (process.env.EXPECTED_SUPABASE_PRODUCTION_PROJECT_REF ?? '').trim().toLowerCase()
-  const testRef = (process.env.EXPECTED_SUPABASE_TEST_PROJECT_REF ?? '').trim().toLowerCase()
-  const supabaseUrl = process.env.SUPABASE_URL ?? ''
-  const databaseUrl = process.env.DATABASE_URL ?? ''
-  if (/prod/i.test(supabaseUrl) && !/test/i.test(supabaseUrl)) {
-    throw new Error('Refusing Supabase URL that looks like production')
-  }
-  if (compatibilityTarget === 'simulation') {
-    const localHost = (value: string) => {
-      try {
-        return ['localhost', '127.0.0.1', '::1'].includes(new URL(value).hostname.toLowerCase())
-      } catch {
-        return false
-      }
+  for (const key of CONNECTION_ENV_KEYS) {
+    const verdict = classifyConnectionTarget(process.env[key])
+    if (verdict === 'empty') continue
+    if (verdict !== 'local') {
+      throw new Error(`Refusing ${verdict} ${key} in the test process`)
     }
-    if (!localHost(supabaseUrl) || !localHost(databaseUrl)) {
-      throw new Error('Simulation integration writes require a local Supabase URL and database')
-    }
-    const blob = `${supabaseUrl}\n${databaseUrl}`.toLowerCase()
-    if (productionRef && blob.includes(productionRef)) {
-      throw new Error('Refusing simulation integration against the production project')
-    }
-    if (testRef && blob.includes(testRef)) {
-      throw new Error('Refusing simulation integration against the test project')
-    }
-    if (opts.requireJwt && !(process.env.POSTGREST_TEST_USER_JWT ?? '').trim()) {
-      throw new Error('POSTGREST_TEST_USER_JWT is required for PostgREST negative tests')
-    }
-    return
   }
 
-  const expected = testRef
-  if (!expected) {
-    throw new Error('EXPECTED_SUPABASE_TEST_PROJECT_REF is required for integration writes')
-  }
-  if (productionRef && productionRef === expected) {
-    throw new Error('EXPECTED_SUPABASE_TEST_PROJECT_REF must not equal EXPECTED_SUPABASE_PRODUCTION_PROJECT_REF')
-  }
-
-  const actualFromUrl = extractSupabaseProjectRefFromUrl(supabaseUrl)
-  if (!actualFromUrl) {
-    throw new Error('Could not parse project ref from SUPABASE_URL')
-  }
-  if (actualFromUrl !== expected) {
-    throw new Error('SUPABASE_URL project ref does not match EXPECTED_SUPABASE_TEST_PROJECT_REF')
-  }
-
-  if (!databaseUrl) {
-    throw new Error('DATABASE_URL is required')
-  }
-  const dbRef = extractProjectRefFromDatabaseUrl(databaseUrl)
-  if (productionRef && dbRef === productionRef) {
-    throw new Error('Refusing integration writes against EXPECTED_SUPABASE_PRODUCTION_PROJECT_REF')
-  }
-  if (dbRef && dbRef !== expected) {
-    throw new Error('DATABASE_URL project ref does not match EXPECTED_SUPABASE_TEST_PROJECT_REF')
-  }
-  if (compatibilityTarget === 'test') {
-    const declared = (process.env.EXPECTED_SUPABASE_PROJECT_REF ?? '').trim().toLowerCase()
-    if (declared && declared !== expected) {
-      throw new Error('DB_COMPATIBILITY_TARGET=test but EXPECTED_SUPABASE_PROJECT_REF does not match the test project ref')
-    }
+  if (
+    classifyConnectionTarget(process.env.SUPABASE_URL) !== 'local' ||
+    classifyConnectionTarget(process.env.DATABASE_URL) !== 'local'
+  ) {
+    throw new Error('Simulation integration writes require a local Supabase URL and database')
   }
 
   if (opts.requireJwt && !(process.env.POSTGREST_TEST_USER_JWT ?? '').trim()) {
     throw new Error('POSTGREST_TEST_USER_JWT is required for PostgREST negative tests')
   }
+}
 
-  // No escape hatch for unmarked / production-looking hosts
-  if (/prod/i.test(supabaseUrl) && !/test/i.test(supabaseUrl)) {
-    throw new Error('Refusing Supabase URL that looks like production')
+/**
+ * Default `npm test`: drop hosted or unproven connection variables so suites
+ * cannot inherit a cloud shell. Explicit integration fails closed instead.
+ */
+export function installTestProcessGuard(): void {
+  if (isSupabaseIntegrationEnabled()) {
+    assertDinamicCleanTestTarget()
+    return
   }
+  for (const key of CONNECTION_ENV_KEYS) {
+    const verdict = classifyConnectionTarget(process.env[key])
+    if (verdict === 'cloud' || verdict === 'ambiguous') {
+      delete process.env[key]
+    }
+  }
+}
+
+let poolGuardInstalled = false
+
+/** Every `new pg.Pool` in this test worker must pass the same local-only rule. */
+export function installPgPoolGuard(): void {
+  if (poolGuardInstalled) return
+  poolGuardInstalled = true
+  const original = pg.Pool
+  const GuardedPool = class extends original {
+    constructor(...args: ConstructorParameters<typeof original>) {
+      const config = args[0]
+      const connectionString =
+        typeof config?.connectionString === 'string'
+          ? config.connectionString
+          : config?.host
+            ? `postgresql://${config.host}`
+            : undefined
+      refuseNonLocalDatabaseInTest(connectionString, 'test')
+      super(...args)
+    }
+  }
+  pg.Pool = GuardedPool as unknown as typeof pg.Pool
 }

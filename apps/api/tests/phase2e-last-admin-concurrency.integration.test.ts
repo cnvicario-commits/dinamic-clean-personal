@@ -4,7 +4,7 @@
  * Cross operations (A disables B || B disables A) — self-disable is forbidden.
  *
  * Required:
- *   RUN_SUPABASE_INTEGRATION=1 NODE_ENV=test EXPECTED_SUPABASE_TEST_PROJECT_REF=...
+ *   RUN_SUPABASE_INTEGRATION=1 NODE_ENV=test DB_COMPATIBILITY_TARGET=simulation
  *
  * Suite aborts if other ACTIVE admins exist (TEST_ENV_NOT_ISOLATED_FOR_LAST_ADMIN_CONCURRENCY).
  */

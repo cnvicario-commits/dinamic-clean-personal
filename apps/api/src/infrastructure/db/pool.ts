@@ -1,5 +1,6 @@
 import pg from 'pg'
 import type { Env } from '../../config/env.js'
+import { refuseNonLocalDatabaseInTest } from './connection-target.js'
 import {
   probePhase2dProfilesCapabilities,
   type Phase2dCapabilityResult,
@@ -22,6 +23,7 @@ export type Db = {
 }
 
 export function createDb(env: Env): Db {
+  refuseNonLocalDatabaseInTest(env.DATABASE_URL, env.NODE_ENV)
   const needsSsl = /supabase\.co|pooler\.supabase/i.test(env.DATABASE_URL)
   const pool = new Pool({
     connectionString: env.DATABASE_URL,

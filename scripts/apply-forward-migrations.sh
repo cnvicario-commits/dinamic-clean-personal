@@ -44,6 +44,8 @@ load_local_migrations_database_url() {
 load_local_migrations_database_url
 : "${MIGRATIONS_DATABASE_URL:?MIGRATIONS_DATABASE_URL is required (export it in CI/CD or set it in apps/api/.env for local execution)}"
 
+node "${ROOT}/scripts/assert-migration-target.mjs" "$MIGRATIONS_DATABASE_URL"
+
 psql "$MIGRATIONS_DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL' >/dev/null
 create schema if not exists app_migrations;
 create table if not exists app_migrations.forward_history (
@@ -52,6 +54,30 @@ create table if not exists app_migrations.forward_history (
   applied_at timestamptz not null default now()
 );
 SQL
+
+repo_list="$(mktemp)"
+db_list="$(mktemp)"
+trap 'rm -f "$repo_list" "$db_list"' EXIT
+find "$FORWARD_DIR" -maxdepth 1 -type f -name '*.sql' ! -name '*.rollback.sql' -exec basename {} \; | LC_ALL=C sort >"$repo_list"
+psql "$MIGRATIONS_DATABASE_URL" -At -v ON_ERROR_STOP=1 -c "select filename from app_migrations.forward_history order by filename" >"$db_list"
+python3 - "$repo_list" "$db_list" "$ONLY_FILE" <<'PY'
+import pathlib, sys
+repo = pathlib.Path(sys.argv[1]).read_text().split()
+applied = pathlib.Path(sys.argv[2]).read_text().split()
+only = sys.argv[3]
+unknown = [name for name in applied if name not in set(repo)]
+if unknown:
+    print("ERROR: applied migration is not in the repository", file=sys.stderr)
+    sys.exit(1)
+if applied != repo[: len(applied)]:
+    print("ERROR: forward history is not a prefix of the repository", file=sys.stderr)
+    sys.exit(1)
+pending = repo[len(applied) :]
+if only and (not pending or pending[0] != only):
+    print("ERROR: --only is not the next pending migration", file=sys.stderr)
+    sys.exit(1)
+print(f"forward_history {len(applied)} pending {len(pending)}")
+PY
 
 while IFS= read -r file; do
   name="$(basename "$file")"
