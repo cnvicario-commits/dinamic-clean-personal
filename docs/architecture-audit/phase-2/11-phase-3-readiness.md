@@ -10,4 +10,4 @@ El diseño deja, sin crearlos todavía:
 - `CORS_ORIGIN` de la API igual al origen HTTPS de ese frontend
 - las redirect URLs de Supabase Auth apuntando a ese origen, configuradas en el proyecto Test cuando exista el dominio
 
-La fase 3 no empieza hasta tener el relevamiento del VPS, el puerto libre, el dominio y la reserva de memoria para los dos contenedores. La API demo puede instalarse antes, sola, si la capacidad alcanza y se deja el margen del frontend sin ocuparlo con otro servicio.
+La fase 3 no empieza en este cierre. El puerto `8086` queda reservado para ese frontend y hay que verificar que siga libre antes de usarlo. La API demo ya está instalada, con 1 CPU y 512 MB, y deja el resto de las 16 CPU y de la RAM libre para ese contenedor.

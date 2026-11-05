@@ -22,18 +22,24 @@ export type Db = {
   checkPhase3aCapabilities: () => Promise<Phase3aCapabilityResult>
 }
 
+/** Published runtimes keep certificate verification on. The Cristian container supplies the Supabase CA through NODE_EXTRA_CA_CERTS. */
+export function postgresSsl(
+  databaseUrl: string,
+  nodeEnv: string,
+): { rejectUnauthorized: boolean } | undefined {
+  if (!/supabase\.co|pooler\.supabase/i.test(databaseUrl)) return undefined
+  return { rejectUnauthorized: nodeEnv === 'production' }
+}
+
 export function createDb(env: Env): Db {
   refuseNonLocalDatabaseInTest(env.DATABASE_URL, env.NODE_ENV)
-  const needsSsl = /supabase\.co|pooler\.supabase/i.test(env.DATABASE_URL)
   const pool = new Pool({
     connectionString: env.DATABASE_URL,
     max: 10,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 10_000,
     statement_timeout: 15_000,
-    ssl: needsSsl
-      ? { rejectUnauthorized: env.NODE_ENV === 'production' }
-      : undefined,
+    ssl: postgresSsl(env.DATABASE_URL, env.NODE_ENV),
   })
 
   async function query<T extends pg.QueryResultRow = pg.QueryResultRow>(

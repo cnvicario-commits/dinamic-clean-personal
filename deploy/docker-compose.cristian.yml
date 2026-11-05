@@ -1,5 +1,7 @@
 # Cristian demo API. Independent Compose project. Do not point this file at
 # /opt/dinamic-clean or at a production env file.
+# Rendering this file is not a deploy check. Recreate the container only
+# through scripts/redeploy-cristian-api.sh, which runs the CA preflight first.
 #
 # CPU, memory, and the host port have no defaults. Set them from the VPS
 # survey before the first start. Publishing is loopback-only so Nginx is the
@@ -29,6 +31,15 @@ services:
       APP_RELEASE_SHA: ${APP_RELEASE_SHA:?set the deployed git sha}
       MIGRATIONS_DATABASE_URL: ""
       TRUST_PROXY_CIDRS: ${CRISTIAN_TRUST_PROXY_CIDRS:-127.0.0.1}
+      # Node loads this CA at process start. Verification stays enabled.
+      NODE_EXTRA_CA_CERTS: /app/certs/supabase-ca.crt
+    volumes:
+      - type: bind
+        source: ${CRISTIAN_SUPABASE_CA_FILE:?set the host path of the Supabase CA file}
+        target: /app/certs/supabase-ca.crt
+        read_only: true
+        bind:
+          create_host_path: false
     ports:
       - "127.0.0.1:${CRISTIAN_API_HOST_PORT:?set a free loopback port after the VPS survey}:3001"
     networks:

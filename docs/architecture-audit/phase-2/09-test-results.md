@@ -1,6 +1,34 @@
 # Resultados
 
-Ejecutado el 2026-11-05.
+## Despliegue verificado en el VPS
+
+La API de Cristian quedó publicada en el puerto de loopback `3006`, contra Supabase Test. Comprobado en ese despliegue:
+
+- `GET /healthz` HTTP 200, release `d713fb79ade3`.
+- `GET /readyz` HTTP 200.
+- PostgreSQL negocia TLS con la CA oficial de Supabase. El error previo `SELF_SIGNED_CERT_IN_CHAIN` se corrigió montando esa CA, sin desactivar la verificación.
+- El contenedor de producción no fue modificado.
+
+`CORS_ORIGIN=https://demo.example.com` está en ese entorno solo como placeholder. No habilita el frontend.
+
+## Preflight de CA, ejecutado en esta sesión
+
+| Comando | Resultado |
+| --- | --- |
+| `apps/api` `npm test` | exit 0. 67 archivos pasaron, 18 skipped. 437 tests pasaron, 80 skipped |
+| `apps/api` `npm run lint`, `typecheck`, `build` | exit 0 |
+| `tests/cristian-ca-mount.test.ts` | exit 0. 6 tests |
+| `./scripts/check-cristian-compose.sh` | exit 0. Imprime `syntax_check_only` y `docker_compose_config_is_not_a_deploy_preflight` |
+| Preflight sin `CRISTIAN_SUPABASE_CA_FILE` | exit 1, `PREFLIGHT_REJECTED missing-CRISTIAN_SUPABASE_CA_FILE` |
+| Preflight con encabezados PEM que no son X.509 | exit 1, `CA_FILE_REJECTED not-x509` |
+| Preflight con puerto `3005` | exit 1, `PREFLIGHT_REJECTED production_port` |
+| Preflight con `NODE_TLS_REJECT_UNAUTHORIZED=0` | exit 1, `PREFLIGHT_REJECTED tls_verification_disabled` |
+| Preflight con un X.509 de prueba, puerto `3006`, 1 CPU y 512 MB | exit 0, `CA_FILE_OK` y `preflight_ok` |
+| `git diff --check` | exit 0 |
+
+Ese preflight exitoso usó un certificado generado para la prueba, no el archivo del VPS. No se recreó el contenedor.
+
+## Pruebas locales anteriores, antes de incorporar la CA al repositorio
 
 | Comando | Resultado |
 | --- | --- |

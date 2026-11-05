@@ -17,6 +17,8 @@ Render de prueba con `api-demo.example.com` y puerto `3199`:
 
 El dominio de ejemplo no es el dominio que hay que publicar. El puerto `3199` tampoco está elegido.
 
+Ese certificado de Nginx es independiente de la CA de PostgreSQL. La CA de Supabase ya está en `/opt/dinamic-clean-cristian/certs/supabase-ca.crt`, montada en solo lectura. El preflight la acepta solo si OpenSSL la lee como X.509. Nginx y su certificado público siguen sin instalar. `docker compose config` no reemplaza ese preflight.
+
 `nginx` y `certbot` no están en esta máquina. `nginx -t` no se ejecutó. Certbot no se ejecutó. No se modificó ningún vhost.
 
 Antes de recargar en el VPS: renderizar con el dominio real, `nginx -t`, y abortar si el test falla. El certificado se pide solo cuando el DNS de ese dominio ya apunta al VPS y hay autorización. Fastify debe recibir `TRUST_PROXY_CIDRS=127.0.0.1` porque Nginx está en el host.

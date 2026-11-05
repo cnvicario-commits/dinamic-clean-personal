@@ -1,33 +1,17 @@
 # Capacidad
 
-No hay mediciones del VPS. No se asignan números de CPU ni de RAM como si fueran el resultado de esa medición.
+El VPS tiene 16 CPU lógicas, 31 GiB de RAM y unos 24 GiB libres en el momento del relevamiento, más 127 GB de disco libre. Alcanza para la API de producción, la API de Cristian y el futuro contenedor de Next.js.
 
-`deploy/docker-compose.cristian.yml` no trae defaults para:
+Límites ya aplicados a la API de Cristian: 1 CPU y 512 MB. Producción queda en su contenedor del puerto `3005`, sin bajarle recursos para hacer lugar.
 
-- `CRISTIAN_API_CPUS`
-- `CRISTIAN_API_MEMORY`
-- `CRISTIAN_API_HOST_PORT`
+El puerto `8086` queda reservado para el frontend de la fase 3. Hay que verificar que esté libre antes de publicarlo. No se usa en esta fase.
 
-`docker compose config` falla si faltan. El valor usado para comprobar que el archivo renderiza (`0.25`, `256m`, puerto `3199`) es una sonda de sintaxis. No es la reserva del servidor y no se usó para arrancar un stack.
+`deploy/docker-compose.cristian.yml` sigue sin defaults. `scripts/check-cristian-compose.sh` puede renderizar con `0.25`, `256m` y el puerto `3199`. Esos valores solo prueban la sintaxis. No son la capacidad del servidor y `docker compose config` no autoriza un despliegue.
 
-## Qué hay que reservar
+El preflight de despliegue tiene que recibir los límites reales:
 
-Además de la API que ya corre, el mismo VPS tiene que seguir teniendo lugar para:
-
-- la API de Cristian
-- el Next.js de Cristian, que se construye en la fase 3
-- sistema operativo, Nginx, logs e imágenes Docker
-
-No se reduce producción para hacer espacio.
-
-## Rechazo del despliegue
-
-No levantar el stack si ocurre cualquiera de estas condiciones:
-
-- no hay salida del relevamiento
-- la RAM libre, después de dejar margen al sistema y a producción, no cubre el límite de la API demo más una reserva equivalente para el frontend de la fase 3
-- el disco no alcanza para una imagen nueva y los logs rotados
-- el puerto elegido ya está en escucha
-- aplicar el límite obligaría a bajar o restringir el contenedor productivo
-
-Eso todavía no se puede afirmar ni descartar. El estado de esta fase no es `PHASE_2_BLOCKED_BY_CAPACITY`.
+```bash
+export CRISTIAN_API_CPUS=1
+export CRISTIAN_API_MEMORY=512m
+export CRISTIAN_API_HOST_PORT=3006
+```

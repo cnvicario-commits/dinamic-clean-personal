@@ -1,24 +1,21 @@
 # Relevamiento del VPS
 
-Estado: `NOT_ACCESSIBLE`.
+Medido en el servidor durante el despliegue de la API de Cristian.
 
-No hay `~/.ssh/config` en esta máquina y el repositorio no contiene un host de producción. No se abrió SSH. No se ejecutó `scripts/recon-vps-readonly.sh` en el servidor.
+| Recurso | Valor |
+| --- | --- |
+| CPU lógicas | 16 |
+| RAM total | 31 GiB |
+| RAM disponible en el relevamiento | aproximadamente 24 GiB |
+| Disco libre | 127 GB |
+| API de producción | contenedor independiente, loopback puerto `3005` |
+| API de Cristian | `127.0.0.1:3006`, imagen del commit `d713fb79ade3` |
+| Límite de la API de Cristian | 1 CPU y 512 MB |
+| Estado de ese contenedor | healthy |
+| Base de Cristian | Supabase Test `edruejzwwnixsjsadbgb` |
+| CA | `/opt/dinamic-clean-cristian/certs/supabase-ca.crt` |
+| Reserva de frontend | puerto `8086`, hay que confirmar que sigue libre antes de usarlo |
 
-El script es de solo lectura. Imprime CPU, uptime, memoria, swap, disco, contenedores, límites, redes, volúmenes, drivers de log y nombres de `server_name`, `listen` y `proxy_pass`. De las URLs de Supabase imprime solo el project ref. No se desplegó nada.
+`/healthz` y `/readyz` respondieron HTTP 200. El contenedor de producción no se modificó.
 
-Para destrabar el despliegue, un administrador ejecuta en el VPS:
-
-```bash
-bash scripts/recon-vps-readonly.sh
-```
-
-La salida tiene que responder, sin pegar `.env` ni connection strings:
-
-- distribución, CPU, RAM, swap, disco libre, uptime y carga
-- versión de Docker y Compose
-- contenedor actual de la API, puerto publicado, red, directorio, healthcheck y restart
-- si `/opt/dinamic-clean-cristian` ya existe
-- puertos en escucha
-- vhosts y certificados, solo nombres
-
-Hasta esa salida, la capacidad y el puerto libre quedan sin medir. No se declara un despliegue.
+Esta corrección no volvió a abrir SSH. Los datos de arriba son el relevamiento ya hecho, no una medición nueva.

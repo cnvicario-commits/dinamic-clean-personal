@@ -1,24 +1,23 @@
 # Resultado
 
-`PHASE_2_IMPLEMENTED_PENDING_DEPLOY`
+`PHASE_2_PARTIAL`
 
-El código y los archivos de infraestructura quedaron listos. El backend demo no está instalado.
+La API de Cristian está desplegada y el VPS ya fue relevado. La fase no pasa a `PHASE_2_COMPLETED` porque el navegador todavía no tiene un acceso definitivo: faltan el dominio, HTTPS público y un `CORS_ORIGIN` real.
 
-Hecho:
+## Verificado en el VPS
 
-- Compose aislado `dinamic-clean-cristian`, sin puerto, CPU ni RAM inventados como capacidad real
-- guardia de arranque que solo corre con `APP_DEPLOYMENT_ENV=cristian-pruebas` y rechaza producción, destinos ambiguos y credenciales de migración
-- `/healthz` expone el SHA
-- plantilla Nginx y render que no recarga el servidor
-- runbook de operación y de vuelta a un SHA anterior
-- tests de API, render de Compose e imagen local
+- 16 CPU lógicas, 31 GiB de RAM, unos 24 GiB libres en el relevamiento y 127 GB de disco libre.
+- Producción en el puerto `3005`, sin cambios en su contenedor.
+- Cristian en `127.0.0.1:3006`, 1 CPU, 512 MB, estado healthy.
+- Imagen `d713fb79ade3`. `/healthz` y `/readyz` respondieron HTTP 200.
+- Supabase Test `edruejzwwnixsjsadbgb`, con la CA en `/opt/dinamic-clean-cristian/certs/supabase-ca.crt`.
+- `SELF_SIGNED_CERT_IN_CHAIN` se resolvió montando esa CA. La verificación TLS sigue activa.
 
-No hecho, porque no hay acceso al VPS:
+`CORS_ORIGIN=https://demo.example.com` es un placeholder temporal.
 
-- relevamiento y decisión de capacidad
-- elección del puerto libre
-- directorio `/opt/dinamic-clean-cristian`
-- DNS, certificado y `nginx -t`
-- arranque del contenedor y `/readyz` 200 en el servidor
+## Pendiente
 
-No corresponde `PHASE_2_COMPLETED`. Tampoco `PHASE_2_BLOCKED_BY_CAPACITY` ni `PHASE_2_BLOCKED_BY_SECURITY`: no hay una medición que muestre falta de recursos, y la guardia de configuración rechaza producción. El bloqueo actual es de acceso.
+- Dominio, `nginx -t`, Certbot y HTTPS público.
+- Reemplazar el CORS placeholder.
+- Confirmar que el puerto `8086`, reservado para el frontend, sigue libre antes de la fase 3.
+- El usuario de deploy restringido sigue sin implementar.
