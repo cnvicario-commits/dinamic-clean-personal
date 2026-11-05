@@ -1,0 +1,109 @@
+name: cd-cristian
+
+on:
+  push:
+    branches: [cristian-pruebas]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: cristian-deploy
+  cancel-in-progress: false
+
+jobs:
+  select:
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.changed.outputs.services }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          before="${{ github.event.before }}"
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" || -z "$before" || "$before" == "0000000000000000000000000000000000000000" ]]; then
+            echo "services=both" >> "$GITHUB_OUTPUT"
+          else
+            git diff --name-only "$before" "${{ github.sha }}" | node scripts/ci/select-cristian-services.mjs >> "$GITHUB_OUTPUT"
+          fi
+
+  publish:
+    needs: select
+    if: vars.CRISTIAN_DEPLOY_ENABLED == 'true' && needs.select.outputs.services != 'none'
+    runs-on: ubuntu-latest
+    environment: cristian-pruebas
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate frontend identity
+        if: needs.select.outputs.services == 'frontend' || needs.select.outputs.services == 'both'
+        env:
+          APP_DEPLOYMENT_ENV: cristian-pruebas
+          NODE_ENV: production
+          CRISTIAN_FRONTEND_BUILD: "1"
+          APP_RELEASE_SHA: ${{ github.sha }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.CRISTIAN_NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.CRISTIAN_NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_API_URL: ${{ vars.CRISTIAN_NEXT_PUBLIC_API_URL }}
+        run: node scripts/assert-cristian-frontend-env.mjs build
+      - name: Publish images
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.CRISTIAN_NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.CRISTIAN_NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_API_URL: ${{ vars.CRISTIAN_NEXT_PUBLIC_API_URL }}
+          SERVICES: ${{ needs.select.outputs.services }}
+        run: |
+          set -euo pipefail
+          owner="$(printf '%s' "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')"
+          echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$owner" --password-stdin
+          registry="ghcr.io/${owner}"
+          if [[ "$SERVICES" == "api" || "$SERVICES" == "both" ]]; then
+            image="${registry}/dinamic-clean-api:cristian-${GITHUB_SHA}"
+            docker build -f apps/api/Dockerfile --build-arg "APP_RELEASE_SHA=${GITHUB_SHA}" -t "$image" apps/api
+            docker push "$image"
+          fi
+          if [[ "$SERVICES" == "frontend" || "$SERVICES" == "both" ]]; then
+            image="${registry}/dinamic-clean-frontend:cristian-${GITHUB_SHA}"
+            docker build -f deploy/Dockerfile.frontend \
+              --build-arg "APP_RELEASE_SHA=${GITHUB_SHA}" \
+              --build-arg "NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}" \
+              --build-arg "NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}" \
+              --build-arg "NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}" \
+              -t "$image" .
+            docker push "$image"
+          fi
+          echo "CD_CRISTIAN_PUBLISHED ${SERVICES} ${GITHUB_SHA}"
+
+  deploy:
+    needs: [select, publish]
+    if: vars.CRISTIAN_DEPLOY_ENABLED == 'true' && needs.select.outputs.services != 'none'
+    runs-on: ubuntu-latest
+    environment: cristian-pruebas
+    steps:
+      - name: Deploy published images
+        env:
+          SSH_KEY: ${{ secrets.CRISTIAN_DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CRISTIAN_DEPLOY_KNOWN_HOSTS }}
+          HOST: ${{ secrets.CRISTIAN_DEPLOY_HOST }}
+          USER_NAME: ${{ secrets.CRISTIAN_DEPLOY_USER }}
+          SERVICES: ${{ needs.select.outputs.services }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$SSH_KEY" || -z "$KNOWN_HOSTS" || -z "$HOST" || -z "$USER_NAME" ]]; then
+            echo "CRISTIAN_DEPLOY_NOT_CONFIGURED"
+            exit 1
+          fi
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/deploy_key ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            "${USER_NAME}@${HOST}" "cristian-apply ${SERVICES} ${GITHUB_SHA}"
+          echo "CD_CRISTIAN_DEPLOY_REQUESTED ${SERVICES} ${GITHUB_SHA}"

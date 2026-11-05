@@ -5,4 +5,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 "${ROOT}/scripts/preflight-cristian-deploy.sh"
-docker compose -f "${ROOT}/deploy/docker-compose.cristian.yml" up -d --no-deps --force-recreate api
+no_build=()
+if [[ "${CRISTIAN_NO_BUILD:-}" == "1" ]]; then
+  no_build+=(--no-build)
+fi
+docker compose -f "${ROOT}/deploy/docker-compose.cristian.yml" up -d --no-deps --force-recreate "${no_build[@]}" api

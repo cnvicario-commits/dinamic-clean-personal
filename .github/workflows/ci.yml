@@ -2,7 +2,7 @@ name: ci
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, cristian-pruebas]
   pull_request:
 
 permissions:
@@ -76,3 +76,19 @@ jobs:
       - run: npm ci --prefix apps/api
       - name: local supabase integration
         run: ./scripts/run-ephemeral-integration.sh
+
+  deploy-guards:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: workflow isolation
+        run: node scripts/ci/check-workflow-isolation.mjs
+      - name: migration files
+        run: node scripts/ci/check-forward-migration-files.mjs
+      - name: Cristian compose syntax
+        run: |
+          ./scripts/check-cristian-compose.sh
+          ./scripts/check-cristian-frontend-compose.sh

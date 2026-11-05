@@ -1,0 +1,50 @@
+name: cd-migrations
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Type migrate-test to continue
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  authorize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require explicit Test migration confirmation
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+          ENABLED: ${{ vars.CRISTIAN_MIGRATIONS_ENABLED }}
+        run: |
+          set -euo pipefail
+          if [[ "$CONFIRM" != "migrate-test" ]]; then
+            echo "MIGRATIONS_CONFIRMATION_REJECTED"
+            exit 1
+          fi
+          if [[ "$ENABLED" != "true" ]]; then
+            echo "MIGRATIONS_DISABLED"
+            exit 1
+          fi
+
+  apply-test:
+    needs: authorize
+    runs-on: ubuntu-latest
+    environment: cristian-pruebas
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply pending Test migrations
+        env:
+          MIGRATIONS_DATABASE_URL: ${{ secrets.CRISTIAN_MIGRATIONS_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$MIGRATIONS_DATABASE_URL" ]]; then
+            echo "MIGRATIONS_NOT_CONFIGURED"
+            exit 1
+          fi
+          node scripts/ci/check-forward-migration-files.mjs
+          ./scripts/apply-forward-migrations.sh
+          echo "MIGRATIONS_TEST_APPLY_REQUESTED ${GITHUB_SHA}"
