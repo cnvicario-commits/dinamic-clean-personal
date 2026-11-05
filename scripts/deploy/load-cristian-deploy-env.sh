@@ -2,7 +2,7 @@
 # Load the fixed Cristian deploy file. Values are not printed.
 file="${CRISTIAN_DEPLOY_ENV_FILE:-/etc/dinamic-clean/cristian.env}"
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-node "$here/path-boundary.mjs" "$file" >/dev/null
+node "$here/path-boundary.mjs" reject-checkout "$file" >/dev/null
 [[ -f "$file" ]] || { echo "DEPLOY_REJECTED deploy_env" >&2; exit 2; }
 while IFS= read -r line || [[ -n "$line" ]]; do
   case "$line" in

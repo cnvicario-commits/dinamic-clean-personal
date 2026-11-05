@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -11,16 +11,9 @@ import { evaluateProductionDeployGate } from '../../scripts/ci/evaluate-producti
 import { readSuccessfulCiRun } from '../../scripts/ci/read-successful-ci-run.mjs'
 import { assessHealthPayload, probeUrl } from '../../scripts/deploy/assess-health.mjs'
 import { assessProductionCompose } from '../../scripts/deploy/assess-production-compose.mjs'
-import { classifyDeploymentPath } from '../../scripts/deploy/path-boundary.mjs'
-import {
-  commitSuccess,
-  digestMatches,
-  emptyReleaseRecord,
-  loadReleaseRecord,
-  planDeploy,
-  releasePaths,
-  saveRelease,
-} from '../../scripts/deploy/release-state.mjs'
+import { classifyDeploymentPath, assertPrivileged } from '../../scripts/deploy/path-boundary.mjs'
+import { assessAdoption } from '../../scripts/deploy/assess-adoption.mjs'
+import { commitOperatorRollback, commitSuccess, digestMatches, emptyReleaseRecord, loadReleaseRecord, planDeploy, releasePaths, saveRelease } from '../../scripts/deploy/release-state.mjs'
 
 const root = fileURLToPath(new URL('../..', import.meta.url))
 const shaA = 'a'.repeat(40)
@@ -145,9 +138,29 @@ describe('CI must authorize the exact SHA', () => {
   })
 
   it('reads the CI run instead of trusting a dispatch input', () => {
-    expect(readSuccessfulCiRun({ workflow_runs: [{ id: 20, head_sha: shaA, head_branch: 'cristian-pruebas', event: 'push', conclusion: 'success' }] }, { sha: shaA, branch: 'cristian-pruebas' }).runId).toBe('20')
-    expect(readSuccessfulCiRun({ workflow_runs: [{ id: 20, head_sha: shaC, head_branch: 'cristian-pruebas', event: 'push', conclusion: 'success' }] }, { sha: shaA, branch: 'cristian-pruebas' }).reason).toBe('sha')
-    expect(readSuccessfulCiRun({ workflow_runs: [] }, { sha: shaA, branch: 'cristian-pruebas' }).reason).toBe('missing')
+    const expected = { sha: shaA, branch: 'cristian-pruebas', repository: 'cnvicario-commits/dinamic-clean-personal' }
+    const run = { id: 20, head_sha: shaA, head_branch: 'cristian-pruebas', event: 'push', conclusion: 'success', head_repository: { full_name: expected.repository } }
+    expect(readSuccessfulCiRun({ workflow_runs: [run] }, expected).runId).toBe('20')
+    expect(readSuccessfulCiRun({ workflow_runs: [{ ...run, head_sha: shaC }] }, expected).reason).toBe('sha')
+    expect(readSuccessfulCiRun({ workflow_runs: [{ ...run, head_branch: 'main' }] }, expected).reason).toBe('branch')
+    expect(readSuccessfulCiRun({ workflow_runs: [{ ...run, conclusion: 'failure' }] }, expected).reason).toBe('conclusion')
+    expect(readSuccessfulCiRun({ workflow_runs: [{ ...run, conclusion: 'cancelled' }] }, expected).reason).toBe('conclusion')
+    expect(readSuccessfulCiRun({ workflow_runs: [] }, expected).reason).toBe('missing')
+    expect(readSuccessfulCiRun({}, expected).reason).toBe('missing')
+    expect(readSuccessfulCiRun({ workflow_runs: [{ ...run, head_repository: { full_name: 'other/fork' } }] }, expected).reason).toBe('fork')
+    expect(readSuccessfulCiRun({ workflow_runs: [{ ...run, id: 4, event: 'pull_request' }] }, expected).reason).toBe('event')
+    const selected = readSuccessfulCiRun({
+      workflow_runs: [
+        { ...run, id: 30, conclusion: 'failure' },
+        { ...run, id: 18 },
+        { ...run, id: 22 },
+      ],
+    }, expected)
+    expect(selected.ok).toBe(true)
+    expect(selected.runId).toBe('22')
+    expect(selected.conclusion).toBe('success')
+    expect(selected.event).toBe('push')
+    expect(selected.branch).toBe('cristian-pruebas')
   })
 })
 
@@ -188,6 +201,14 @@ describe('path boundary', () => {
     expect(classifyDeploymentPath('/opt/dinamic-clean-cristian')).toBe('cristian-checkout')
     expect(classifyDeploymentPath('/opt/dinamic-clean')).toBe('production')
     expect(classifyDeploymentPath('/opt/dinamic-clean/certs')).toBe('production')
+    expect(classifyDeploymentPath('/opt/dinamic-clean-privileged/bin')).toBe('privileged')
+    expect(assertPrivileged('/opt/dinamic-clean-privileged').ok).toBe(true)
+    expect(assertPrivileged('/opt/dinamic-clean-privileged/bin/cristian-apply').ok).toBe(true)
+    expect(assertPrivileged('/opt/dinamic-clean').ok).toBe(false)
+    expect(assertPrivileged('/opt/dinamic-clean/repo').ok).toBe(false)
+    expect(assertPrivileged('/opt/dinamic-clean-cristian').ok).toBe(false)
+    expect(assertPrivileged('/tmp/not-privileged').ok).toBe(false)
+    expect(assertPrivileged('/opt/dinamic-clean-privileged/bin/../../dinamic-clean').reason).toBe('traversal')
     const cristian = spawnSync('python3', ['scripts/assert-cristian-frontend-compose-render.py', '--path-class', '/opt/dinamic-clean-cristian'], { cwd: root, encoding: 'utf8' })
     const production = spawnSync('python3', ['scripts/assert-cristian-frontend-compose-render.py', '--path-class', '/opt/dinamic-clean/certs'], { cwd: root, encoding: 'utf8' })
     expect(cristian.stdout.trim()).toBe('allowed')
@@ -205,6 +226,7 @@ describe('Cristian deploy fixture', () => {
         ...process.env,
         NODE_ENV: 'test',
         DINAMIC_DEPLOY_FIXTURE: '1',
+        DINAMIC_PRIVILEGED_ROOT: join(root, 'scripts/deploy'),
         DINAMIC_RELEASE_STATE_DIR: dir,
         CRISTIAN_REGISTRY: 'ghcr.io/example',
         FIXTURE_API_HEALTHZ_BODY: body,
@@ -254,10 +276,403 @@ describe('Cristian deploy fixture', () => {
   })
 })
 
+describe('disposable docker release', () => {
+  it('restores the container that the release record names', async () => {
+    const result = await new Promise<{ status: number | null, stdout: string, stderr: string }>((resolve) => {
+      const child = spawn('bash', ['scripts/deploy/disposable-release-drill.sh'], { cwd: root })
+      let stdout = ''
+      let stderr = ''
+      child.stdout.on('data', (chunk) => { stdout += chunk })
+      child.stderr.on('data', (chunk) => { stderr += chunk })
+      child.on('close', (status) => resolve({ status, stdout, stderr }))
+    })
+    const output = `${result.stdout}\n${result.stderr}`
+    if (output.includes('DOCKER_INTEGRATION_NOT_VERIFIED')) {
+      throw new Error('DOCKER_INTEGRATION_NOT_VERIFIED')
+    }
+    expect(result.status, output).toBe(0)
+    expect(output).toContain('DOCKER_RELEASE_RESTORED')
+  }, 240000)
+})
+
 describe('workflow files', () => {
   it('keeps deploy workflows isolated', () => {
     const result = nodeScript('scripts/ci/check-workflow-isolation.mjs')
     expect(result.status).toBe(0)
     expect(result.stdout).toContain('workflow_isolation_ok')
+  })
+})
+
+describe('canonical privileged paths', () => {
+  it('rejects a symlink that resolves outside the privileged root', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dinamic-path-'))
+    const privileged = join(dir, 'priv')
+    const checkout = join(dir, 'checkout')
+    mkdirSync(join(privileged, 'bin'), { recursive: true })
+    mkdirSync(checkout, { recursive: true })
+    writeFileSync(join(privileged, 'bin/tool.sh'), 'echo ok\n')
+    writeFileSync(join(checkout, 'secret.sh'), 'echo no\n')
+    symlinkSync(join(checkout, 'secret.sh'), join(privileged, 'bin/escaped.sh'))
+    process.env.DINAMIC_DEPLOY_FIXTURE = '1'
+    process.env.DINAMIC_PRIVILEGED_ROOT = privileged
+    try {
+      expect(assertPrivileged(join(privileged, 'bin/tool.sh')).ok).toBe(true)
+      expect(assertPrivileged(join(privileged, 'bin/escaped.sh')).ok).toBe(false)
+      const cli = spawnSync('node', ['scripts/deploy/path-boundary.mjs', 'expect-privileged', join(privileged, 'bin/tool.sh')], {
+        cwd: root, encoding: 'utf8', env: process.env,
+      })
+      expect(cli.status).toBe(0)
+    } finally {
+      delete process.env.DINAMIC_DEPLOY_FIXTURE
+      delete process.env.DINAMIC_PRIVILEGED_ROOT
+    }
+  })
+})
+
+describe('release record semantics', () => {
+  it('keeps current, previous, and the failed attempt distinct', () => {
+    let record = commitSuccess(emptyReleaseRecord('cristian', 'api'), release(shaA, digestA, '1'))
+    record = commitSuccess(record, release(shaB, digestB, '2'))
+    expect(record.current.gitSha).toBe(shaB)
+    expect(record.previous.gitSha).toBe(shaA)
+    record = commitOperatorRollback(record)
+    expect(record.current.gitSha).toBe(shaA)
+    expect(record.previous.gitSha).toBe(shaB)
+    record = commitSuccess(record, release(shaC, digestC, '3'))
+    expect(record.current.gitSha).toBe(shaC)
+    expect(record.previous.gitSha).toBe(shaA)
+    const repeated = commitOperatorRollback(commitOperatorRollback(commitSuccess(commitSuccess(emptyReleaseRecord('cristian', 'api'), release(shaA, digestA, '1')), release(shaB, digestB, '2'))))
+    expect(repeated.current.gitSha).toBe(shaB)
+    expect(repeated.previous.gitSha).toBe(shaA)
+    const changedDigest = commitSuccess(commitSuccess(emptyReleaseRecord('cristian', 'api'), release(shaA, digestA, '1')), release(shaA, digestB, '2'))
+    expect(changedDigest.previous.digest).toBe(digestA)
+    expect(planDeploy(changedDigest, release(shaA, digestB, '2')).action).toBe('idempotent')
+    const dir = mkdtempSync(join(tmpdir(), 'dinamic-commit-'))
+    const paths = releasePaths(dir, 'cristian', 'api')
+    saveRelease(paths, commitSuccess(emptyReleaseRecord('cristian', 'api'), release(shaA, digestA, '1')), { action: 'seed' })
+    writeFileSync(`${paths.record}.999.tmp`, '{')
+    expect(loadReleaseRecord(paths.record, 'cristian', 'api').record.current.gitSha).toBe(shaA)
+  })
+})
+
+describe('operator rollback', () => {
+  function rollback(dir: string, service: string, extra: Record<string, string> = {}) {
+    return spawnSync('bash', ['scripts/deploy/cristian-remote-rollback.sh', service], {
+      cwd: root,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        NODE_ENV: 'test',
+        DINAMIC_DEPLOY_FIXTURE: '1',
+        DINAMIC_PRIVILEGED_ROOT: join(root, 'scripts/deploy'),
+        DINAMIC_RELEASE_STATE_DIR: dir,
+        FIXTURE_API_HEALTHZ_BODY: JSON.stringify({ status: 'ok', release: shaA }),
+        FIXTURE_API_READYZ_BODY: JSON.stringify({ status: 'ready' }),
+        FIXTURE_FRONTEND_HEALTHZ_BODY: JSON.stringify({ status: 'ok', release: shaA, deployment: 'cristian-pruebas' }),
+        ...extra,
+      },
+    })
+  }
+
+  function seed(dir: string, service: string) {
+    const paths = releasePaths(dir, 'cristian', service)
+    saveRelease(paths, commitSuccess(commitSuccess(emptyReleaseRecord('cristian', service), release(shaA, digestA, '1')), release(shaB, digestB, '2')), { action: 'seed' })
+    return paths
+  }
+
+  it('restores only the requested service after the health check', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dinamic-rollback-'))
+    const log = join(dir, 'recreate.log')
+    seed(dir, 'api')
+    seed(dir, 'frontend')
+    const api = rollback(dir, 'api', { FIXTURE_RECREATE_LOG: log })
+    const frontend = rollback(dir, 'frontend', { FIXTURE_RECREATE_LOG: log })
+    expect(api.status).toBe(0)
+    expect(frontend.status).toBe(0)
+    expect(readFileSync(log, 'utf8').trim().split('\n')).toEqual(['api', 'frontend'])
+    expect(JSON.parse(readFileSync(join(dir, 'cristian/api.json'), 'utf8')).current.gitSha).toBe(shaA)
+    expect(JSON.parse(readFileSync(join(dir, 'cristian/api.json'), 'utf8')).previous.gitSha).toBe(shaB)
+    expect(JSON.parse(readFileSync(join(dir, 'cristian/frontend.json'), 'utf8')).current.gitSha).toBe(shaA)
+  })
+
+  it('does not commit when the image, digest, health, or recreate fails', () => {
+    const failures: Record<string, string>[] = [
+      { FIXTURE_IMAGE: 'absent' },
+      { FIXTURE_DIGEST: 'bad' },
+      { FIXTURE_RECREATE: 'fail' },
+      { FIXTURE_API_HEALTHZ_BODY: JSON.stringify({ status: 'ok', release: shaC }) },
+    ]
+    for (const extra of failures) {
+      const dir = mkdtempSync(join(tmpdir(), 'dinamic-rollback-fail-'))
+      seed(dir, 'api')
+      const failed = rollback(dir, 'api', extra)
+      expect(failed.status).toBe(1)
+      expect(failed.stderr).toContain('ROLLBACK_FAILED')
+      const record = JSON.parse(readFileSync(join(dir, 'cristian/api.json'), 'utf8'))
+      expect(record.current.gitSha).toBe(shaB)
+      expect(record.previous.gitSha).toBe(shaA)
+    }
+  })
+
+  it('rejects a missing previous release and a corrupt record', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dinamic-rollback-empty-'))
+    const empty = rollback(dir, 'api')
+    expect(empty.status).toBe(1)
+    expect(empty.stderr).toContain('no_previous_release')
+    const corrupt = mkdtempSync(join(tmpdir(), 'dinamic-rollback-corrupt-'))
+    mkdirSync(join(corrupt, 'cristian'), { recursive: true })
+    writeFileSync(join(corrupt, 'cristian/api.json'), '{')
+    const failed = rollback(corrupt, 'api')
+    expect(failed.status).toBe(1)
+    expect(readFileSync(join(corrupt, 'cristian/api.json'), 'utf8')).toBe('{')
+  })
+})
+
+describe('service operation lock', () => {
+  async function hold(lock: string) {
+    mkdirSync(join(lock, '..'), { recursive: true })
+    const ready = `${lock}.ready`
+    const holder = spawn('python3', ['scripts/deploy/with-service-lock.py', lock, 'bash', '-c', 'printf ready > "$READY"; sleep 8'], {
+      cwd: root,
+      env: { ...process.env, READY: ready },
+      stdio: ['ignore', 'ignore', 'pipe'],
+    })
+    let holderError = ''
+    holder.stderr?.on('data', (chunk) => { holderError += chunk })
+    const started = Date.now()
+    while (Date.now() - started < 2000) {
+      try {
+        if (readFileSync(ready, 'utf8') === 'ready') return holder
+      } catch { /* the holder has not acquired the lock yet */ }
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    }
+    if (holder.pid) holder.kill('SIGKILL')
+    throw new Error(`lock was not acquired holder=${holder.exitCode} ${holderError}`)
+  }
+
+  it('keeps a second deploy and rollback out of the running operation', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dinamic-flock-'))
+    const paths = releasePaths(dir, 'cristian', 'api')
+    saveRelease(paths, commitSuccess(commitSuccess(emptyReleaseRecord('cristian', 'api'), release(shaA, digestA, '1')), release(shaB, digestB, '2')), { action: 'seed' })
+    const holder = await hold(join(dir, 'cristian/api.flock'))
+    try {
+      const deploy = spawnSync('bash', ['scripts/deploy/cristian-remote-apply.sh', 'api', shaC, digestC, '3'], {
+        cwd: root,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          DINAMIC_DEPLOY_FIXTURE: '1',
+          DINAMIC_PRIVILEGED_ROOT: join(root, 'scripts/deploy'),
+          DINAMIC_RELEASE_STATE_DIR: dir,
+        },
+      })
+      const rolled = spawnSync('bash', ['scripts/deploy/cristian-remote-rollback.sh', 'api'], {
+        cwd: root,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          DINAMIC_DEPLOY_FIXTURE: '1',
+          DINAMIC_PRIVILEGED_ROOT: join(root, 'scripts/deploy'),
+          DINAMIC_RELEASE_STATE_DIR: dir,
+        },
+      })
+      expect(deploy.status).toBe(1)
+      expect(deploy.stderr).toContain('OPERATION_REJECTED locked')
+      expect(rolled.status).toBe(1)
+      expect(rolled.stderr).toContain('OPERATION_REJECTED locked')
+      expect(JSON.parse(readFileSync(paths.record, 'utf8')).current.gitSha).toBe(shaB)
+    } finally {
+      if (holder.pid) holder.kill('SIGKILL')
+    }
+  })
+
+  it('releases the lock when the holder is killed', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dinamic-flock-kill-'))
+    const lock = join(dir, 'cristian/api.flock')
+    const holder = await hold(lock)
+    holder.kill('SIGKILL')
+    let released = spawnSync('python3', ['scripts/deploy/with-service-lock.py', lock, 'true'], { cwd: root, encoding: 'utf8' })
+    const started = Date.now()
+    while (released.status !== 0 && Date.now() - started < 1000) {
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      released = spawnSync('python3', ['scripts/deploy/with-service-lock.py', lock, 'true'], { cwd: root, encoding: 'utf8' })
+    }
+    expect(released.status).toBe(0)
+  })
+})
+
+describe('privileged installation', () => {
+  it('installs the loader and can run from another directory', () => {
+    const dest = mkdtempSync(join(tmpdir(), 'dinamic-install-'))
+    const state = mkdtempSync(join(tmpdir(), 'dinamic-install-state-'))
+    const printed = spawnSync('bash', ['scripts/deploy/print-privileged-install.sh'], { cwd: root, encoding: 'utf8' })
+    expect(printed.stdout).toContain('load-cristian-deploy-env.sh')
+    expect(printed.stdout).toContain('PRIVILEGED_INSTALL_NOT_EXECUTED')
+    const installed = spawnSync('bash', ['scripts/deploy/print-privileged-install.sh', '--apply-to', dest], { cwd: root, encoding: 'utf8' })
+    expect(installed.status).toBe(0)
+    expect(installed.stdout).toContain('PRIVILEGED_INSTALL_APPLIED')
+    const ran = spawnSync('bash', [join(dest, 'bin/cristian-apply'), 'api', shaA, digestA, '1'], {
+      cwd: '/tmp',
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        NODE_ENV: 'test',
+        DINAMIC_DEPLOY_FIXTURE: '1',
+        DINAMIC_PRIVILEGED_ROOT: dest,
+        DINAMIC_RELEASE_STATE_DIR: state,
+        FIXTURE_API_HEALTHZ_BODY: JSON.stringify({ status: 'ok', release: shaA }),
+        FIXTURE_API_READYZ_BODY: JSON.stringify({ status: 'ready' }),
+        FIXTURE_HTTP: '200',
+      },
+    })
+    expect(ran.status).toBe(0)
+    expect(ran.stdout).toContain('DEPLOY_CONFIRMED api')
+  })
+})
+
+describe('initial release adoption', () => {
+  function container(overrides: Record<string, unknown> = {}) {
+    return {
+      Name: '/dinamic-clean-cristian-api',
+      Config: {
+        Env: [
+          `APP_RELEASE_SHA=${shaA}`,
+          'APP_DEPLOYMENT_ENV=cristian-pruebas',
+          'EXPECTED_SUPABASE_PROJECT_REF=edruejzwwnixsjsadbgb',
+        ],
+      },
+      State: { Health: { Status: 'healthy' } },
+      NetworkSettings: { Ports: { '3001/tcp': [{ HostPort: '3006' }] } },
+      ...overrides,
+    }
+  }
+
+  function adopt(dir: string, containerFile: string, imageFile: string, extra: Record<string, string> = {}) {
+    return spawnSync('bash', ['scripts/deploy/adopt-release.sh', 'cristian', 'api'], {
+      cwd: root,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        NODE_ENV: 'test',
+        DINAMIC_DEPLOY_FIXTURE: '1',
+        DINAMIC_PRIVILEGED_ROOT: join(root, 'scripts/deploy'),
+        DINAMIC_RELEASE_STATE_DIR: dir,
+        ADOPT_CONFIRM: 'adopt-running',
+        ADOPT_RUN_ID: '15',
+        FIXTURE_ADOPT_CONTAINER: containerFile,
+        FIXTURE_ADOPT_IMAGE: imageFile,
+        ...extra,
+      },
+    })
+  }
+
+  it('records a healthy container and blocks incomplete evidence', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dinamic-adopt-'))
+    const containerFile = join(dir, 'container.json')
+    const imageFile = join(dir, 'image.json')
+    writeFileSync(containerFile, JSON.stringify(container()))
+    writeFileSync(imageFile, JSON.stringify({ RepoDigests: [`ghcr.io/example/api@${digestA}`] }))
+    const recorded = adopt(dir, containerFile, imageFile)
+    expect(recorded.status).toBe(0)
+    expect(JSON.parse(readFileSync(join(dir, 'cristian/api.json'), 'utf8')).current.gitSha).toBe(shaA)
+    const again = adopt(dir, containerFile, imageFile)
+    expect(again.stderr).toContain('already_initialized')
+    writeFileSync(imageFile, JSON.stringify({ RepoDigests: [] }))
+    const fresh = mkdtempSync(join(tmpdir(), 'dinamic-adopt-digest-'))
+    expect(adopt(fresh, containerFile, imageFile).stderr).toContain('digest')
+    writeFileSync(containerFile, JSON.stringify(container({ Config: { Env: ['APP_RELEASE_SHA=unknown', 'APP_DEPLOYMENT_ENV=cristian-pruebas', 'EXPECTED_SUPABASE_PROJECT_REF=edruejzwwnixsjsadbgb'] } })))
+    writeFileSync(imageFile, JSON.stringify({ RepoDigests: [`ghcr.io/example/api@${digestA}`] }))
+    expect(adopt(mkdtempSync(join(tmpdir(), 'dinamic-adopt-sha-')), containerFile, imageFile).stderr).toContain('sha')
+    writeFileSync(containerFile, JSON.stringify(container({ State: { Health: { Status: 'unhealthy' } } })))
+    expect(adopt(mkdtempSync(join(tmpdir(), 'dinamic-adopt-health-')), containerFile, imageFile).stderr).toContain('health')
+    writeFileSync(containerFile, JSON.stringify(container({ Config: { Env: [`APP_RELEASE_SHA=${shaA}`, 'APP_DEPLOYMENT_ENV=production', 'EXPECTED_SUPABASE_PROJECT_REF=edruejzwwnixsjsadbgb'] } })))
+    expect(adopt(mkdtempSync(join(tmpdir(), 'dinamic-adopt-env-')), containerFile, imageFile).stderr).toContain('environment')
+    const missing = spawnSync('bash', ['scripts/deploy/adopt-release.sh', 'cristian', 'api'], {
+      cwd: root,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        DINAMIC_DEPLOY_FIXTURE: '1',
+        DINAMIC_PRIVILEGED_ROOT: join(root, 'scripts/deploy'),
+        DINAMIC_RELEASE_STATE_DIR: mkdtempSync(join(tmpdir(), 'dinamic-adopt-missing-')),
+        ADOPT_CONFIRM: 'adopt-running',
+        ADOPT_RUN_ID: '15',
+      },
+    })
+    expect(missing.stderr).toContain('missing')
+    const production = spawnSync('bash', ['scripts/deploy/adopt-release.sh', 'production', 'api'], {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...process.env, DINAMIC_DEPLOY_FIXTURE: '1', DINAMIC_PRIVILEGED_ROOT: join(root, 'scripts/deploy'), ADOPT_CONFIRM: 'adopt-running', ADOPT_RUN_ID: '15' },
+    })
+    expect(production.stderr).toContain('production_authorization')
+    expect(assessAdoption(null, {}, { name: 'missing', deploymentEnv: 'cristian-pruebas', port: '3006' }).reason).toBe('missing')
+  })
+})
+
+describe('production deploy path', () => {
+  it('commits only after probes and stops for a schema failure', () => {
+    const dest = mkdtempSync(join(tmpdir(), 'dinamic-production-install-'))
+    const installed = spawnSync('bash', ['scripts/deploy/print-privileged-install.sh', '--apply-to', dest], { cwd: root, encoding: 'utf8' })
+    expect(installed.status).toBe(0)
+    const compose = [
+      'services:',
+      '  api:',
+      '    container_name: dinamic-clean-api',
+      '    ports:',
+      '      - "3005:3001"',
+    ].join('\n')
+    writeFileSync(join(dest, 'compose/reviewed.yml'), compose)
+    const state = mkdtempSync(join(tmpdir(), 'dinamic-production-state-'))
+    const env = {
+      ...process.env,
+      NODE_ENV: 'test',
+      DINAMIC_DEPLOY_FIXTURE: '1',
+      DINAMIC_PRIVILEGED_ROOT: dest,
+      DINAMIC_RELEASE_STATE_DIR: state,
+      PRODUCTION_COMPOSE_REVIEWED: 'operator-reviewed',
+      PRODUCTION_COMPOSE_FILE: join(dest, 'compose/reviewed.yml'),
+      FIXTURE_API_HEALTHZ_BODY: JSON.stringify({ status: 'ok', release: shaA }),
+      FIXTURE_API_READYZ_BODY: JSON.stringify({ status: 'ready' }),
+      FIXTURE_HTTP: '200',
+    } as NodeJS.ProcessEnv
+    const deployed = spawnSync('bash', [join(dest, 'bin/production-apply'), shaA, digestA, '4'], { cwd: '/tmp', encoding: 'utf8', env })
+    expect(deployed.status).toBe(0)
+    expect(deployed.stdout).toContain(`PRODUCTION_DEPLOY_CONFIRMED ${shaA}`)
+    const schemaState = mkdtempSync(join(tmpdir(), 'dinamic-production-schema-'))
+    const schema = spawnSync('bash', [join(dest, 'bin/production-apply'), shaB, digestB, '5'], {
+      cwd: '/tmp',
+      encoding: 'utf8',
+      env: {
+        ...env,
+        DINAMIC_RELEASE_STATE_DIR: schemaState,
+        FIXTURE_API_HEALTHZ_BODY: JSON.stringify({ status: 'ok', release: shaB }),
+        FIXTURE_API_READYZ_BODY: JSON.stringify({ status: 'not_ready', reason: 'phase2d_schema_incompatible' }),
+      } as NodeJS.ProcessEnv,
+    })
+    expect(schema.status).toBe(1)
+    expect(schema.stderr).toContain('PRODUCTION_ROLLBACK_REQUIRES_HUMAN')
+    expect(loadReleaseRecord(join(schemaState, 'production/api.json'), 'production', 'api').record.current).toBeNull()
+    const paths = releasePaths(state, 'production', 'api')
+    saveRelease(paths, commitSuccess(loadReleaseRecord(paths.record, 'production', 'api').record, release(shaB, digestB, '6')), { action: 'seed' })
+    const log = join(state, 'recreate.log')
+    const rolled = spawnSync('bash', [join(dest, 'bin/production-rollback')], {
+      cwd: '/tmp',
+      encoding: 'utf8',
+      env: {
+        ...env,
+        FIXTURE_RECREATE_LOG: log,
+        FIXTURE_API_HEALTHZ_BODY: JSON.stringify({ status: 'ok', release: shaA }),
+      } as NodeJS.ProcessEnv,
+    })
+    expect(rolled.status).toBe(0)
+    expect(readFileSync(log, 'utf8').trim()).toBe('api')
+    const record = JSON.parse(readFileSync(paths.record, 'utf8'))
+    expect(record.current.gitSha).toBe(shaA)
+    expect(record.previous.gitSha).toBe(shaB)
+    writeFileSync(join(state, 'schema-incompatible'), '')
+    const blocked = spawnSync('bash', [join(dest, 'bin/production-rollback')], { cwd: '/tmp', encoding: 'utf8', env })
+    expect(blocked.stderr).toContain('PRODUCTION_ROLLBACK_REQUIRES_HUMAN')
+    expect(readFileSync(join(root, 'scripts/deploy/production-remote-apply.sh'), 'utf8')).not.toContain('remote_execution_not_enabled')
   })
 })

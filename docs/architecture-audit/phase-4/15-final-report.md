@@ -1,6 +1,6 @@
 # 15 — Informe final
 
-Estado: `PHASE_4_CORRECTIONS_IMPLEMENTED_PENDING_ACTIVATION`
+Estado: las correcciones del review final están en el working tree de `DIN-417`. La activación sigue pendiente. El detalle medido está en `review/phase-4-final-corrections/`.
 
 Las correcciones están en `DIN-417`. No se hizo push, merge ni ningún cambio en el VPS, Supabase, Nginx o Vercel.
 

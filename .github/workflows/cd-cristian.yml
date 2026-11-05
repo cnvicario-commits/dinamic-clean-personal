@@ -46,11 +46,17 @@ jobs:
           if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
             [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
             mkdir -p "$RUNNER_TEMP/ci"
-            gh api "/repos/${REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${HEAD_SHA}&branch=cristian-pruebas&event=push&status=completed&per_page=1" > "$RUNNER_TEMP/ci/runs.json"
-            EXPECTED_SHA="$HEAD_SHA" EXPECTED_BRANCH="cristian-pruebas" GITHUB_OUTPUT="$RUNNER_TEMP/ci/out" \
+            gh api "/repos/${REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${HEAD_SHA}&branch=cristian-pruebas&event=push&status=completed&per_page=20" > "$RUNNER_TEMP/ci/runs.json"
+            EXPECTED_SHA="$HEAD_SHA" EXPECTED_BRANCH="cristian-pruebas" EXPECTED_REPOSITORY="$REPOSITORY" GITHUB_OUTPUT="$RUNNER_TEMP/ci/out" \
               node scripts/ci/read-successful-ci-run.mjs "$RUNNER_TEMP/ci/runs.json"
-            CI_CONCLUSION=success CI_EVENT=push CI_BRANCH=cristian-pruebas CI_HEAD_SHA="$HEAD_SHA" \
-              node scripts/ci/evaluate-cristian-deploy-gate.mjs
+            CI_CONCLUSION="$(awk -F= '/^conclusion=/ {print $2}' "$RUNNER_TEMP/ci/out")"
+            CI_EVENT="$(awk -F= '/^event=/ {print $2}' "$RUNNER_TEMP/ci/out")"
+            CI_BRANCH="$(awk -F= '/^branch=/ {print $2}' "$RUNNER_TEMP/ci/out")"
+            CI_HEAD_SHA="$(awk -F= '/^sha=/ {print $2}' "$RUNNER_TEMP/ci/out")"
+            HEAD_REPOSITORY="$(awk -F= '/^repository=/ {print $2}' "$RUNNER_TEMP/ci/out")"
+            [[ -n "$CI_CONCLUSION" && -n "$CI_EVENT" && -n "$CI_BRANCH" && -n "$CI_HEAD_SHA" && -n "$HEAD_REPOSITORY" ]]
+            export CI_CONCLUSION CI_EVENT CI_BRANCH CI_HEAD_SHA HEAD_REPOSITORY
+            node scripts/ci/evaluate-cristian-deploy-gate.mjs
             run_id="$(awk -F= '/^run_id=/ {print $2}' "$RUNNER_TEMP/ci/out")"
             [[ "$run_id" =~ ^[1-9][0-9]*$ ]]
             printf 'run_id=%s\n' "$run_id" >> "$GITHUB_OUTPUT"

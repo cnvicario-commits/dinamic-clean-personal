@@ -2,7 +2,7 @@
 
 Archivo: `.github/workflows/cd-cristian.yml`.
 
-No se dispara con un push. El despliegue automático usa `workflow_run` cuando termina el workflow `ci`. GitHub ejecuta ese archivo desde la rama por defecto del repositorio, no desde el YAML que haya en `cristian-pruebas`. Un `workflow_dispatch` solo se admite desde `refs/heads/main` y después de leer una corrida real de CI.
+No se dispara con un push. El despliegue automático usa `workflow_run` cuando termina el workflow `ci`. GitHub ejecuta ese archivo desde la rama por defecto del repositorio, no desde el YAML que haya en `cristian-pruebas`. Un `workflow_dispatch` solo se admite desde `refs/heads/main`. El gate recibe la conclusión, el evento, la rama, el SHA y el repositorio que devolvió la corrida de CI, no valores escritos a mano.
 
 `scripts/ci/evaluate-cristian-deploy-gate.mjs` deja seguir el deploy únicamente cuando se cumplen todas estas condiciones:
 
@@ -27,4 +27,4 @@ La imagen se descarga por digest. Si el digest inspeccionado no coincide, no se 
 
 ## Rollback
 
-Si el fallo ocurre antes de recrear, no hay rollback. Si ocurre después, se restaura la imagen de `current` de ese servicio. Si no hay un release exitoso, el resultado es `ROLLBACK_UNAVAILABLE` y el registro no se borra. El rollback de operador usa solo `previous` de ese servicio.
+Si el fallo ocurre antes de recrear, no hay rollback. Si ocurre después, se restaura la imagen de `current` de ese servicio y el registro no se marca exitoso hasta que el contenedor responde el SHA restaurado. Si no hay un release exitoso, el resultado es `ROLLBACK_UNAVAILABLE` y el registro no se borra. El rollback de operador usa `previous` de ese servicio y deja el release saliente en `previous`. `docker compose config` tiene que mostrar la imagen verificada antes de recrear.

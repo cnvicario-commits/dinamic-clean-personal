@@ -36,11 +36,16 @@ jobs:
           set -euo pipefail
           [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
           mkdir -p "$RUNNER_TEMP/ci"
-          gh api "/repos/${REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${GITHUB_SHA}&branch=main&event=push&status=completed&per_page=1" > "$RUNNER_TEMP/ci/runs.json"
-          EXPECTED_SHA="$GITHUB_SHA" EXPECTED_BRANCH="main" GITHUB_OUTPUT="$GITHUB_OUTPUT" \
+          gh api "/repos/${REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${GITHUB_SHA}&branch=main&event=push&status=completed&per_page=20" > "$RUNNER_TEMP/ci/runs.json"
+          EXPECTED_SHA="$GITHUB_SHA" EXPECTED_BRANCH="main" EXPECTED_REPOSITORY="$REPOSITORY" GITHUB_OUTPUT="$GITHUB_OUTPUT" \
             node scripts/ci/read-successful-ci-run.mjs "$RUNNER_TEMP/ci/runs.json"
-          CI_SHA="$GITHUB_SHA" CI_BRANCH="main" CI_EVENT="push" CI_CONCLUSION="success" \
-            node scripts/ci/evaluate-production-deploy-gate.mjs
+          CI_SHA="$(awk -F= '/^sha=/ {print $2}' "$GITHUB_OUTPUT")"
+          CI_BRANCH="$(awk -F= '/^branch=/ {print $2}' "$GITHUB_OUTPUT")"
+          CI_EVENT="$(awk -F= '/^event=/ {print $2}' "$GITHUB_OUTPUT")"
+          CI_CONCLUSION="$(awk -F= '/^conclusion=/ {print $2}' "$GITHUB_OUTPUT")"
+          [[ -n "$CI_SHA" && -n "$CI_BRANCH" && -n "$CI_EVENT" && -n "$CI_CONCLUSION" ]]
+          export CI_SHA CI_BRANCH CI_EVENT CI_CONCLUSION
+          node scripts/ci/evaluate-production-deploy-gate.mjs
 
   publish:
     needs: authorize

@@ -5,6 +5,15 @@
  * Frontend /api/healthz does not depend on the API.
  */
 
+export function schemaBlocksAutomaticRollback(body) {
+  try {
+    const parsed = JSON.parse(String(body ?? ''))
+    return parsed?.status === 'not_ready' && /schema/i.test(String(parsed.reason ?? ''))
+  } catch {
+    return false
+  }
+}
+
 export function assessHealthPayload(kind, body, expected = {}) {
   let parsed
   try {
@@ -42,6 +51,9 @@ export async function probeUrl(url, options = {}) {
     try {
       const response = await fetchImpl(url, { signal: AbortSignal.timeout(timeoutMs) })
       const body = await response.text()
+      if (schemaBlocksAutomaticRollback(body)) {
+        return { ok: false, reason: 'schema_incompatible', status: response.status, body, attempt }
+      }
       if (response.status !== 200) {
         reason = `http_${response.status}`
         continue
@@ -65,6 +77,7 @@ async function fixtureProbe(kind) {
   const body = process.env[`FIXTURE_${kind.toUpperCase().replaceAll('-', '_')}_BODY`] ?? ''
   const status = Number(process.env.FIXTURE_HTTP || '200')
   if (process.env.FIXTURE_TIMEOUT === '1') return { ok: false, reason: 'timeout', attempt: 3 }
+  if (schemaBlocksAutomaticRollback(body)) return { ok: false, reason: 'schema_incompatible', attempt: 1 }
   if (status !== 200) return { ok: false, reason: `http_${status}`, attempt: 1 }
   return assessHealthPayload(kind, body, { sha: process.env.RELEASE_SHA })
 }
@@ -75,7 +88,7 @@ if (invoked) {
   const url = process.argv[3]
   const decision = process.env.DINAMIC_DEPLOY_FIXTURE === '1'
     ? await fixtureProbe(kind)
-    : await probeRelease(kind, url, { sha: process.env.RELEASE_SHA }, { attempts: 3, timeoutMs: 3000 })
+    : await probeRelease(kind, url, { sha: process.env.RELEASE_SHA }, { attempts: Number(process.env.PROBE_ATTEMPTS || '3'), timeoutMs: 3000 })
   if (!decision.ok) {
     console.error(`PROBE_FAILED ${kind} ${decision.reason}`)
     process.exit(1)

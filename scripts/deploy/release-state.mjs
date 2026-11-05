@@ -100,6 +100,9 @@ function appendEvent(file, event) {
 export function withReleaseLock(stateDir, environment, service, fn) {
   const paths = releasePaths(stateDir, environment, service)
   mkdirSync(paths.dir, { recursive: true })
+  // The deploy and rollback shells hold one flock for the whole operation.
+  // Skipping the directory lock here avoids releasing it between plan and commit.
+  if (process.env.DINAMIC_LOCK_HELD === '1') return fn(paths)
   if (!acquireReleaseLock(paths.lock)) return { ok: false, reason: 'locked' }
   try {
     return fn(paths)
@@ -137,13 +140,17 @@ export function planOperatorRollback(record) {
   return { action: 'restore', release: record.previous }
 }
 
+function releaseChanged(current, request) {
+  if (!current) return false
+  return current.gitSha !== request.gitSha || current.digest !== request.digest
+}
+
 export function commitSuccess(record, request) {
-  const next = {
+  return {
     ...record,
-    previous: record.current && record.current.gitSha !== request.gitSha ? record.current : record.previous,
+    previous: releaseChanged(record.current, request) ? record.current : record.previous,
     current: { ...request, result: 'success' },
   }
-  return next
 }
 
 export function rememberFailure(record, request, phase, reason) {
@@ -154,10 +161,11 @@ export function rememberFailure(record, request, phase, reason) {
 }
 
 export function commitOperatorRollback(record) {
+  if (!record.previous) return record
   return {
     ...record,
-    lastFailed: record.current ? { ...record.current, result: 'rolled_back' } : record.lastFailed,
-    current: record.previous,
+    current: { ...record.previous, result: 'success' },
+    previous: record.current ? { ...record.current, result: 'success' } : record.previous,
   }
 }
 
@@ -248,6 +256,10 @@ if (invoked) {
       writeSync(1, 'RELEASE_HOLDING\n')
       execFileSync('sleep', [process.env.HOLD_SECONDS || '0.4'])
       console.log('RELEASE_HELD')
+      return
+    }
+    if (command === 'show') {
+      console.log(opened.record.current ? `RELEASE_CURRENT ${opened.record.current.gitSha}` : 'RELEASE_CURRENT none')
       return
     }
     if (command === 'rollback-plan') {
