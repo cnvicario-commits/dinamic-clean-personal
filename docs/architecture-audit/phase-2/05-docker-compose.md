@@ -2,7 +2,7 @@
 
 Archivo: `deploy/docker-compose.cristian.yml`.
 
-Incluye proyecto `dinamic-clean-cristian`, imagen `dinamic-clean-api:<sha>`, red propia, publicación solo en loopback, `restart: unless-stopped`, healthcheck de `/readyz`, límites obligatorios de CPU y memoria, logs `json-file` de 10m por 5 archivos, usuario `10001:10001`, `no-new-privileges`, `cap_drop: ALL` y `MIGRATIONS_DATABASE_URL` vacío.
+Incluye proyecto `dinamic-clean-cristian`, imagen `dinamic-clean-api:<sha>`, red propia, publicación en `0.0.0.0` para el acceso HTTP por IP, `restart: unless-stopped`, healthcheck de `/readyz`, límites obligatorios de CPU y memoria, logs `json-file` de 10m por 5 archivos, usuario `10001:10001`, `no-new-privileges`, `cap_drop: ALL` y `MIGRATIONS_DATABASE_URL` vacío. No se enlaza `170.239.85.196` porque no se comprobó que exista en una interfaz local.
 
 La CA de Supabase no entra en la imagen. `CRISTIAN_SUPABASE_CA_FILE` se monta solo lectura en `/app/certs/supabase-ca.crt`, con `create_host_path: false`. El proceso recibe `NODE_EXTRA_CA_CERTS` apuntando a ese archivo. En el VPS el archivo está en `/opt/dinamic-clean-cristian/certs/supabase-ca.crt`.
 

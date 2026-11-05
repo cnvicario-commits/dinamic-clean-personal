@@ -13,7 +13,7 @@ Con la identidad demo, el proceso termina antes de escuchar si falla cualquiera 
 - cualquier aparición de `biectbcujabpjhinouil`
 - host no identificable
 - `MIGRATIONS_DATABASE_URL` con valor
-- CORS vacío, wildcard, `http` o loopback
+- CORS vacío, wildcard, loopback, otra IP, o `http` distinto de `http://170.239.85.196:8086`
 - `TRUST_PROXY_CIDRS` vacío o `0.0.0.0/0`
 - ausencia de `SUPABASE_SERVICE_ROLE_KEY`
 - `APP_RELEASE_SHA` que no sea un SHA hex de 7 a 40 caracteres

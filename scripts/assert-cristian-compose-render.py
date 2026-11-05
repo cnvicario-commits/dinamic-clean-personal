@@ -9,8 +9,9 @@ match = re.search(r"MIGRATIONS_DATABASE_URL:\s*(.*)", text)
 value = match.group(1).strip().replace('"', "") if match else "missing"
 blank = value in ("", "null", chr(39) + chr(39))
 checks = {
-    "loopback_port": "host_ip: 127.0.0.1" in text and f'published: "{port}"' in text and "target: 3001" in text,
-    "no_wildcard_bind": "host_ip: 0.0.0.0" not in text,
+    "public_bind": "host_ip: 0.0.0.0" in text and f'published: "{port}"' in text and "target: 3001" in text,
+    "no_unverified_ip_bind": "host_ip: 170.239.85.196" not in text,
+    "no_loopback_only": "host_ip: 127.0.0.1" not in text,
     "container": "container_name: dinamic-clean-cristian-api" in text,
     "project": "name: dinamic-clean-cristian" in text,
     "image": f"image: dinamic-clean-api:{sha}" in text,

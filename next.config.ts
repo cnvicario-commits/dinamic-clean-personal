@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
+import { cristianFrontendUsesStandalone } from "./scripts/assert-cristian-frontend-env.mjs";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // The Vercel production build does not set this variable and keeps the default output.
+  ...(cristianFrontendUsesStandalone(process.env) ? { output: "standalone" as const } : {}),
   async headers() {
     return [
       {

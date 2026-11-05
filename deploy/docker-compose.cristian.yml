@@ -4,8 +4,10 @@
 # through scripts/redeploy-cristian-api.sh, which runs the CA preflight first.
 #
 # CPU, memory, and the host port have no defaults. Set them from the VPS
-# survey before the first start. Publishing is loopback-only so Nginx is the
-# only public entry.
+# survey before the first start. The port is published on 0.0.0.0 because
+# 170.239.85.196 was not verified as an address on a local interface. NAT
+# often has no such address on the host. Check the host firewall before
+# treating this publication as restricted. Do not bind that public IP here.
 
 name: dinamic-clean-cristian
 
@@ -41,7 +43,7 @@ services:
         bind:
           create_host_path: false
     ports:
-      - "127.0.0.1:${CRISTIAN_API_HOST_PORT:?set a free loopback port after the VPS survey}:3001"
+      - "0.0.0.0:${CRISTIAN_API_HOST_PORT:?set 3006 for the Cristian HTTP publication}:3001"
     networks:
       - cristian
     restart: unless-stopped

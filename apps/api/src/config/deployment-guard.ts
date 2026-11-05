@@ -7,6 +7,7 @@
 
 const TEST_REF = 'edruejzwwnixsjsadbgb'
 const PRODUCTION_REF = 'biectbcujabpjhinouil'
+const CRISTIAN_HTTP_FRONTEND = 'http://170.239.85.196:8086'
 const WIDE_PROXIES = new Set(['0.0.0.0/0', '0.0.0.0', '::/0', '::'])
 
 export class CristianDeploymentRejected extends Error {
@@ -65,18 +66,30 @@ function assertCors(raw: string | undefined): void {
     .map((item) => item.trim())
     .filter(Boolean)
   if (origins.length === 0) reject('CORS_ORIGIN is empty')
+  if (origins.some((origin) => origin === '*' || origin.includes('*'))) {
+    reject('CORS_ORIGIN wildcard is not allowed')
+  }
+  if (origins.includes(CRISTIAN_HTTP_FRONTEND)) {
+    if (origins.length !== 1) reject('CORS_ORIGIN http publication must be the only origin')
+    return
+  }
   for (const origin of origins) {
-    if (origin === '*') reject('CORS_ORIGIN wildcard is not allowed')
+    assertNoProduction(origin, 'CORS_ORIGIN')
     let url: URL
     try {
       url = new URL(origin)
     } catch {
       reject('CORS_ORIGIN is not an absolute URL')
     }
-    if (url.protocol !== 'https:') reject('CORS_ORIGIN must use https')
+    if (url.username || url.password || url.search || url.hash) reject('CORS_ORIGIN is ambiguous')
+    if (url.pathname !== '/' && url.pathname !== '') reject('CORS_ORIGIN path is unexpected')
+    if (url.protocol !== 'https:') reject('CORS_ORIGIN must use https or the Cristian HTTP origin')
     const host = url.hostname.toLowerCase()
     if (host === 'localhost' || host === '127.0.0.1' || host === '::1') {
       reject('CORS_ORIGIN must not be loopback on the published demo')
+    }
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.includes(':')) {
+      reject('CORS_ORIGIN must not use an address other than the Cristian HTTP origin')
     }
   }
 }

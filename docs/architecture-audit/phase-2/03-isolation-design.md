@@ -9,7 +9,7 @@ La API de Cristian ya corre en el VPS. Producción sigue en su propio contenedor
 | Contenedor | `dinamic-clean-cristian-api` | no se nombra ni se toca |
 | Red | bridge `dinamic-clean-cristian` | no se comparte |
 | Puerto interno | `3001` | sin cambio |
-| Puerto del host | `127.0.0.1:3006` | `3005` |
+| Puerto del host | `0.0.0.0:3006` | `3005` |
 | Directorio | `/opt/dinamic-clean-cristian` | no usar `/opt/dinamic-clean` |
 | Entorno | archivo propio, solo Supabase Test | no montar su env |
 | Base | `edruejzwwnixsjsadbgb` | `biectbcujabpjhinouil` prohibido |

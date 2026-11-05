@@ -99,6 +99,21 @@ describe('cristian-pruebas deployment guard', () => {
     expect(env.NODE_ENV).toBe('production')
   })
 
+  it('accepts only the Cristian HTTP origin and rejects wildcard, other addresses, and production', () => {
+    expect(loadEnv(cristian({ CORS_ORIGIN: 'http://170.239.85.196:8086' })).CORS_ORIGIN).toBe(
+      'http://170.239.85.196:8086',
+    )
+    expect(() => loadEnv(cristian({ CORS_ORIGIN: '*' }))).toThrow(/wildcard/)
+    expect(() => loadEnv(cristian({ CORS_ORIGIN: 'http://8.8.8.8:8086' }))).toThrow(/https or the Cristian HTTP origin/)
+    expect(() => loadEnv(cristian({ CORS_ORIGIN: 'http://170.239.85.196:3006' }))).toThrow(
+      /https or the Cristian HTTP origin/,
+    )
+    expect(() =>
+      loadEnv(cristian({ CORS_ORIGIN: 'http://170.239.85.196:8086,https://pruebas.dinamic-clean.com' })),
+    ).toThrow(/only origin/)
+    expect(() => loadEnv(cristian({ CORS_ORIGIN: `https://${PROD_REF}.supabase.co` }))).toThrow(/production/)
+  })
+
   it('does not echo the database password in a rejection', () => {
     expect(() => loadEnv(cristian({ SUPABASE_URL: `https://${PROD_REF}.supabase.co` }))).toThrow(
       /production/,

@@ -30,6 +30,16 @@ if [[ "$CRISTIAN_API_HOST_PORT" == "3005" ]]; then
   exit 1
 fi
 
+if [[ "$CRISTIAN_API_HOST_PORT" != "3006" ]]; then
+  echo "PREFLIGHT_REJECTED api_port" >&2
+  exit 1
+fi
+
+if [[ ! "$APP_RELEASE_SHA" =~ ^[0-9a-f]{7,40}$ ]]; then
+  echo "PREFLIGHT_REJECTED release-sha" >&2
+  exit 1
+fi
+
 if [[ ! "$CRISTIAN_API_HOST_PORT" =~ ^[0-9]+$ ]] || (( CRISTIAN_API_HOST_PORT < 1024 || CRISTIAN_API_HOST_PORT > 65535 )); then
   echo "PREFLIGHT_REJECTED invalid_port" >&2
   exit 1
@@ -49,6 +59,24 @@ fi
 
 if grep -E '^[[:space:]]*NODE_TLS_REJECT_UNAUTHORIZED[[:space:]]*=[[:space:]]*0([[:space:]]|$)' "$CRISTIAN_ENV_FILE" >/dev/null; then
   echo "PREFLIGHT_REJECTED tls_verification_disabled" >&2
+  exit 1
+fi
+
+if grep -q 'biectbcujabpjhinouil' "$CRISTIAN_ENV_FILE"; then
+  echo "PREFLIGHT_REJECTED production_ref" >&2
+  exit 1
+fi
+
+cors="$(grep -E '^[[:space:]]*CORS_ORIGIN=' "$CRISTIAN_ENV_FILE" | head -n 1 || true)"
+cors="${cors#*=}"
+cors="${cors%%#*}"
+cors="$(printf '%s' "$cors" | tr -d '[:space:]')"
+if [[ "$cors" == "*" || "$cors" == *'*'* ]]; then
+  echo "PREFLIGHT_REJECTED cors_wildcard" >&2
+  exit 1
+fi
+if [[ "$cors" != "http://170.239.85.196:8086" ]]; then
+  echo "PREFLIGHT_REJECTED cors_origin" >&2
   exit 1
 fi
 

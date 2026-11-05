@@ -80,7 +80,7 @@ describe('cristian deploy preflight', () => {
     const fake = path.join(dir, 'headers.crt')
     fs.writeFileSync(fake, '-----BEGIN CERTIFICATE-----\nprobe\n-----END CERTIFICATE-----\n')
     const envFile = path.join(dir, 'demo.env')
-    fs.writeFileSync(envFile, 'NODE_ENV=production\n')
+    fs.writeFileSync(envFile, 'NODE_ENV=production\nCORS_ORIGIN=http://170.239.85.196:8086\n')
     const base = {
       CRISTIAN_SUPABASE_CA_FILE: fake,
       CRISTIAN_API_HOST_PORT: '3006',
