@@ -1,7 +1,7 @@
 /**
  * Opt-in: demotion UPDATE must roll back with the advisory-lock transaction.
  *
- * RUN_SUPABASE_INTEGRATION=1 NODE_ENV=test EXPECTED_SUPABASE_TEST_PROJECT_REF=...
+ * RUN_SUPABASE_INTEGRATION=1 NODE_ENV=test DB_COMPATIBILITY_TARGET=simulation
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { loadEnv } from '../src/config/env.js'

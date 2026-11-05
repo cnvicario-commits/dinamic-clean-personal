@@ -5,9 +5,9 @@
  *   RUN_VENTAS_SMOKE=1
  *   RUN_SUPABASE_INTEGRATION=1
  *   NODE_ENV=test
- *   EXPECTED_SUPABASE_TEST_PROJECT_REF=<ref>
+ *   DB_COMPATIBILITY_TARGET=simulation
  *   SUPABASE_URL, SUPABASE_ANON_KEY (or NEXT_PUBLIC_*), SUPABASE_SERVICE_ROLE_KEY
- *   DATABASE_URL
+ *   DATABASE_URL → loopback only. Do not load apps/api/.env.
  *   Optional SMOKE_TEST_ADMIN_EMAIL + SMOKE_TEST_ADMIN_PASSWORD (AAL2) → POST /v1/users
  *   If omitted, provisions ventas via createUser() (same service as POST /v1/users, Auth Admin API)
  *
@@ -58,17 +58,6 @@ describe.skipIf(!enabled)('ventas role smoke (Supabase Auth + API + DB)', () => 
   let createdProspectId: string | undefined
 
   beforeAll(async () => {
-    const path = await import('node:path')
-    const { fileURLToPath } = await import('node:url')
-    const { config } = await import('dotenv')
-    const apiRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-    config({ path: path.join(apiRoot, '.env') })
-    config({ path: path.join(apiRoot, '.env.local') })
-    config({ path: path.join(apiRoot, '../../.env.local') })
-    if (!process.env.EXPECTED_SUPABASE_TEST_PROJECT_REF && process.env.DB_COMPATIBILITY_TARGET === 'test') {
-      process.env.EXPECTED_SUPABASE_TEST_PROJECT_REF = process.env.EXPECTED_SUPABASE_PROJECT_REF
-    }
-
     assertDinamicCleanTestTarget({ requireJwt: false })
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) {
       throw new Error('SUPABASE_SERVICE_ROLE_KEY required for smoke cleanup')

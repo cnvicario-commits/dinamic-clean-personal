@@ -4,8 +4,8 @@
  * Required:
  *   RUN_SUPABASE_INTEGRATION=1
  *   NODE_ENV=test
- *   EXPECTED_SUPABASE_TEST_PROJECT_REF=<exact test project ref>
- *   SUPABASE_URL, DATABASE_URL (same project)
+ *   DB_COMPATIBILITY_TARGET=simulation
+ *   SUPABASE_URL, DATABASE_URL → loopback only
  *   SUPABASE_ANON_KEY (or NEXT_PUBLIC_SUPABASE_ANON_KEY)
  *   POSTGREST_TEST_USER_JWT — valid authenticated user JWT
  *   POSTGREST_TEST_PROFILE_ID — uuid of that user's perfiles row (synthetic TEST)
@@ -144,7 +144,7 @@ describe.skipIf(!canRun)('PostgREST perfiles negatives (Phase 2D)', () => {
 describe('PostgREST negative gate', () => {
   it('records NOT EXECUTED when opt-in incomplete', () => {
     if (canRun) {
-      expect(process.env.EXPECTED_SUPABASE_TEST_PROJECT_REF).toBeTruthy()
+      expect(process.env.DB_COMPATIBILITY_TARGET).toBe('simulation')
       return
     }
     expect('SUPABASE_INTEGRATION_NOT_EXECUTED').toBeTruthy()

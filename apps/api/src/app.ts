@@ -184,6 +184,7 @@ export async function buildApp(env: Env, options: BuildAppOptions = {}) {
         paths: [
           'req.headers.authorization',
           'DATABASE_URL',
+          'MIGRATIONS_DATABASE_URL',
           'SUPABASE_JWT_SECRET',
           'SUPABASE_SERVICE_ROLE_KEY',
           'password',

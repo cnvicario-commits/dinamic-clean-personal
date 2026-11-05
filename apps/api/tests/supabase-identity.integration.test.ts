@@ -4,8 +4,8 @@
  * Required:
  *   RUN_SUPABASE_INTEGRATION=1
  *   NODE_ENV=test
- *   EXPECTED_SUPABASE_TEST_PROJECT_REF=<exact ref>
- *   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, DATABASE_URL → same TEST project
+ *   DB_COMPATIBILITY_TARGET=simulation
+ *   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, DATABASE_URL → loopback only
  *
  * Never logs SERVICE_ROLE_KEY, passwords, or tokens.
  * If skipped: SUPABASE_INTEGRATION_NOT_EXECUTED
@@ -102,7 +102,7 @@ describe.skipIf(!enabled)('Supabase identity adapters (opt-in RUN_SUPABASE_INTEG
 describe('Supabase integration gate documentation', () => {
   it('records SUPABASE_INTEGRATION_NOT_EXECUTED when opt-in suite is disabled', () => {
     if (enabled) {
-      expect(process.env.EXPECTED_SUPABASE_TEST_PROJECT_REF).toBeTruthy()
+      expect(process.env.DB_COMPATIBILITY_TARGET).toBe('simulation')
       return
     }
     expect('SUPABASE_INTEGRATION_NOT_EXECUTED').toBeTruthy()

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { assertCristianPruebasDeployment } from './deployment-guard.js'
 
 /** Accept true/false/1/0 (string or boolean/number) from process env. */
 const booleanish = z.union([z.boolean(), z.string(), z.number()]).transform((val, ctx) => {
@@ -73,6 +74,15 @@ const envSchema = z
     RATE_LIMIT_GENERAL_MAX: z.coerce.number().int().positive().default(600),
     /** Per-window max privileged mutations per authenticated userId. */
     RATE_LIMIT_SENSITIVE_MAX: z.coerce.number().int().positive().default(20),
+    /**
+     * Published Cristian API only. Unset for local development and production.
+     * NODE_ENV stays production on that API; this value is the environment identity.
+     */
+    APP_DEPLOYMENT_ENV: z.enum(['cristian-pruebas']).optional(),
+    /** Required together with APP_DEPLOYMENT_ENV=cristian-pruebas. */
+    EXPECTED_SUPABASE_PROJECT_REF: z.string().optional(),
+    /** Git SHA baked or injected at deploy. Omitted locally. */
+    APP_RELEASE_SHA: z.string().optional(),
   })
   .superRefine((data, ctx) => {
     const origins = data.CORS_ORIGIN.split(',')
@@ -140,6 +150,9 @@ export function loadEnv(raw: NodeJS.ProcessEnv = process.env): Env {
       .map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`)
       .join('; ')
     throw new Error(`Invalid configuration: ${details}`)
+  }
+  if (parsed.data.APP_DEPLOYMENT_ENV === 'cristian-pruebas') {
+    assertCristianPruebasDeployment(raw)
   }
   return parsed.data
 }

@@ -68,3 +68,6 @@ review-working-tree.txt
 
 # API build output (regenerate with npm run build)
 /apps/api/dist/
+
+# Supabase CA mounted on the VPS. Do not commit it.
+supabase-ca.crt

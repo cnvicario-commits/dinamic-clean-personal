@@ -1,0 +1,66 @@
+# Cristian frontend. Separate Compose project so this file cannot remove the API.
+# The API keeps deploy/docker-compose.cristian.yml and its CA mount.
+# Join the network the API already created. Do not pass --remove-orphans.
+# Publish on 0.0.0.0. Do not bind 170.239.85.196: it was not verified on a
+# local interface. Confirm the host firewall before relying on it.
+
+name: dinamic-clean-cristian-frontend
+
+services:
+  frontend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.frontend
+      args:
+        APP_RELEASE_SHA: ${APP_RELEASE_SHA:?set the deployed git sha}
+        NEXT_PUBLIC_SUPABASE_URL: ${CRISTIAN_NEXT_PUBLIC_SUPABASE_URL:?set the Supabase Test URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${CRISTIAN_NEXT_PUBLIC_SUPABASE_ANON_KEY:?set the Supabase Test anon key}
+        NEXT_PUBLIC_API_URL: ${CRISTIAN_NEXT_PUBLIC_API_URL:?set http://170.239.85.196:3006 or a future https origin}
+    image: dinamic-clean-frontend:${APP_RELEASE_SHA:?set the deployed git sha}
+    container_name: dinamic-clean-cristian-frontend
+    user: "10001:10001"
+    init: true
+    environment:
+      NODE_ENV: production
+      APP_DEPLOYMENT_ENV: cristian-pruebas
+      APP_RELEASE_SHA: ${APP_RELEASE_SHA:?set the deployed git sha}
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+      API_URL: http://dinamic-clean-cristian-api:3001
+    ports:
+      - "0.0.0.0:${CRISTIAN_FRONTEND_HOST_PORT:?set 8086 for the Cristian HTTP publication}:3000"
+    networks:
+      - cristian
+    restart: unless-stopped
+    stop_grace_period: 20s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    mem_limit: ${CRISTIAN_FRONTEND_MEMORY:?set from a fresh VPS measurement}
+    cpus: ${CRISTIAN_FRONTEND_CPUS:?set from a fresh VPS measurement}
+    tmpfs:
+      - /tmp:size=64m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+networks:
+  cristian:
+    name: dinamic-clean-cristian
+    external: true

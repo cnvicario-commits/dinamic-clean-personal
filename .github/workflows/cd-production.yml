@@ -1,0 +1,112 @@
+name: cd-production
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Type deploy-production to continue
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  authorize:
+    runs-on: ubuntu-latest
+    outputs:
+      run_id: ${{ steps.ci.outputs.run_id }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - id: ci
+        env:
+          REF: ${{ github.ref }}
+          CONFIRM: ${{ inputs.confirm }}
+          ENABLED: ${{ vars.PRODUCTION_DEPLOY_ENABLED }}
+          GITHUB_SHA: ${{ github.sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          mkdir -p "$RUNNER_TEMP/ci"
+          gh api "/repos/${REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${GITHUB_SHA}&branch=main&event=push&status=completed&per_page=20" > "$RUNNER_TEMP/ci/runs.json"
+          EXPECTED_SHA="$GITHUB_SHA" EXPECTED_BRANCH="main" EXPECTED_REPOSITORY="$REPOSITORY" GITHUB_OUTPUT="$GITHUB_OUTPUT" \
+            node scripts/ci/read-successful-ci-run.mjs "$RUNNER_TEMP/ci/runs.json"
+          CI_SHA="$(awk -F= '/^sha=/ {print $2}' "$GITHUB_OUTPUT")"
+          CI_BRANCH="$(awk -F= '/^branch=/ {print $2}' "$GITHUB_OUTPUT")"
+          CI_EVENT="$(awk -F= '/^event=/ {print $2}' "$GITHUB_OUTPUT")"
+          CI_CONCLUSION="$(awk -F= '/^conclusion=/ {print $2}' "$GITHUB_OUTPUT")"
+          [[ -n "$CI_SHA" && -n "$CI_BRANCH" && -n "$CI_EVENT" && -n "$CI_CONCLUSION" ]]
+          export CI_SHA CI_BRANCH CI_EVENT CI_CONCLUSION
+          node scripts/ci/evaluate-production-deploy-gate.mjs
+
+  publish:
+    needs: authorize
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.image.outputs.digest }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - id: image
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]]
+          owner="$(printf '%s' "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')"
+          echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$owner" --password-stdin
+          unset GITHUB_TOKEN
+          image="ghcr.io/${owner}/dinamic-clean-api:production-${SHA}"
+          docker build -f apps/api/Dockerfile --build-arg "APP_RELEASE_SHA=${SHA}" -t "$image" apps/api
+          digest="$(docker push "$image" | awk '/digest: sha256:/ {print $3}' | tail -n 1)"
+          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+          echo "CD_PRODUCTION_PUBLISHED ${SHA}"
+
+  deploy:
+    needs: [authorize, publish]
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+    steps:
+      - name: Deploy production API by digest
+        env:
+          SSH_KEY: ${{ secrets.PRODUCTION_DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.PRODUCTION_DEPLOY_KNOWN_HOSTS }}
+          HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
+          USER_NAME: ${{ secrets.PRODUCTION_DEPLOY_USER }}
+          SHA: ${{ github.sha }}
+          DIGEST: ${{ needs.publish.outputs.digest }}
+          RUN_ID: ${{ needs.authorize.outputs.run_id }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$SSH_KEY" || -z "$KNOWN_HOSTS" || -z "$HOST" || -z "$USER_NAME" ]]; then
+            echo "PRODUCTION_DEPLOY_NOT_CONFIGURED"
+            exit 1
+          fi
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]
+          [[ "$RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/deploy_key ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            "${USER_NAME}@${HOST}" "production-apply ${SHA} ${DIGEST} ${RUN_ID}"
+          echo "CD_PRODUCTION_DEPLOY_REQUESTED ${SHA}"

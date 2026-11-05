@@ -25,29 +25,12 @@ require_env() {
   fi
 }
 
-url_looks_like_prod() {
-  local url="$1"
-  local lower
-  lower="$(printf '%s' "$url" | tr '[:upper:]' '[:lower:]')"
-  # Obvious prod host markers — extend carefully; prefer I_CONFIRM_DISPOSABLE=yes for anything unclear.
-  if [[ "$lower" == *"prod"* ]] \
-    || [[ "$lower" == *"production"* ]] \
-    || [[ "$lower" == *".prod."* ]] \
-    || [[ "$lower" == *"supabase.co"* && "$lower" != *"edruejzwwnixsjsadbgb"* ]]; then
-    # Note: any supabase.co host other than the known test project ref is treated as risky.
-    # Override only with I_CONFIRM_DISPOSABLE=yes.
-    return 0
-  fi
-  return 1
-}
-
 require_env RESTORE_TARGET_DB_URL
 
-if url_looks_like_prod "$RESTORE_TARGET_DB_URL"; then
-  if [[ "${I_CONFIRM_DISPOSABLE:-}" != "yes" ]]; then
-    die "RESTORE_TARGET_DB_URL looks like a non-disposable/prod host. Set I_CONFIRM_DISPOSABLE=yes to override (disposable targets only)."
-  fi
-  echo "WARN: prod-like URL override accepted via I_CONFIRM_DISPOSABLE=yes" >&2
+# Hosted production, hosted test, poolers and unknown hosts are refused.
+# I_CONFIRM_DISPOSABLE is ignored. Loopback without a hosted project ref is the only target.
+if ! node "${ROOT}/scripts/disposable-target.mjs" "$RESTORE_TARGET_DB_URL"; then
+  die "RESTORE_TARGET_REJECTED. A destructive restore accepts only a loopback database. Confirmation flags do not override this."
 fi
 
 if ! command -v psql >/dev/null 2>&1; then
@@ -63,6 +46,23 @@ apply_sql() {
 
 echo "Restore target: (URL redacted)"
 echo "BASELINE_CUTOFF=${BASELINE_CUTOFF} (historical migrations up to this id are NOT re-applied)"
+
+# Baseline indexes reference public.gin_trgm_ops. Hosted Supabase has pg_trgm there.
+# The local CLI image may install it in `extensions` instead.
+psql "$RESTORE_TARGET_DB_URL" -v ON_ERROR_STOP=1 -c "
+DO \$\$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_extension e
+    JOIN pg_namespace n ON n.oid = e.extnamespace
+    WHERE e.extname = 'pg_trgm' AND n.nspname <> 'public'
+  ) THEN
+    ALTER EXTENSION pg_trgm SET SCHEMA public;
+  ELSIF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm') THEN
+    CREATE EXTENSION pg_trgm WITH SCHEMA public;
+  END IF;
+END
+\$\$;" >/dev/null
 
 # 1) Baseline public schema
 SCHEMA="${BASELINE_DIR}/001_public_schema.sql"
@@ -84,14 +84,21 @@ else
   echo "WARN: no 002_grants.sql / create_api_role.sql — skipping grants" >&2
 fi
 
-# 3) Storage baseline if present
+# 3) API role expected by forward grants. No password is stored in the script.
+if [[ -f "${OPS_DIR}/create_api_role.sql" ]]; then
+  apply_sql "${OPS_DIR}/create_api_role.sql"
+else
+  echo "WARN: supabase/ops/create_api_role.sql missing — forward grants to dinamic_api may fail" >&2
+fi
+
+# 4) Storage baseline if present
 if [[ -f "${BASELINE_DIR}/003_storage.sql" ]]; then
   apply_sql "${BASELINE_DIR}/003_storage.sql"
 else
   echo "NOTE: supabase/baseline/003_storage.sql not present — recreate buckets via dashboard if needed"
 fi
 
-# 4) Forward migrations only (post-baseline). Historical 0001–0033 stay for history.
+# 5) Forward migrations only (post-baseline). Historical 0001–0033 stay for history.
 if [[ -d "$FORWARD_DIR" ]]; then
   FORWARD_COUNT=0
   # Portable (macOS bash 3.2): no mapfile

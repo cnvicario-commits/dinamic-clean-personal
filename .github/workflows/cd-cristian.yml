@@ -1,0 +1,178 @@
+name: cd-cristian
+
+on:
+  workflow_run:
+    workflows: ["ci"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      head_sha:
+        description: Full SHA whose push CI on cristian-pruebas succeeded
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: cristian-deploy
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      deploy: ${{ steps.decision.outputs.deploy }}
+      sha: ${{ steps.decision.outputs.sha }}
+      services: ${{ steps.services.outputs.services }}
+      run_id: ${{ steps.decision.outputs.run_id }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - id: decision
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REPOSITORY: ${{ github.repository }}
+          HEAD_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          TRIGGERING_EVENT: ${{ github.event.workflow_run.event }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha || inputs.head_sha }}
+          REF: ${{ github.ref }}
+          WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+            mkdir -p "$RUNNER_TEMP/ci"
+            gh api "/repos/${REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${HEAD_SHA}&branch=cristian-pruebas&event=push&status=completed&per_page=20" > "$RUNNER_TEMP/ci/runs.json"
+            EXPECTED_SHA="$HEAD_SHA" EXPECTED_BRANCH="cristian-pruebas" EXPECTED_REPOSITORY="$REPOSITORY" GITHUB_OUTPUT="$RUNNER_TEMP/ci/out" \
+              node scripts/ci/read-successful-ci-run.mjs "$RUNNER_TEMP/ci/runs.json"
+            CI_CONCLUSION="$(awk -F= '/^conclusion=/ {print $2}' "$RUNNER_TEMP/ci/out")"
+            CI_EVENT="$(awk -F= '/^event=/ {print $2}' "$RUNNER_TEMP/ci/out")"
+            CI_BRANCH="$(awk -F= '/^branch=/ {print $2}' "$RUNNER_TEMP/ci/out")"
+            CI_HEAD_SHA="$(awk -F= '/^sha=/ {print $2}' "$RUNNER_TEMP/ci/out")"
+            HEAD_REPOSITORY="$(awk -F= '/^repository=/ {print $2}' "$RUNNER_TEMP/ci/out")"
+            [[ -n "$CI_CONCLUSION" && -n "$CI_EVENT" && -n "$CI_BRANCH" && -n "$CI_HEAD_SHA" && -n "$HEAD_REPOSITORY" ]]
+            export CI_CONCLUSION CI_EVENT CI_BRANCH CI_HEAD_SHA HEAD_REPOSITORY
+            node scripts/ci/evaluate-cristian-deploy-gate.mjs
+            run_id="$(awk -F= '/^run_id=/ {print $2}' "$RUNNER_TEMP/ci/out")"
+            [[ "$run_id" =~ ^[1-9][0-9]*$ ]]
+            printf 'run_id=%s\n' "$run_id" >> "$GITHUB_OUTPUT"
+          else
+            node scripts/ci/evaluate-cristian-deploy-gate.mjs
+            [[ "$WORKFLOW_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+            printf 'run_id=%s\n' "$WORKFLOW_RUN_ID" >> "$GITHUB_OUTPUT"
+          fi
+      - id: services
+        if: steps.decision.outputs.deploy == 'true'
+        env:
+          HEAD_SHA: ${{ steps.decision.outputs.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          git fetch --no-tags origin "$HEAD_SHA"
+          git diff --name-only "$HEAD_SHA^" "$HEAD_SHA" | node scripts/ci/select-cristian-services.mjs >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: gate
+    if: needs.gate.outputs.deploy == 'true' && needs.gate.outputs.services != 'none' && vars.CRISTIAN_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: cristian-pruebas
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      api_digest: ${{ steps.images.outputs.api_digest }}
+      frontend_digest: ${{ steps.images.outputs.frontend_digest }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ needs.gate.outputs.sha }}
+          persist-credentials: false
+      - id: images
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ needs.gate.outputs.sha }}
+          SERVICES: ${{ needs.gate.outputs.services }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.CRISTIAN_NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.CRISTIAN_NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_API_URL: ${{ vars.CRISTIAN_NEXT_PUBLIC_API_URL }}
+          APP_DEPLOYMENT_ENV: cristian-pruebas
+          NODE_ENV: production
+          CRISTIAN_FRONTEND_BUILD: "1"
+          APP_RELEASE_SHA: ${{ needs.gate.outputs.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$SERVICES" == "api" || "$SERVICES" == "frontend" || "$SERVICES" == "both" ]]
+          owner="$(printf '%s' "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')"
+          echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$owner" --password-stdin
+          unset GITHUB_TOKEN
+          publish() {
+            local name="$1"
+            shift
+            local image="ghcr.io/${owner}/${name}:cristian-${SHA}"
+            docker build "$@" -t "$image"
+            local digest
+            digest="$(docker push "$image" | awk '/digest: sha256:/ {print $3}' | tail -n 1)"
+            [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+            printf '%s\n' "$digest"
+          }
+          if [[ "$SERVICES" == "api" || "$SERVICES" == "both" ]]; then
+            digest="$(publish dinamic-clean-api -f apps/api/Dockerfile --build-arg "APP_RELEASE_SHA=${SHA}" apps/api)"
+            echo "api_digest=${digest}" >> "$GITHUB_OUTPUT"
+          fi
+          if [[ "$SERVICES" == "frontend" || "$SERVICES" == "both" ]]; then
+            node scripts/assert-cristian-frontend-env.mjs build
+            digest="$(publish dinamic-clean-frontend -f deploy/Dockerfile.frontend --build-arg "APP_RELEASE_SHA=${SHA}" --build-arg "NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}" --build-arg "NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}" --build-arg "NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}" .)"
+            echo "frontend_digest=${digest}" >> "$GITHUB_OUTPUT"
+          fi
+          echo "CD_CRISTIAN_PUBLISHED ${SERVICES} ${SHA}"
+
+  deploy:
+    needs: [gate, publish]
+    if: needs.gate.outputs.deploy == 'true' && needs.gate.outputs.services != 'none' && vars.CRISTIAN_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: cristian-pruebas
+    permissions:
+      contents: read
+    steps:
+      - name: Deploy by digest
+        env:
+          SSH_KEY: ${{ secrets.CRISTIAN_DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CRISTIAN_DEPLOY_KNOWN_HOSTS }}
+          HOST: ${{ secrets.CRISTIAN_DEPLOY_HOST }}
+          USER_NAME: ${{ secrets.CRISTIAN_DEPLOY_USER }}
+          SERVICES: ${{ needs.gate.outputs.services }}
+          SHA: ${{ needs.gate.outputs.sha }}
+          RUN_ID: ${{ needs.gate.outputs.run_id }}
+          API_DIGEST: ${{ needs.publish.outputs.api_digest }}
+          FRONTEND_DIGEST: ${{ needs.publish.outputs.frontend_digest }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$SSH_KEY" || -z "$KNOWN_HOSTS" || -z "$HOST" || -z "$USER_NAME" ]]; then
+            echo "CRISTIAN_DEPLOY_NOT_CONFIGURED"
+            exit 1
+          fi
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/deploy_key ~/.ssh/known_hosts
+          deploy_one() {
+            local service="$1" digest="$2"
+            [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+            ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+              -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+              "${USER_NAME}@${HOST}" "cristian-apply ${service} ${SHA} ${digest} ${RUN_ID}"
+          }
+          if [[ "$SERVICES" == "api" || "$SERVICES" == "both" ]]; then
+            deploy_one api "$API_DIGEST"
+          fi
+          if [[ "$SERVICES" == "frontend" || "$SERVICES" == "both" ]]; then
+            deploy_one frontend "$FRONTEND_DIGEST"
+          fi
+          echo "CD_CRISTIAN_DEPLOY_REQUESTED ${SERVICES} ${SHA}"
