@@ -14,7 +14,9 @@ RUN npm run build && npm prune --omit=dev
 
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app
+ARG APP_RELEASE_SHA=unknown
 ENV NODE_ENV=production
+ENV APP_RELEASE_SHA=${APP_RELEASE_SHA}
 RUN groupadd --system --gid 10001 dinamic \
   && useradd --system --uid 10001 --gid dinamic --home-dir /app --shell /usr/sbin/nologin dinamic
 COPY --from=build --chown=dinamic:dinamic /app/package.json /app/package-lock.json ./

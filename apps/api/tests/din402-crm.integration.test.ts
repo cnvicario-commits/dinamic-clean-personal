@@ -1,13 +1,9 @@
 /**
  * DIN-402 CRM against the authorized test database.
  *
- *   RUN_SUPABASE_INTEGRATION=1 NODE_ENV=test
- *   EXPECTED_SUPABASE_TEST_PROJECT_REF (or EXPECTED_SUPABASE_PROJECT_REF when DB_COMPATIBILITY_TARGET=test)
- *   SUPABASE_URL DATABASE_URL
+ *   RUN_SUPABASE_INTEGRATION=1 NODE_ENV=test DB_COMPATIBILITY_TARGET=simulation
+ *   SUPABASE_URL DATABASE_URL → loopback only
  */
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { config } from 'dotenv'
 import pg from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createDb, type Db } from '../src/infrastructure/db/pool.js'
@@ -40,12 +36,6 @@ describe.skipIf(!enabled)('DIN-402 CRM PostgreSQL integration', () => {
   const keys: string[] = []
 
   beforeAll(async () => {
-    const apiRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-    config({ path: path.join(apiRoot, '.env') })
-    config({ path: path.join(apiRoot, '.env.local') })
-    if (!process.env.EXPECTED_SUPABASE_TEST_PROJECT_REF && process.env.DB_COMPATIBILITY_TARGET === 'test') {
-      process.env.EXPECTED_SUPABASE_TEST_PROJECT_REF = process.env.EXPECTED_SUPABASE_PROJECT_REF
-    }
     assertDinamicCleanTestTarget()
     db = createDb(testEnv({ DATABASE_URL: process.env.DATABASE_URL! }))
     repo = createCrmRepository(db)

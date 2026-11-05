@@ -1,0 +1,55 @@
+# syntax=docker/dockerfile:1
+# Cristian frontend only. The production Vercel build does not use this file.
+
+FROM node:22-bookworm-slim AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+
+FROM node:22-bookworm-slim AS build
+WORKDIR /app
+ARG APP_RELEASE_SHA
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ARG NEXT_PUBLIC_API_URL
+ENV CRISTIAN_FRONTEND_BUILD=1 \
+    APP_DEPLOYMENT_ENV=cristian-pruebas \
+    NODE_ENV=production \
+    APP_RELEASE_SHA=${APP_RELEASE_SHA} \
+    NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL} \
+    NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY} \
+    NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN node scripts/assert-cristian-frontend-env.mjs build \
+  && npm run build \
+  && node scripts/scan-cristian-frontend-bundle.mjs \
+  && node scripts/assert-cristian-frontend-env.mjs write-manifest /app/cristian-frontend-manifest.json
+
+FROM node:22-bookworm-slim AS runner
+WORKDIR /app
+ARG APP_RELEASE_SHA
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ARG NEXT_PUBLIC_API_URL
+ENV NODE_ENV=production \
+    APP_DEPLOYMENT_ENV=cristian-pruebas \
+    APP_RELEASE_SHA=${APP_RELEASE_SHA} \
+    NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL} \
+    NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY} \
+    NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL} \
+    PORT=3000 \
+    HOSTNAME=0.0.0.0
+RUN groupadd --system --gid 10001 dinamic \
+  && useradd --system --uid 10001 --gid dinamic --home-dir /app --shell /usr/sbin/nologin dinamic
+COPY --from=build --chown=dinamic:dinamic /app/public ./public
+COPY --from=build --chown=dinamic:dinamic /app/.next/standalone ./
+COPY --from=build --chown=dinamic:dinamic /app/.next/static ./.next/static
+COPY --from=build --chown=dinamic:dinamic /app/cristian-frontend-manifest.json ./cristian-frontend-manifest.json
+COPY --from=build --chown=dinamic:dinamic /app/scripts/assert-cristian-frontend-env.mjs ./scripts/assert-cristian-frontend-env.mjs
+COPY --from=build --chown=dinamic:dinamic /app/scripts/start-cristian-frontend.mjs ./scripts/start-cristian-frontend.mjs
+USER dinamic
+EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD ["node", "-e", "fetch('http://127.0.0.1:3000/api/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+CMD ["node", "scripts/start-cristian-frontend.mjs"]

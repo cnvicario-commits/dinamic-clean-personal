@@ -1,7 +1,10 @@
 import type { FastifyPluginAsync } from 'fastify'
 
 export const healthRoutes: FastifyPluginAsync = async (app) => {
-  app.get('/healthz', { config: { rateLimit: false } }, async () => ({ status: 'ok' }))
+  app.get('/healthz', { config: { rateLimit: false } }, async () => ({
+    status: 'ok',
+    release: app.config.APP_RELEASE_SHA || 'unknown',
+  }))
 
   app.get('/readyz', { config: { rateLimit: false } }, async (_request, reply) => {
     try {

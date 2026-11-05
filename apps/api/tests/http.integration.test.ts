@@ -9,6 +9,7 @@ import {
   signAccessToken,
   testEnv,
 } from './helpers.js'
+import { assertDinamicCleanTestTarget } from './supabase-test-guard.js'
 
 const userId = '22222222-2222-2222-2222-222222222222'
 
@@ -300,12 +301,15 @@ describe('http auth revocation via stub', () => {
   })
 })
 
-const hasDb = Boolean(process.env.DATABASE_URL && process.env.SUPABASE_URL)
+const hasDb =
+  process.env.RUN_SUPABASE_INTEGRATION === '1' &&
+  Boolean(process.env.DATABASE_URL && process.env.SUPABASE_URL)
 
-describe.skipIf(!hasDb)('http integration (requires DATABASE_URL + SUPABASE_URL)', () => {
+describe.skipIf(!hasDb)('http integration (local simulation only)', () => {
   let app: FastifyInstance
 
   beforeAll(async () => {
+    assertDinamicCleanTestTarget()
     if (!process.env.CORS_ORIGIN) process.env.CORS_ORIGIN = 'http://localhost:3000'
     if (!process.env.LOG_LEVEL) process.env.LOG_LEVEL = 'silent'
     const { loadEnv } = await import('../src/config/env.js')

@@ -63,7 +63,7 @@ describe.skipIf(!canRun)('Backend profiles positive (Phase 2D pool)', () => {
 describe('Backend positive gate', () => {
   it('records NOT EXECUTED when opt-in incomplete', () => {
     if (canRun) {
-      expect(process.env.EXPECTED_SUPABASE_TEST_PROJECT_REF).toBeTruthy()
+      expect(process.env.DB_COMPATIBILITY_TARGET).toBe('simulation')
       return
     }
     expect('SUPABASE_INTEGRATION_NOT_EXECUTED').toBeTruthy()

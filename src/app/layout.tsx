@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import CristianEnvironmentBanner from "@/components/CristianEnvironmentBanner";
 import NavBar from "@/components/NavBar";
 import { createClient } from "@/utils/supabase/server";
 import type { Role } from '@/lib/api/generated/types'
@@ -44,7 +45,14 @@ export default async function RootLayout({
       lang="es"
       className="h-full antialiased"
     >
-      <body className="min-h-full flex flex-col md:flex-row">
+      <body
+        className={
+          process.env.APP_DEPLOYMENT_ENV === "cristian-pruebas"
+            ? "min-h-full flex flex-col md:flex-row pt-7"
+            : "min-h-full flex flex-col md:flex-row"
+        }
+      >
+        <CristianEnvironmentBanner />
         <NavBar rol={rol} />
         <main className="flex-1 min-w-0 w-full">{children}</main>
       </body>
