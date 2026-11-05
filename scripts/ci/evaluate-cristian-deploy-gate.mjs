@@ -12,7 +12,7 @@ export function evaluateCristianDeployGate(input) {
     if (input.headRepository !== REPOSITORY) return { action: 'reject', reason: 'fork' }
     if (input.workflowName !== 'ci') return { action: 'reject', reason: 'workflow' }
     if (input.triggeringEvent !== 'push') return { action: 'skip', reason: 'event' }
-    if (input.headBranch !== 'cristian-pruebas') return { action: 'reject', reason: 'branch' }
+    if (input.headBranch !== 'cristian-pruebas') return { action: 'skip', reason: 'branch' }
     if (input.conclusion !== 'success') return { action: 'skip', reason: 'conclusion' }
     return { action: 'deploy', reason: '', sha: input.headSha }
   }
