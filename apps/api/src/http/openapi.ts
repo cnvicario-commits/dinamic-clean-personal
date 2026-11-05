@@ -153,8 +153,8 @@ export const openApiDocument = {
   paths: {
     "/healthz": {
       get: {
-        summary: "Liveness",
-        responses: { "200": { description: "OK" } },
+        summary: "Liveness and release SHA",
+        responses: { "200": { description: "OK. Body includes status and release." } },
       },
     },
     "/readyz": {

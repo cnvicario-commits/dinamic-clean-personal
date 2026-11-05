@@ -6,7 +6,9 @@ uname -srm
 date -u +%Y-%m-%dT%H:%MZ
 echo "=== cpu mem disk ==="
 nproc
+uptime
 free -h
+swapon --show || true
 df -hT /
 echo "=== docker ==="
 docker version --format 'server {{.Server.Version}}'

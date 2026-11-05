@@ -1,22 +1,15 @@
 # Estado final
 
-`SUPABASE_TEST_READY_FOR_APPROVAL`
+`SUPABASE_TEST_UPDATED_AND_VALIDATED`
 
-Completado:
-
-- Preflight de identidad. El destino configurado es Test, pooler, rol `postgres`, puerto `5432`.
-- Guardia del runner contra producción, contra una nube no identificada y contra un loopback no marcado.
-- Dump SQL no vacío, fuera del repositorio, modos `700` y `600`.
-- Restauración de `public` y del historial en Postgres desechable, con los conteos de negocio iguales.
-- Ensayo de las siete migraciones sobre esa copia. 28 checksums coinciden. Grants de `empresas` y check de compras quedaron como pide el backend.
-- Test cloud sigue en 21 migraciones. Producción no se escribió.
-
-Pendiente de una aprobación explícita:
-
-```bash
-env -u DINAMIC_MIGRATION_TARGET -u MIGRATIONS_DATABASE_URL ./scripts/apply-forward-migrations.sh
-```
-
-Límites del backup: no contiene los bytes de los 5 objetos de Storage ni la configuración de Auth del dashboard. El dump de `auth.users` sí tiene las 15 filas. La copia local no levantó el esquema completo de GoTrue.
-
-No corresponde `SUPABASE_TEST_UPDATED_AND_VALIDATED`: las migraciones no se aplicaron en `edruejzwwnixsjsadbgb`.
+- Backup SQL comprobado y todavía conservado. No cubre bytes de Storage ni el dashboard de Auth.
+- Ensayo previo exitoso sobre una copia desechable.
+- Preflight repetido sin cambios inesperados.
+- Siete migraciones aplicadas en `edruejzwwnixsjsadbgb` con el runner forward. Exit 0.
+- 28 registros, checksums idénticos al repositorio, sin duplicados.
+- Check de compras con las cuatro operaciones.
+- Tres tablas nuevas creadas, vacías, con RLS y grants previstos.
+- `empresas`: `dinamic_api` escribe; `authenticated` solo lee; `anon` sin DML ni `TRUNCATE`.
+- 15 usuarios Auth, 15 perfiles y los conteos de negocio se conservaron. Storage: 2 buckets privados y 5 objetos.
+- Compatibilidad: `db_schema_compatible` contra Test como `dinamic_api`, y `/readyz` local `200`.
+- Producción no se modificó. Su relectura queda `NOT_VERIFIABLE`.

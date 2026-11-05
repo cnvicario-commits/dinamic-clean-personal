@@ -189,7 +189,7 @@ describe('phase2f rate limit', () => {
 
       const health = await app.inject({ method: 'GET', url: '/healthz' })
       expect(health.statusCode).toBe(200)
-      expect(health.json()).toEqual({ status: 'ok' })
+      expect(health.json()).toEqual({ status: 'ok', release: 'unknown' })
 
       const openapi = await app.inject({ method: 'GET', url: '/openapi.json' })
       expect(openapi.statusCode).toBe(200)

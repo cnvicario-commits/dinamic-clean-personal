@@ -1,11 +1,7 @@
 # Aislamiento de producción
 
-Proyecto de producción: `biectbcujabpjhinouil`. No se ejecutó ninguna escritura, restauración ni migración contra ese ref.
+La ejecución usó la clave de migraciones de `apps/api/.env`. El guardia la clasificó `test-cloud`, pooler, rol `postgres`, puerto `5432`, y rechaza `biectbcujabpjhinouil` antes de conectar.
 
-El guardia rechaza una URL que contiene ese ref. La prueba `migration-target-guard` cubre ese rechazo, incluso si además se marca el destino como desechable. Exit 0, 5 tests.
+La URL de la aplicación, usada por el check de compatibilidad y por `/readyz`, contiene el ref de Test y no el de producción. El check devolvió `projectRef` `edruejzwwnixsjsadbgb`.
 
-La única URL que el backup y el runner aceptaron como nube fue clasificada `test-cloud` (pooler, rol `postgres`, puerto `5432`). El ensayo usó `127.0.0.1:55432` y el guardia lo etiquetó `disposable-local`.
-
-Una consulta de solo lectura a producción fue bloqueada por la revisión automática de la herramienta. Estado de esta sesión: `NOT_VERIFIABLE`. El último inventario leído de producción sigue siendo el de la fase 0: 28 migraciones, 13 usuarios Auth y 13 perfiles. Esta sesión no lo reconfirmó.
-
-Test cloud se releyó después del ensayo: 21 migraciones, 15 usuarios, 15 perfiles. No recibió las siete migraciones.
+No se ejecutó migración, restauración ni escritura contra producción. Una consulta de solo lectura a producción fue bloqueada por la revisión automática de la herramienta en la sesión anterior. Estado: `NOT_VERIFIABLE`. El último inventario leído sigue siendo el de la fase 0: 28 migraciones, 13 usuarios Auth y 13 perfiles.

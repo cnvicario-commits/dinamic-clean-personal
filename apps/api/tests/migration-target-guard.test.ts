@@ -10,9 +10,13 @@ const TEST_POOLER = 'postgresql://dinamic_api.edruejzwwnixsjsadbgb:secret@aws-0-
 const LOCAL = 'postgresql://postgres:secret@127.0.0.1:55432/postgres'
 
 function run(url: string, env: Record<string, string> = {}) {
+  const childEnv = { ...process.env, ...env }
+  if (!Object.prototype.hasOwnProperty.call(env, 'DINAMIC_MIGRATION_TARGET')) {
+    delete childEnv.DINAMIC_MIGRATION_TARGET
+  }
   return spawnSync(process.execPath, [script, url], {
     encoding: 'utf8',
-    env: { ...process.env, ...env },
+    env: childEnv,
   })
 }
 

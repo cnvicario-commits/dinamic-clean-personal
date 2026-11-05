@@ -1,17 +1,23 @@
 # Ejecución sobre Supabase Test
 
-Estado: no ejecutada.
+Aprobación explícita recibida para las siete migraciones sobre `edruejzwwnixsjsadbgb`.
 
-Falta la aprobación explícita para escribir en `edruejzwwnixsjsadbgb`. No se corrió el runner contra ese proyecto. La consulta de lectura posterior al ensayo sigue mostrando 21 migraciones.
+## Preflight repetido, antes de escribir
 
-## Comando preparado
+- Identidad de `apps/api/.env`: `test-cloud`, pooler, rol `postgres`, puerto `5432`.
+- Historial: 21 filas, prefijo exacto del repositorio, checksums sin deriva.
+- Pendientes, en orden: los siete archivos previstos. Las tres tablas nuevas seguían ausentes.
+- Conteos: Auth 15, perfiles 15, empresas 3, clientes 113, empleados 265, pedidos 10, órdenes 5, leads 0, idempotencia de compras 0, buckets 2, objetos 5.
+- Backup presente, no vacío, modos `700` y `600`, en `~/.dinamic-clean-backups/test-edruejzwwnixsjsadbgb-20261105T131748Z`. Sigue siendo un dump SQL: no incluye bytes de Storage ni la configuración de Auth del dashboard.
 
-Tiene que ejecutarse sin `MIGRATIONS_DATABASE_URL` ni `DINAMIC_MIGRATION_TARGET` en el entorno, para que el script lea la clave de `apps/api/.env` y el guardia vuelva a exigir `test-cloud`:
+## Comando
 
 ```bash
 env -u DINAMIC_MIGRATION_TARGET -u MIGRATIONS_DATABASE_URL ./scripts/apply-forward-migrations.sh
 ```
 
-Resultado esperado: `forward_history 21 pending 7`, aplicación de los siete archivos, historial en 28, mismos checksums, conteos de negocio sin cambio.
+El guardia imprimió `MIGRATION_TARGET test-cloud` antes de conectar. Luego: `forward_history 21 pending 7`. Las 21 anteriores quedaron como ya aplicadas. Se aplicaron las siete. Exit 0. Duración 83 s.
 
-Si un archivo falla: detenerse, no relanzar la secuencia completa y no hacer rollback automático. Las migraciones ya confirmadas quedan en `forward_history`.
+Avisos de `IF EXISTS` sobre un trigger y políticas que Test no tenía. No hubo error de constraint. No se ejecutó rollback.
+
+Producción no se usó.
