@@ -66,8 +66,18 @@ const grupos: Grupo[] = [
   },
 ]
 
+const enlaces = [...transversales, ...grupos.flatMap((grupo) => grupo.enlaces)]
+
 function esActivo(pathname: string, href: string) {
-  return pathname === href || pathname.startsWith(`${href}/`)
+  if (pathname === href) return true
+  if (!pathname.startsWith(`${href}/`)) return false
+  const hayEnlaceMasEspecifico = enlaces.some(
+    (enlace) =>
+      enlace.href !== href &&
+      enlace.href.startsWith(`${href}/`) &&
+      (pathname === enlace.href || pathname.startsWith(`${enlace.href}/`)),
+  )
+  return !hayEnlaceMasEspecifico
 }
 
 function grupoActivoIdPara(pathname: string) {
