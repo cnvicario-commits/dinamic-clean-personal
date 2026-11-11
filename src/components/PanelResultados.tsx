@@ -21,6 +21,15 @@ import {
   type ResultadoMensualDetalle,
   type CampoResultado,
 } from "@/types/resultados";
+import {
+  etiquetaPctSobreVentasAcumulado,
+  etiquetaSumaAcumulado,
+  pctSobreVentasAcumulado,
+  sumarDetalleConceptoEnRango,
+  sumarMontosEnRango,
+  valorNumericoSumaAcumulado,
+  type SumaAcumulado,
+} from "@/lib/resultados/acumulado";
 
 function comparar(a: string, b: string) {
   return a.localeCompare(b, "es", { sensitivity: "base" });
@@ -152,17 +161,8 @@ export default function PanelResultados({
   // Acumulado del rango elegido (suma de cada rubro, no promedio de los
   // porcentajes): mismo criterio que la columna "Total" del Excel original.
   // Solo tiene sentido si el rango cubre más de un mes.
-  function sumarRubro(campo: CampoResultado): number | null {
-    let tieneValor = false;
-    let suma = 0;
-    rango.forEach((r) => {
-      const v = r[campo];
-      if (v !== null) {
-        tieneValor = true;
-        suma += v;
-      }
-    });
-    return tieneValor ? suma : null;
+  function sumarRubro(campo: CampoResultado): SumaAcumulado {
+    return sumarMontosEnRango(rango.map((r) => r[campo]));
   }
 
   const acumulado =
@@ -172,22 +172,27 @@ export default function PanelResultados({
             acc[rubro.campo] = sumarRubro(rubro.campo);
             return acc;
           },
-          {} as Record<CampoResultado, number | null>,
+          {} as Record<CampoResultado, SumaAcumulado>,
         )
       : null;
 
   if (acumulado) {
     const ventasAcumuladas = acumulado.total_ventas;
+    const pctGrafico = (rubro: SumaAcumulado): number | null => {
+      const pct = pctSobreVentasAcumulado(rubro, ventasAcumuladas);
+      return pct.estado === "ok" ? pct.valor : null;
+    };
     datosGrafico.push({
       label: "Acumulado",
-      total_ventas: acumulado.total_ventas,
-      total_costos_directos: acumulado.total_costos_directos,
-      resultado_bruto: acumulado.resultado_bruto,
-      resultado_periodo: acumulado.resultado_periodo,
-      pct_total_ventas: ventasAcumuladas ? 100 : null,
-      pct_total_costos_directos: pctSobreVentas(acumulado.total_costos_directos, ventasAcumuladas),
-      pct_resultado_bruto: pctSobreVentas(acumulado.resultado_bruto, ventasAcumuladas),
-      pct_resultado_periodo: pctSobreVentas(acumulado.resultado_periodo, ventasAcumuladas),
+      total_ventas: valorNumericoSumaAcumulado(acumulado.total_ventas),
+      total_costos_directos: valorNumericoSumaAcumulado(acumulado.total_costos_directos),
+      resultado_bruto: valorNumericoSumaAcumulado(acumulado.resultado_bruto),
+      resultado_periodo: valorNumericoSumaAcumulado(acumulado.resultado_periodo),
+      pct_total_ventas:
+        ventasAcumuladas.estado === "ok" && ventasAcumuladas.valor !== 0 ? 100 : null,
+      pct_total_costos_directos: pctGrafico(acumulado.total_costos_directos),
+      pct_resultado_bruto: pctGrafico(acumulado.resultado_bruto),
+      pct_resultado_periodo: pctGrafico(acumulado.resultado_periodo),
     });
   }
 
@@ -390,17 +395,32 @@ export default function PanelResultados({
                         })}
                         {acumulado &&
                           (() => {
-                            const valor = acumulado[rubro.campo];
+                            const sumaRubro = acumulado[rubro.campo];
+                            const etiquetaMonto = etiquetaSumaAcumulado(sumaRubro, formatearMonto);
                             const incidencia =
-                              rubro.esIncidenciaSobreVentas && acumulado.total_ventas
-                                ? ((valor ?? 0) / acumulado.total_ventas) * 100
+                              rubro.esIncidenciaSobreVentas
+                                ? etiquetaPctSobreVentasAcumulado(
+                                    pctSobreVentasAcumulado(sumaRubro, acumulado.total_ventas),
+                                  )
                                 : null;
                             return (
                               <td className="px-4 py-2 text-right text-slate-700 border-l border-slate-300 bg-slate-50">
-                                <div>{formatearMonto(valor)}</div>
-                                {incidencia !== null && (
-                                  <div className="text-xs text-slate-400 font-normal">
-                                    {incidencia.toFixed(1)}% s/ventas
+                                <div
+                                  title={etiquetaMonto.titulo}
+                                  className={
+                                    etiquetaMonto.resaltarAviso ? "text-amber-700" : undefined
+                                  }
+                                >
+                                  {etiquetaMonto.texto}
+                                </div>
+                                {incidencia && (
+                                  <div
+                                    title={incidencia.titulo}
+                                    className={`text-xs font-normal ${
+                                      incidencia.resaltarAviso ? "text-amber-600" : "text-slate-400"
+                                    }`}
+                                  >
+                                    {incidencia.texto}
                                   </div>
                                 )}
                               </td>
@@ -440,20 +460,32 @@ export default function PanelResultados({
                                   )}
                                 </td>
                               ))}
-                              {acumulado && (
-                                <td className="px-4 py-1 text-right text-xs text-slate-500 border-l border-slate-300 bg-slate-100/60">
-                                  {formatearMonto(
-                                    rango.reduce(
-                                      (suma, r) =>
-                                        suma +
-                                        (mapaDetalle.get(
-                                          `${rubroSlug}|${concepto}|${r.anio}-${r.mes}`,
-                                        ) ?? 0),
-                                      0,
+                              {acumulado && (() => {
+                                const sumaDetalle = sumarDetalleConceptoEnRango(
+                                  rango.map((r) =>
+                                    mapaDetalle.get(
+                                      `${rubroSlug}|${concepto}|${r.anio}-${r.mes}`,
                                     ),
-                                  )}
-                                </td>
-                              )}
+                                  ),
+                                );
+                                const etiqueta = etiquetaSumaAcumulado(sumaDetalle, formatearMonto);
+                                return (
+                                  <td
+                                    className="px-4 py-1 text-right text-xs border-l border-slate-300 bg-slate-100/60"
+                                    title={etiqueta.titulo}
+                                  >
+                                    <span
+                                      className={
+                                        etiqueta.resaltarAviso
+                                          ? "text-amber-700"
+                                          : "text-slate-500"
+                                      }
+                                    >
+                                      {etiqueta.texto}
+                                    </span>
+                                  </td>
+                                );
+                              })()}
                             </tr>
                           ))
                         ))}
