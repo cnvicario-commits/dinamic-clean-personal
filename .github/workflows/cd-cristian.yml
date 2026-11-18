@@ -72,7 +72,7 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
-          git fetch --no-tags origin "$HEAD_SHA"
+          git fetch --no-tags --depth=2 origin "$HEAD_SHA"
           git diff --name-only "$HEAD_SHA^" "$HEAD_SHA" | node scripts/ci/select-cristian-services.mjs >> "$GITHUB_OUTPUT"
 
   publish:
