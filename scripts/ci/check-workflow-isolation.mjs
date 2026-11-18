@@ -28,7 +28,7 @@ if (/\n {2}push:/.test(cristian)) reject('cristian_push_trigger')
 if (!cristian.includes('evaluate-cristian-deploy-gate.mjs')) reject('cristian_gate')
 if (!cristian.includes('read-successful-ci-run.mjs')) reject('cristian_ci_lookup')
 if (cristian.includes('CI_CONCLUSION=success') || cristian.includes('CI_CONCLUSION="success"')) reject('cristian_hardcoded_ci')
-if (!cristian.includes('environment: cristian-pruebas')) reject('cristian_environment')
+if (cristian.includes('environment:')) reject('cristian_environment')
 if (cristian.includes('apply-forward-migrations.sh')) reject('cristian_auto_migration')
 if (cristian.includes('/opt/dinamic-clean/')) reject('cristian_production_path')
 
