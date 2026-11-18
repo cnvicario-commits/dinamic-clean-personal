@@ -96,9 +96,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SHA: ${{ needs.gate.outputs.sha }}
           SERVICES: ${{ needs.gate.outputs.services }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.CRISTIAN_NEXT_PUBLIC_SUPABASE_URL }}
+          # Public Cristian Test endpoints (Supabase ref edruejzwwnixsjsadbgb).
+          NEXT_PUBLIC_SUPABASE_URL: https://edruejzwwnixsjsadbgb.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.CRISTIAN_NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          NEXT_PUBLIC_API_URL: ${{ vars.CRISTIAN_NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_API_URL: http://170.239.85.196:3006
           APP_DEPLOYMENT_ENV: cristian-pruebas
           NODE_ENV: production
           CRISTIAN_FRONTEND_BUILD: "1"
@@ -145,6 +146,7 @@ jobs:
           KNOWN_HOSTS: ${{ secrets.CRISTIAN_DEPLOY_KNOWN_HOSTS }}
           HOST: ${{ secrets.CRISTIAN_DEPLOY_HOST }}
           USER_NAME: ${{ secrets.CRISTIAN_DEPLOY_USER }}
+          SSH_PORT: "37783"
           SERVICES: ${{ needs.gate.outputs.services }}
           SHA: ${{ needs.gate.outputs.sha }}
           RUN_ID: ${{ needs.gate.outputs.run_id }}
@@ -158,6 +160,7 @@ jobs:
           fi
           [[ "$SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$SSH_PORT" =~ ^[1-9][0-9]*$ ]]
           install -d -m 700 ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
@@ -165,7 +168,7 @@ jobs:
           deploy_one() {
             local service="$1" digest="$2"
             [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
-            ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            ssh -p "$SSH_PORT" -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
               -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
               "${USER_NAME}@${HOST}" "cristian-apply ${service} ${SHA} ${digest} ${RUN_ID}"
           }
