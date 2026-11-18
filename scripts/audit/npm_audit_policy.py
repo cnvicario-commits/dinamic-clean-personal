@@ -12,9 +12,16 @@ BRACES_DEV_CHAIN_PACKAGES = frozenset(
     {
         "braces",
         "eslint-config-next",
+        "eslint-import-resolver-typescript",
         "@next/eslint-plugin-next",
+        "@typescript-eslint/eslint-plugin",
+        "@typescript-eslint/parser",
+        "@typescript-eslint/type-utils",
+        "@typescript-eslint/typescript-estree",
+        "@typescript-eslint/utils",
         "fast-glob",
         "micromatch",
+        "typescript-eslint",
     }
 )
 
@@ -23,6 +30,10 @@ VITEST_DEV_TOOLCHAIN_PACKAGES = frozenset(
         "vitest",
         "tinypool",
         "@vitest/mocker",
+        "fdir",
+        "picomatch",
+        "tinyglobby",
+        "vite",
     }
 )
 

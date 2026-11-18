@@ -4,17 +4,32 @@
     "packages": [
       "braces",
       "eslint-config-next",
+      "eslint-import-resolver-typescript",
       "@next/eslint-plugin-next",
+      "@typescript-eslint/eslint-plugin",
+      "@typescript-eslint/parser",
+      "@typescript-eslint/type-utils",
+      "@typescript-eslint/typescript-estree",
+      "@typescript-eslint/utils",
       "fast-glob",
-      "micromatch"
+      "micromatch",
+      "typescript-eslint"
     ],
-    "description": "Phase 1 dev-only eslint-config-next / braces chain (non-production runtime)"
+    "description": "Phase 1 dev-only eslint-config-next / typescript-eslint / glob chain (non-production runtime; npm audit lists each node separately)"
   },
   "vitest-dev-toolchain": {
     "enabled": true,
     "owner_explicit_acceptance": true,
-    "owner_acceptance_recorded": "2026-10-06 — Owner explicit acceptance (Phase 4 close): dev/test-only tooling; not production runtime; advisories remain visible in npm audit; severity not downgraded; vitest@3.2.7 attempted; vitest@5.0.3 blocked by @types/node@20 peer; tests pass. Does not auto-accept future packages.",
-    "packages": ["vitest", "tinypool", "@vitest/mocker"],
+    "owner_acceptance_recorded": "2026-10-06 — Owner explicit acceptance (Phase 4 close): dev/test-only tooling; not production runtime; advisories remain visible in npm audit; severity not downgraded; vitest@3.2.7 attempted; vitest@5.0.3 blocked by @types/node@20 peer; tests pass. 2026-11-18 — DIN-417: vitest@5.1.1 + @types/node@22; transitive vite/picomatch/fdir/tinyglobby accepted as dev-only audit nodes for GHSA-fc5q-39xc-vjpf (no patched picomatch release). Does not auto-accept future packages.",
+    "packages": [
+      "vitest",
+      "tinypool",
+      "@vitest/mocker",
+      "fdir",
+      "picomatch",
+      "tinyglobby",
+      "vite"
+    ],
     "max_severity": "critical",
     "description": "Vitest/tinypool/@vitest/mocker npm audit advisories (max CRITICAL). Dev/test toolchain only. Separate from braces-dev-chain."
   }
