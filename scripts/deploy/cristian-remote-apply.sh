@@ -2,6 +2,7 @@
 # Apply one Cristian service from an immutable image.
 # The record changes only after the recreated container reports that release.
 set -euo pipefail
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 service="${1:?usage: cristian-remote-apply.sh api|frontend sha digest run-id}"
 sha="${2:?sha}"
@@ -65,17 +66,19 @@ compose_for() {
 
 probe_service() {
   local release_sha="$1"
+  local node_bin="${NODE_BIN:-$(command -v node 2>/dev/null || echo /usr/bin/node)}"
+  local probe_attempts="${PROBE_ATTEMPTS:-15}"
   RELEASE_SHA="$release_sha"
   export RELEASE_SHA
   if [[ "$service" == "api" ]]; then
-    node "$here/assess-health.mjs" api-healthz "http://127.0.0.1:${CRISTIAN_API_HOST_PORT:-3006}/healthz" || return 1
-    node "$here/assess-health.mjs" api-readyz "http://127.0.0.1:${CRISTIAN_API_HOST_PORT:-3006}/readyz" || return 1
+    PROBE_ATTEMPTS="$probe_attempts" "$node_bin" "$here/assess-health.mjs" api-healthz "http://127.0.0.1:${CRISTIAN_API_HOST_PORT:-3006}/healthz" || return 1
+    PROBE_ATTEMPTS="$probe_attempts" "$node_bin" "$here/assess-health.mjs" api-readyz "http://127.0.0.1:${CRISTIAN_API_HOST_PORT:-3006}/readyz" || return 1
   else
-    node "$here/assess-health.mjs" frontend-healthz "http://127.0.0.1:${CRISTIAN_FRONTEND_HOST_PORT:-8086}/api/healthz" || return 1
+    PROBE_ATTEMPTS="$probe_attempts" "$node_bin" "$here/assess-health.mjs" frontend-healthz "http://127.0.0.1:${CRISTIAN_FRONTEND_HOST_PORT:-8086}/api/healthz" || return 1
     if [[ "${DINAMIC_DEPLOY_FIXTURE:-}" == "1" ]]; then
       [[ "${FIXTURE_LOGIN_HTTP:-200}" == "200" ]] || return 1
     else
-      curl -fsS --max-time 10 -o /dev/null "http://127.0.0.1:${CRISTIAN_FRONTEND_HOST_PORT:-8086}/login" || return 1
+      "$(command -v curl 2>/dev/null || echo /usr/bin/curl)" -fsS --max-time 10 -o /dev/null "http://127.0.0.1:${CRISTIAN_FRONTEND_HOST_PORT:-8086}/login" || return 1
     fi
   fi
 }
@@ -146,6 +149,9 @@ prepare_image() {
 prepare_image
 compose="$(compose_for)"
 recreate_one "$compose" "$service" "${image_repo}:${sha}" "$sha" || finish_failure after_recreate recreate
+if [[ "$service" == "frontend" && "${DINAMIC_DEPLOY_FIXTURE:-}" != "1" ]]; then
+  sleep "${CRISTIAN_FRONTEND_PROBE_DELAY:-5}"
+fi
 probe_service "$sha" || finish_failure after_recreate health
 node "$here/release-state.mjs" commit "$state" cristian "$service" >/dev/null
 echo "DEPLOY_CONFIRMED ${service} ${sha}"
