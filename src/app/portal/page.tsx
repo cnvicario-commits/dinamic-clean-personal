@@ -2,6 +2,15 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/server'
 import LogoutButton from '@/components/LogoutButton'
+import type { Role } from '@/lib/api/generated/types'
+import { puedeAcceder } from '@/utils/permisos'
+
+function nombreSaludo(email: string): string {
+  const limpio = email.trim()
+  if (!limpio) return 'usuario'
+  const arroba = limpio.indexOf('@')
+  return arroba > 0 ? limpio.slice(0, arroba) : limpio
+}
 
 const svgProps = {
   viewBox: '0 0 24 24',
@@ -135,7 +144,15 @@ export default async function PortalPage() {
     redirect('/login')
   }
 
-  const email = session.user.email ?? 'usuario'
+  const email = session.user.email ?? ''
+  const { data: perfil } = await supabase
+    .from('perfiles')
+    .select('rol')
+    .eq('id', session.user.id)
+    .single()
+  const rol = (perfil?.rol as Role) ?? null
+  const modulosVisibles = MODULOS.filter((m) => puedeAcceder(rol, m.href))
+  const datosVisibles = DATOS.filter((d) => puedeAcceder(rol, d.href))
 
   return (
     <div className="font-sans min-h-screen bg-[#0f172b] flex flex-col">
@@ -144,7 +161,9 @@ export default async function PortalPage() {
           <p className="text-xl font-extrabold tracking-wide">
             <span className="text-[#00d5be]">PORTAL</span> <span className="text-white">DINAMIC</span>
           </p>
-          <p className="text-sm text-[#8b9bb4] mt-0.5">Hola, {email}</p>
+          <p className="text-sm text-[#8b9bb4] mt-0.5" title={email || undefined}>
+            Hola, {nombreSaludo(email)}
+          </p>
         </div>
         <div className="self-end sm:self-auto">
           <LogoutButton />
@@ -156,7 +175,7 @@ export default async function PortalPage() {
         <h1 className="text-white text-2xl sm:text-[28px] font-bold mb-8 text-center">¿Qué querés hacer hoy?</h1>
 
         <div className="w-full max-w-[1180px] grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-5">
-          {MODULOS.map((m) => (
+          {modulosVisibles.map((m) => (
             <Link
               key={m.href}
               href={m.href}
@@ -185,9 +204,10 @@ export default async function PortalPage() {
           ))}
         </div>
 
+        {datosVisibles.length > 0 && (
         <div className="w-full max-w-[1180px] mt-8 flex items-center gap-3.5 flex-wrap">
           <span className="text-[#67768f] text-xs font-bold tracking-[1.2px] uppercase">Datos</span>
-          {DATOS.map((d) => (
+          {datosVisibles.map((d) => (
             <Link
               key={d.href}
               href={d.href}
@@ -204,6 +224,7 @@ export default async function PortalPage() {
             </Link>
           ))}
         </div>
+        )}
       </div>
     </div>
   )
